@@ -11,6 +11,7 @@ import {
 } from "@/src/lib/room/actions";
 import type { RoomState } from "@/src/lib/room/types";
 import { Player } from "./player";
+import { AddMusic } from "./add-music";
 import { sampleClockOffset } from "./clock-client";
 
 export function Room({
@@ -104,7 +105,7 @@ export function Room({
         <p className="muted">Nothing playing — add a song to start the jam.</p>
       )}
 
-      {/* Add-music controls (Task 5) mount here. */}
+      <AddMusic roomId={initial.id} />
 
       <h2 style={{ fontSize: "1.1rem", margin: "2rem 0 0.6rem" }}>Up next ({queue.length})</h2>
       {queue.length === 0 ? (
