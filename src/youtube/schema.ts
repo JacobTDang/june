@@ -56,3 +56,28 @@ export type YouTubeVideoListResponse = z.infer<typeof videoListResponseSchema>;
 export function parseVideoListResponse(json: unknown): YouTubeVideoListResponse {
   return videoListResponseSchema.parse(json);
 }
+
+/**
+ * A `search.list` response. Its items carry only an id (video/channel/playlist)
+ * and a snippet — no duration or status — which is why a search must be
+ * followed by a `videos.list` call to get playable details.
+ */
+export const searchListResponseSchema = z.object({
+  items: z.array(
+    z.object({
+      id: z.object({
+        kind: z.string().optional(),
+        // Present for video results (type=video); absent for channels/playlists.
+        videoId: z.string().optional(),
+      }),
+    }),
+  ),
+  nextPageToken: z.string().optional(),
+});
+
+export type YouTubeSearchListResponse = z.infer<typeof searchListResponseSchema>;
+
+/** Validate a raw `search.list` API response, throwing on any unexpected shape. */
+export function parseSearchListResponse(json: unknown): YouTubeSearchListResponse {
+  return searchListResponseSchema.parse(json);
+}
