@@ -17,10 +17,11 @@ type Tab = "search" | "link" | "playlist";
 type Playlist = { id: string; title: string; itemCount: number };
 
 const inputStyle: React.CSSProperties = {
-  padding: "0.55rem 0.8rem",
-  borderRadius: 10,
+  padding: "0.7rem 1rem",
+  borderRadius: 999,
   border: "1px solid var(--line)",
-  background: "var(--card)",
+  background: "rgba(255,255,255,0.04)",
+  color: "var(--ink)",
   fontSize: "0.95rem",
   fontFamily: "var(--font-sans)",
   flex: 1,

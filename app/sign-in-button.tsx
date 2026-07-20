@@ -13,7 +13,7 @@ export function SignInButton() {
   }
 
   return (
-    <button onClick={signIn} className="btn btn--primary">
+    <button onClick={signIn} className="btn btn--primary btn--lg">
       Sign in with Google
     </button>
   );

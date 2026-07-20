@@ -26,6 +26,7 @@ export function Room({
   const router = useRouter();
   const [state, setState] = useState<RoomState>(initial);
   const [offset, setOffset] = useState<number | null>(null);
+  const [copied, setCopied] = useState(false);
 
   const refresh = useCallback(async () => {
     const next = await getRoomState(initial.id);
@@ -83,43 +84,69 @@ export function Room({
     router.push("/");
   }
 
+  async function copyCode() {
+    try {
+      await navigator.clipboard.writeText(initial.id);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1400);
+    } catch {
+      /* clipboard blocked — the code is visible to type anyway */
+    }
+  }
+
   const { nowPlaying, queue, participants } = state;
 
   return (
-    <main className="room">
+    <main className="room rise">
       <div className="room__bar">
-        <span className="pill">
-          <span className="pill__dot" />
-          {initial.id}
-        </span>
-        <button className="btn" onClick={onLeave}>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
+          <span className="pill">
+            <span className="pill__dot" />
+            live
+          </span>
+          <button
+            className="pill pill--code"
+            onClick={copyCode}
+            title="Copy room code"
+            style={{ cursor: "pointer" }}
+          >
+            {copied ? "copied ✓" : initial.id}
+          </button>
+        </div>
+        <button className="btn btn--sm" onClick={onLeave}>
           Leave
         </button>
       </div>
 
       <section className="stage">
-        <div className="player-wrap">
-          {offset !== null ? (
-            <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
-          ) : (
-            <div className="player-skeleton">
-              <span className="muted">Syncing…</span>
-            </div>
-          )}
-        </div>
-
         {nowPlaying ? (
-          <NowPlaying
-            nowPlaying={nowPlaying}
-            offset={offset ?? 0}
-            onSkip={() => void skipTrack(initial.id)}
-          />
+          <>
+            <div className="player-wrap">
+              {offset !== null ? (
+                <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
+              ) : (
+                <div className="player-skeleton">
+                  <span className="muted">Syncing…</span>
+                </div>
+              )}
+            </div>
+            <NowPlaying
+              nowPlaying={nowPlaying}
+              offset={offset ?? 0}
+              onSkip={() => void skipTrack(initial.id)}
+            />
+            <p className="attribution">
+              Streamed from YouTube · everyone hears the same moment
+            </p>
+          </>
         ) : (
-          <p className="muted center" style={{ marginTop: "1rem" }}>
-            Nothing playing — add a song to start the jam.
-          </p>
+          <div className="empty">
+            <div className="empty__title">Your room is ready.</div>
+            <p className="muted" style={{ marginTop: "0.5rem" }}>
+              Add the first song — it starts playing for everyone at once.
+            </p>
+          </div>
         )}
-        <p className="attribution muted">Videos are streamed from YouTube.</p>
       </section>
 
       <AddMusic roomId={initial.id} />
@@ -127,7 +154,7 @@ export function Room({
       <div className="columns">
         <section>
           <div className="section__head">
-            <h2 className="section__title">Up next ({queue.length})</h2>
+            <h2 className="section__title">Up next</h2>
             {queue.length > 0 && (
               <button className="btn btn--sm" onClick={() => void clearQueue(initial.id)}>
                 Clear
@@ -135,7 +162,7 @@ export function Room({
             )}
           </div>
           {queue.length === 0 ? (
-            <p className="muted">The queue is empty.</p>
+            <p className="muted">Nothing queued yet.</p>
           ) : (
             <ul className="list">
               {queue.map((t) => (
@@ -148,7 +175,7 @@ export function Room({
                   )}
                   <div className="track__meta">
                     <div className="track__title">{t.title}</div>
-                    <div className="muted track__sub">
+                    <div className="track__sub">
                       {t.artist ?? ""}
                       {t.addedByName ? ` · ${t.addedByName}` : ""}
                     </div>
@@ -168,7 +195,7 @@ export function Room({
 
         <section>
           <div className="section__head">
-            <h2 className="section__title">In the room ({participants.length})</h2>
+            <h2 className="section__title">In the room</h2>
           </div>
           <ul className="people">
             {participants.map((p) => (
@@ -176,7 +203,7 @@ export function Room({
                 <span className="avatar">{(p.name[0] ?? "?").toUpperCase()}</span>
                 <span>
                   {p.name}
-                  {p.userId === me.userId ? " (you)" : ""}
+                  {p.userId === me.userId ? " · you" : ""}
                 </span>
               </li>
             ))}

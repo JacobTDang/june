@@ -23,8 +23,8 @@ export function CreateJamButton({ displayName }: { displayName: string }) {
 
   return (
     <span className="stack">
-      <button className="btn btn--primary" onClick={create} disabled={busy}>
-        {busy ? "Creating…" : "Create a jam"}
+      <button className="btn btn--primary btn--lg" onClick={create} disabled={busy}>
+        {busy ? "Starting…" : "▶  Start a jam"}
       </button>
       {error && <span className="muted">{error}</span>}
     </span>

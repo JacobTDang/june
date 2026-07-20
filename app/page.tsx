@@ -27,43 +27,65 @@ export default async function Home() {
   const youtubeConnected = Boolean((await cookies()).get(PROVIDER_TOKEN_COOKIE)?.value);
 
   return (
-    <main className="container">
-      <h1 className="display">june</h1>
-      <p className="lead">A jam room for YouTube Music — listen together, in sync.</p>
+    <main className="container hero rise">
+      <h1 className="display">
+        june
+      </h1>
+      <p className="lead">
+        Play the same song, at the same second, with your friends.
+      </p>
 
       {!user ? (
-        <SignInButton />
+        <div className="stack" style={{ marginTop: "2.5rem" }}>
+          <SignInButton />
+          <span className="faint" style={{ fontSize: "0.85rem" }}>
+            Sign in to start a room — your friends join with a code.
+          </span>
+        </div>
       ) : (
-        <div className="stack" style={{ gap: "2rem" }}>
-          <div className="stack">
-            <h2 style={{ fontSize: "1.25rem" }}>Start listening</h2>
-            <CreateJamButton displayName={displayNameOf(user)} />
+        <div className="stack" style={{ marginTop: "2.5rem", gap: "1.5rem", width: "100%" }}>
+          <CreateJamButton displayName={displayNameOf(user)} />
+
+          <div
+            className="stack"
+            style={{ gap: "0.5rem", width: "100%", maxWidth: "22rem" }}
+          >
+            <span className="faint" style={{ fontSize: "0.8rem", letterSpacing: "0.02em" }}>
+              or join a friend&apos;s room
+            </span>
             <JoinJamForm />
           </div>
 
-          <div className="stack">
+          <div
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              gap: "0.75rem 1.25rem",
+              alignItems: "center",
+              marginTop: "1.5rem",
+              paddingTop: "1.5rem",
+              borderTop: "1px solid var(--line)",
+              width: "100%",
+              fontSize: "0.85rem",
+            }}
+          >
             {youtubeConnected ? (
               <>
                 <span className="pill">
                   <span className="pill__dot" />
                   YouTube connected
                 </span>
-                <a href="/playlists" className="btn">
+                <a href="/playlists" className="muted">
                   Your playlists →
                 </a>
               </>
             ) : (
-              <>
-                <p className="muted">Connect YouTube to add your library to a jam.</p>
-                <ConnectYouTubeButton />
-              </>
+              <ConnectYouTubeButton />
             )}
-          </div>
-
-          <div className="stack">
-            <p className="muted">Signed in as {user.email}</p>
+            <span style={{ flex: 1 }} />
+            <span className="faint">{user.email}</span>
             <form action="/auth/signout" method="post">
-              <button type="submit" className="btn">
+              <button type="submit" className="btn btn--sm">
                 Sign out
               </button>
             </form>

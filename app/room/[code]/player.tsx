@@ -170,7 +170,7 @@ export function Player({
       {!started && (
         <button
           onClick={start}
-          className="btn btn--primary"
+          className="btn btn--primary btn--lg"
           style={{
             position: "absolute",
             inset: 0,
@@ -179,7 +179,7 @@ export function Player({
             height: "fit-content",
           }}
         >
-          ▶ Tap to join the jam
+          ▶  Tap to listen in
         </button>
       )}
     </div>
