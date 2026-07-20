@@ -177,16 +177,21 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
   > | null;
   if (!room || room.now_playing_video_id !== endedVideoId) return; // already advanced
 
-  const endedAt =
-    (room.now_playing_started_at ?? Date.now()) + (room.now_playing_duration_ms ?? 0);
   const next = await popOldest(supabase, roomId);
 
-  const update = next ? nextFields(next, endedAt) : NP_CLEARED;
+  // Start the next track now (like skipTrack). Deriving it from the ended
+  // track's metadata duration schedules it in the future whenever the real
+  // video is shorter than its metadata, which stalls/loops playback.
+  const update = next ? nextFields(next, Date.now()) : NP_CLEARED;
   const { data: applied } = await supabase
     .from("rooms")
     .update(update)
     .eq("id", roomId)
-    .eq("now_playing_video_id", endedVideoId) // guard: only the winner transitions
+    .eq("now_playing_video_id", endedVideoId)
+    // Guard on the exact track instance we read, not just its video id — with
+    // duplicate videos the id is unchanged after advancing, so concurrent
+    // "ended" events would otherwise double-advance.
+    .eq("now_playing_started_at", room.now_playing_started_at)
     .select("id");
 
   if (next && applied && applied.length > 0) {

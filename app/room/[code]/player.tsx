@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { advanceTrack } from "@/src/lib/room/actions";
+import { playbackCorrection } from "@/src/lib/room/sync";
 import type { RoomNowPlaying } from "@/src/lib/room/types";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
@@ -134,12 +135,18 @@ export function Player({
       const np = nowPlayingRef.current;
       if (!player || !np || currentVideo.current !== np.videoId) return;
       const expected = (Date.now() + offsetRef.current - np.startedAt) / 1000;
-      if (expected * 1000 >= np.durationMs) {
+      const action = playbackCorrection({
+        expectedSeconds: expected,
+        actualSeconds: player.getCurrentTime(),
+        durationMs: np.durationMs,
+        driftThresholdSeconds: DRIFT_THRESHOLD_S,
+      });
+      if (action.kind === "advance") {
         void advanceTrack(roomId, np.videoId);
         return;
       }
-      if (Math.abs(player.getCurrentTime() - expected) > DRIFT_THRESHOLD_S) {
-        player.seekTo(Math.max(0, expected), true);
+      if (action.kind === "seek") {
+        player.seekTo(action.toSeconds, true);
       }
     }, 2000);
     return () => clearInterval(id);
