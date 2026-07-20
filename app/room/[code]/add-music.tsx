@@ -14,14 +14,16 @@ import {
   searchMusicAction,
 } from "@/src/lib/room/add-music";
 
-type Tab = "search" | "link" | "playlist";
+type Tab = "search" | "playlist";
 type Playlist = { id: string; title: string; itemCount: number };
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "search", label: "Search" },
-  { id: "link", label: "Paste link" },
   { id: "playlist", label: "My playlists" },
 ];
+
+/** A pasted YouTube link is added directly; anything else is searched. */
+const YT_LINK = /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i;
 
 /** A consistently framed cover thumbnail, with a music-note fallback. */
 function Cover({ url }: { url?: string | null }) {
@@ -44,10 +46,12 @@ export function AddMusic({ roomId }: { roomId: string }) {
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MusicCandidate[]>([]);
-  const [link, setLink] = useState("");
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
   const [openPlaylist, setOpenPlaylist] = useState<Playlist | null>(null);
   const [playlistTracks, setPlaylistTracks] = useState<VideoMeta[] | null>(null);
+
+  const trimmed = query.trim();
+  const isLink = YT_LINK.test(trimmed);
 
   async function run<T>(fn: () => Promise<T>, ok?: (r: T) => string) {
     setBusy(true);
@@ -62,8 +66,28 @@ export function AddMusic({ roomId }: { roomId: string }) {
     }
   }
 
+  function submitSearch(e: React.FormEvent) {
+    e.preventDefault();
+    if (!trimmed) return;
+    if (isLink) {
+      // Paste-a-link, folded into the same field.
+      void run(
+        () => addByLink(roomId, trimmed),
+        () => {
+          setQuery("");
+          setResults([]);
+          return "Added to the queue.";
+        },
+      );
+    } else {
+      void run(async () => setResults(await searchMusicAction(trimmed)));
+    }
+  }
+
   return (
-    <div className="card add">
+    <div className="add">
+      <div className="eyebrow">Add music</div>
+
       <div className="add__tabs" role="tablist">
         {TABS.map((t) => (
           <button
@@ -83,22 +107,16 @@ export function AddMusic({ roomId }: { roomId: string }) {
 
       {tab === "search" && (
         <>
-          <form
-            className="add__search"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void run(async () => setResults(await searchMusicAction(query)));
-            }}
-          >
+          <form className="add__search" onSubmit={submitSearch}>
             <input
               className="input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search for a song or artist"
-              aria-label="Search"
+              placeholder="Search a song, or paste a YouTube link"
+              aria-label="Search or paste a link"
             />
-            <button type="submit" className="btn" disabled={busy}>
-              Search
+            <button type="submit" className={isLink ? "btn btn--primary" : "btn"} disabled={busy}>
+              {isLink ? "Add" : "Search"}
             </button>
           </form>
           {results.length > 0 && (
@@ -115,7 +133,14 @@ export function AddMusic({ roomId }: { roomId: string }) {
                     disabled={busy}
                     aria-label={`Add ${c.title}`}
                     onClick={() =>
-                      void run(() => addCandidate(roomId, c), () => `Added “${c.title}”`)
+                      void run(
+                        () => addCandidate(roomId, c),
+                        () => {
+                          setQuery("");
+                          setResults([]);
+                          return `Added “${c.title}”`;
+                        },
+                      )
                     }
                   >
                     <Plus size={16} />
@@ -125,33 +150,6 @@ export function AddMusic({ roomId }: { roomId: string }) {
             </ul>
           )}
         </>
-      )}
-
-      {tab === "link" && (
-        <form
-          className="add__search"
-          onSubmit={(e) => {
-            e.preventDefault();
-            void run(
-              () => addByLink(roomId, link),
-              () => {
-                setLink("");
-                return "Added to the queue.";
-              },
-            );
-          }}
-        >
-          <input
-            className="input"
-            value={link}
-            onChange={(e) => setLink(e.target.value)}
-            placeholder="Paste a YouTube link"
-            aria-label="YouTube link"
-          />
-          <button type="submit" className="btn btn--primary" disabled={busy}>
-            Add
-          </button>
-        </form>
       )}
 
       {tab === "playlist" && !openPlaylist && (

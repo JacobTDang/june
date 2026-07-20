@@ -45,7 +45,7 @@ export function NowPlaying({
       <div className="progress" aria-hidden>
         <div className="progress__fill" style={{ width: `${pct}%` }} />
       </div>
-      <div className="now__times muted">
+      <div className="now__times">
         <span>{fmt(position)}</span>
         {nowPlaying.addedByName && <span>added by {nowPlaying.addedByName}</span>}
         <span>{fmt(nowPlaying.durationMs)}</span>

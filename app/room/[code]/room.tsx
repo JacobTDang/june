@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/client";
 import {
   clearQueue,
@@ -99,18 +100,13 @@ export function Room({
   return (
     <main className="room rise">
       <div className="room__bar">
-        <div style={{ display: "flex", alignItems: "center", gap: "0.6rem" }}>
-          <span className="pill">
-            <span className="pill__dot" />
-            live
+        <div className="room__barL">
+          <span className="live">
+            <span className="live__dot" />
+            Live
           </span>
-          <button
-            className="pill pill--code"
-            onClick={copyCode}
-            title="Copy room code"
-            style={{ cursor: "pointer" }}
-          >
-            {copied ? "copied ✓" : initial.id}
+          <button className="code" onClick={copyCode} title="Copy room code">
+            {copied ? "Copied" : initial.id.replace(/-/g, " · ")}
           </button>
         </div>
         <button className="btn btn--sm" onClick={onLeave}>
@@ -149,12 +145,16 @@ export function Room({
         )}
       </section>
 
+      <div className="rule" />
+
       <AddMusic roomId={initial.id} />
+
+      <div className="rule" />
 
       <div className="columns">
         <section>
           <div className="section__head">
-            <h2 className="section__title">Up next</h2>
+            <span className="eyebrow">Up next</span>
             {queue.length > 0 && (
               <button className="btn btn--sm" onClick={() => void clearQueue(initial.id)}>
                 Clear
@@ -185,7 +185,7 @@ export function Room({
                     onClick={() => void removeQueueItem(t.id)}
                     aria-label="Remove"
                   >
-                    ✕
+                    <X size={14} />
                   </button>
                 </li>
               ))}
@@ -195,7 +195,7 @@ export function Room({
 
         <section>
           <div className="section__head">
-            <h2 className="section__title">In the room</h2>
+            <span className="eyebrow">In the room</span>
           </div>
           <ul className="people">
             {participants.map((p) => (

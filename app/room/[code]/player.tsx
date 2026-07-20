@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Play } from "lucide-react";
 import { advanceTrack } from "@/src/lib/room/actions";
 import type { RoomNowPlaying } from "@/src/lib/room/types";
 
@@ -161,9 +162,8 @@ export function Player({
         position: "relative",
         aspectRatio: "16 / 9",
         background: "#000",
-        borderRadius: 12,
+        borderRadius: 8,
         overflow: "hidden",
-        margin: "0.5rem 0 1rem",
       }}
     >
       <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
@@ -179,7 +179,8 @@ export function Player({
             height: "fit-content",
           }}
         >
-          ▶  Tap to listen in
+          <Play size={17} fill="currentColor" strokeWidth={0} />
+          Tap to listen in
         </button>
       )}
     </div>
