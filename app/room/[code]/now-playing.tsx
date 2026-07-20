@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { SkipForward } from "lucide-react";
 import type { RoomNowPlaying } from "@/src/lib/room/types";
+import { playbackProgress } from "@/src/lib/room/progress";
 
 function fmt(ms: number): string {
   const s = Math.max(0, Math.floor(ms / 1000));
@@ -17,17 +19,16 @@ export function NowPlaying({
   offset: number;
   onSkip: () => void;
 }) {
-  const [now, setNow] = useState(() => Date.now());
+  // null until mounted, so the server render and the first client render agree
+  // (both compute a deterministic position). The interval then drives live time.
+  const [now, setNow] = useState<number | null>(null);
   useEffect(() => {
+    setNow(Date.now());
     const id = setInterval(() => setNow(Date.now()), 500);
     return () => clearInterval(id);
   }, []);
 
-  const position = Math.min(
-    Math.max(0, now + offset - nowPlaying.startedAt),
-    nowPlaying.durationMs,
-  );
-  const pct = nowPlaying.durationMs > 0 ? (position / nowPlaying.durationMs) * 100 : 0;
+  const { position, pct } = playbackProgress(now, offset, nowPlaying);
 
   return (
     <div className="now">
@@ -37,7 +38,8 @@ export function NowPlaying({
           {nowPlaying.artist && <div className="muted">{nowPlaying.artist}</div>}
         </div>
         <button className="btn" onClick={onSkip}>
-          ⏭ Skip
+          <SkipForward size={16} />
+          Skip
         </button>
       </div>
       <div className="progress" aria-hidden>
