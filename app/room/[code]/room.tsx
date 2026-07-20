@@ -10,6 +10,8 @@ import {
   skipTrack,
 } from "@/src/lib/room/actions";
 import type { RoomState } from "@/src/lib/room/types";
+import { Player } from "./player";
+import { sampleClockOffset } from "./clock-client";
 
 export function Room({
   initial,
@@ -20,6 +22,7 @@ export function Room({
 }) {
   const router = useRouter();
   const [state, setState] = useState<RoomState>(initial);
+  const [offset, setOffset] = useState<number | null>(null);
 
   const refresh = useCallback(async () => {
     const next = await getRoomState(initial.id);
@@ -55,6 +58,13 @@ export function Room({
     };
   }, [initial.id, refresh]);
 
+  // Estimate the client→server clock offset once, for synced playback.
+  useEffect(() => {
+    sampleClockOffset()
+      .then(setOffset)
+      .catch(() => setOffset(0));
+  }, []);
+
   async function onLeave() {
     await leaveRoom(initial.id);
     router.push("/");
@@ -74,18 +84,17 @@ export function Room({
         </button>
       </div>
 
-      <h2 style={{ fontSize: "1.1rem", marginBottom: "0.6rem" }}>Now playing</h2>
+      {offset !== null ? (
+        <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
+      ) : (
+        <p className="muted">Syncing clock…</p>
+      )}
+
       {nowPlaying ? (
-        <div className="card row" style={{ justifyContent: "space-between" }}>
-          <span className="row">
-            {nowPlaying.thumbnailUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img className="thumb" src={nowPlaying.thumbnailUrl} alt="" />
-            )}
-            <span>
-              <strong>{nowPlaying.title}</strong>
-              {nowPlaying.artist && <span className="muted"> · {nowPlaying.artist}</span>}
-            </span>
+        <div className="row" style={{ justifyContent: "space-between" }}>
+          <span>
+            <strong>{nowPlaying.title}</strong>
+            {nowPlaying.artist && <span className="muted"> · {nowPlaying.artist}</span>}
           </span>
           <button className="btn" onClick={() => void skipTrack(initial.id)}>
             Skip
@@ -95,7 +104,7 @@ export function Room({
         <p className="muted">Nothing playing — add a song to start the jam.</p>
       )}
 
-      {/* The synced IFrame player and the add-music controls mount here. */}
+      {/* Add-music controls (Task 5) mount here. */}
 
       <h2 style={{ fontSize: "1.1rem", margin: "2rem 0 0.6rem" }}>Up next ({queue.length})</h2>
       {queue.length === 0 ? (
