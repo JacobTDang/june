@@ -12,6 +12,7 @@ import {
 } from "@/src/lib/room/actions";
 import type { RoomState } from "@/src/lib/room/types";
 import { Player } from "./player";
+import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
 import { sampleClockOffset } from "./clock-client";
 
@@ -39,7 +40,6 @@ export function Room({
       void refresh();
     };
 
-    // Authenticate the realtime socket so RLS lets us receive change events.
     void supabase.auth.getSession().then(({ data }) => {
       if (data.session) supabase.realtime.setAuth(data.session.access_token);
     });
@@ -86,8 +86,8 @@ export function Room({
   const { nowPlaying, queue, participants } = state;
 
   return (
-    <main className="container">
-      <div className="row" style={{ justifyContent: "space-between", marginBottom: "1.5rem" }}>
+    <main className="room">
+      <div className="room__bar">
         <span className="pill">
           <span className="pill__dot" />
           {initial.id}
@@ -97,84 +97,92 @@ export function Room({
         </button>
       </div>
 
-      {offset !== null ? (
-        <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
-      ) : (
-        <p className="muted">Syncing clock…</p>
-      )}
-
-      {nowPlaying ? (
-        <div className="row" style={{ justifyContent: "space-between" }}>
-          <span>
-            <strong>{nowPlaying.title}</strong>
-            {nowPlaying.artist && <span className="muted"> · {nowPlaying.artist}</span>}
-          </span>
-          <button className="btn" onClick={() => void skipTrack(initial.id)}>
-            Skip
-          </button>
+      <section className="stage">
+        <div className="player-wrap">
+          {offset !== null ? (
+            <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
+          ) : (
+            <div className="player-skeleton">
+              <span className="muted">Syncing…</span>
+            </div>
+          )}
         </div>
-      ) : (
-        <p className="muted">Nothing playing — add a song to start the jam.</p>
-      )}
-      <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.35rem" }}>
-        Videos are streamed from YouTube.
-      </p>
+
+        {nowPlaying ? (
+          <NowPlaying
+            nowPlaying={nowPlaying}
+            offset={offset ?? 0}
+            onSkip={() => void skipTrack(initial.id)}
+          />
+        ) : (
+          <p className="muted center" style={{ marginTop: "1rem" }}>
+            Nothing playing — add a song to start the jam.
+          </p>
+        )}
+        <p className="attribution muted">Videos are streamed from YouTube.</p>
+      </section>
 
       <AddMusic roomId={initial.id} />
 
-      <div
-        className="row"
-        style={{ justifyContent: "space-between", margin: "2rem 0 0.6rem" }}
-      >
-        <h2 style={{ fontSize: "1.1rem" }}>Up next ({queue.length})</h2>
-        {queue.length > 0 && (
-          <button className="btn" onClick={() => void clearQueue(initial.id)}>
-            Clear queue
-          </button>
-        )}
-      </div>
-      {queue.length === 0 ? (
-        <p className="muted">The queue is empty.</p>
-      ) : (
-        <ul className="list">
-          {queue.map((t) => (
-            <li
-              key={t.id}
-              className="card row"
-              style={{ justifyContent: "space-between" }}
-            >
-              <span className="row">
-                {t.thumbnailUrl && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img className="thumb" src={t.thumbnailUrl} alt="" />
-                )}
-                <span>
-                  <strong>{t.title}</strong>
-                  <span className="muted">
-                    {t.artist ? ` · ${t.artist}` : ""}
-                    {t.addedByName ? ` — ${t.addedByName}` : ""}
-                  </span>
-                </span>
-              </span>
-              <button className="btn" onClick={() => void removeQueueItem(t.id)}>
-                Remove
+      <div className="columns">
+        <section>
+          <div className="section__head">
+            <h2 className="section__title">Up next ({queue.length})</h2>
+            {queue.length > 0 && (
+              <button className="btn btn--sm" onClick={() => void clearQueue(initial.id)}>
+                Clear
               </button>
-            </li>
-          ))}
-        </ul>
-      )}
+            )}
+          </div>
+          {queue.length === 0 ? (
+            <p className="muted">The queue is empty.</p>
+          ) : (
+            <ul className="list">
+              {queue.map((t) => (
+                <li key={t.id} className="track">
+                  {t.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img className="thumb" src={t.thumbnailUrl} alt="" />
+                  ) : (
+                    <div className="thumb" />
+                  )}
+                  <div className="track__meta">
+                    <div className="track__title">{t.title}</div>
+                    <div className="muted track__sub">
+                      {t.artist ?? ""}
+                      {t.addedByName ? ` · ${t.addedByName}` : ""}
+                    </div>
+                  </div>
+                  <button
+                    className="btn btn--sm track__remove"
+                    onClick={() => void removeQueueItem(t.id)}
+                    aria-label="Remove"
+                  >
+                    ✕
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
 
-      <h2 style={{ fontSize: "1.1rem", margin: "2rem 0 0.6rem" }}>
-        In the room ({participants.length})
-      </h2>
-      <ul className="list">
-        {participants.map((p) => (
-          <li key={p.userId} className="muted">
-            {p.name}
-            {p.userId === me.userId ? " (you)" : ""}
-          </li>
-        ))}
-      </ul>
+        <section>
+          <div className="section__head">
+            <h2 className="section__title">In the room ({participants.length})</h2>
+          </div>
+          <ul className="people">
+            {participants.map((p) => (
+              <li key={p.userId} className="person">
+                <span className="avatar">{(p.name[0] ?? "?").toUpperCase()}</span>
+                <span>
+                  {p.name}
+                  {p.userId === me.userId ? " (you)" : ""}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      </div>
     </main>
   );
 }

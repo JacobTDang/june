@@ -16,6 +16,7 @@ describe("rowToNowPlaying", () => {
         now_playing_duration_ms: null,
         now_playing_thumbnail_url: null,
         now_playing_started_at: null,
+        now_playing_added_by_name: null,
       }),
     ).toBeNull();
   });
@@ -30,6 +31,7 @@ describe("rowToNowPlaying", () => {
         now_playing_duration_ms: 1000,
         now_playing_thumbnail_url: "th",
         now_playing_started_at: 5000,
+        now_playing_added_by_name: "Bob",
       }),
     ).toEqual({
       videoId: "v",
@@ -37,6 +39,7 @@ describe("rowToNowPlaying", () => {
       artist: "A",
       durationMs: 1000,
       thumbnailUrl: "th",
+      addedByName: "Bob",
       startedAt: 5000,
     });
   });

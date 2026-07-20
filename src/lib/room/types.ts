@@ -28,6 +28,7 @@ export interface RoomNowPlaying {
   artist?: string;
   durationMs: number;
   thumbnailUrl?: string;
+  addedByName?: string;
   /** Epoch ms on the server clock when this track began. */
   startedAt: number;
 }
@@ -52,6 +53,7 @@ export interface RoomRow {
   now_playing_duration_ms: number | null;
   now_playing_thumbnail_url: string | null;
   now_playing_started_at: number | null;
+  now_playing_added_by_name: string | null;
 }
 
 export interface QueueItemRow {
@@ -83,6 +85,7 @@ export function rowToNowPlaying(row: RoomRow): RoomNowPlaying | null {
     artist: row.now_playing_artist ?? undefined,
     durationMs: row.now_playing_duration_ms,
     thumbnailUrl: row.now_playing_thumbnail_url ?? undefined,
+    addedByName: row.now_playing_added_by_name ?? undefined,
     startedAt: row.now_playing_started_at,
   };
 }

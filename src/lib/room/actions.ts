@@ -32,15 +32,16 @@ async function requireUser() {
 }
 
 const NOW_PLAYING_COLS =
-  "id, now_playing_video_id, now_playing_title, now_playing_artist, now_playing_duration_ms, now_playing_thumbnail_url, now_playing_started_at";
+  "id, now_playing_video_id, now_playing_title, now_playing_artist, now_playing_duration_ms, now_playing_thumbnail_url, now_playing_started_at, now_playing_added_by_name";
 
-const npFields = (t: AddTrackInput, startedAt: number) => ({
+const npFields = (t: AddTrackInput, startedAt: number, addedByName?: string | null) => ({
   now_playing_video_id: t.videoId,
   now_playing_title: t.title,
   now_playing_artist: t.artist ?? null,
   now_playing_duration_ms: t.durationMs,
   now_playing_thumbnail_url: t.thumbnailUrl ?? null,
   now_playing_started_at: startedAt,
+  now_playing_added_by_name: addedByName ?? null,
 });
 
 const NP_CLEARED = {
@@ -50,6 +51,7 @@ const NP_CLEARED = {
   now_playing_duration_ms: null,
   now_playing_thumbnail_url: null,
   now_playing_started_at: null,
+  now_playing_added_by_name: null,
 };
 
 /** Create a room, add the creator as a participant, and return the room code. */
@@ -98,21 +100,22 @@ export async function leaveRoom(roomId: string): Promise<void> {
 export async function enqueueTrack(roomId: string, track: AddTrackInput): Promise<void> {
   const { supabase, user } = await requireUser();
 
-  const { data: started } = await supabase
-    .from("rooms")
-    .update(npFields(track, Date.now()))
-    .eq("id", roomId)
-    .is("now_playing_video_id", null)
-    .select("id");
-
-  if (started && started.length > 0) return; // we started it
-
   const { data: participant } = await supabase
     .from("room_participants")
     .select("name")
     .eq("room_id", roomId)
     .eq("user_id", user.id)
     .maybeSingle();
+  const addedByName = (participant as { name: string | null } | null)?.name ?? null;
+
+  const { data: started } = await supabase
+    .from("rooms")
+    .update(npFields(track, Date.now(), addedByName))
+    .eq("id", roomId)
+    .is("now_playing_video_id", null)
+    .select("id");
+
+  if (started && started.length > 0) return; // we started it
 
   const { error } = await supabase.from("queue_items").insert({
     room_id: roomId,
@@ -122,7 +125,7 @@ export async function enqueueTrack(roomId: string, track: AddTrackInput): Promis
     duration_ms: track.durationMs,
     thumbnail_url: track.thumbnailUrl ?? null,
     added_by: user.id,
-    added_by_name: (participant as { name: string | null } | null)?.name ?? null,
+    added_by_name: addedByName,
   });
   if (error) throw new Error(`enqueueTrack failed: ${error.message}`);
 }
@@ -151,6 +154,7 @@ function nextFields(next: QueueItemRow, startedAt: number) {
       thumbnailUrl: next.thumbnail_url ?? undefined,
     },
     startedAt,
+    next.added_by_name ?? null,
   );
 }
 
