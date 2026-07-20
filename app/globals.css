@@ -320,6 +320,50 @@ a:hover {
   flex-shrink: 0;
 }
 
+.avatar-img {
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  flex-shrink: 0;
+  display: block;
+}
+
+/* ---- Profile ---- */
+.profile {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+  margin-top: 1.75rem;
+  max-width: 26rem;
+}
+.profile__avatar {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+.profile__label {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--muted);
+  margin-bottom: 0.5rem;
+}
+.profile__field {
+  display: flex;
+  gap: 0.5rem;
+}
+.profile__field .input {
+  flex: 1;
+}
+.profile__msg {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin-top: -1rem;
+}
+.profile__msg--err {
+  color: var(--danger);
+}
+
 /* ---- Jam room: single editorial column ---- */
 .room {
   max-width: 600px;
