@@ -19,7 +19,7 @@ describe("refreshAccessToken", () => {
 
     expect(token).toBe("fresh-token");
     const [url, init] = (fetchMock as unknown as { mock: { calls: [string, RequestInit][] } }).mock
-      .calls[0];
+      .calls[0]!;
     expect(url).toBe("https://oauth2.googleapis.com/token");
     const body = new URLSearchParams(init.body as string);
     expect(body.get("grant_type")).toBe("refresh_token");

@@ -72,17 +72,6 @@ export async function createRoom(displayName: string): Promise<string> {
   throw new Error("createRoom: could not allocate a unique room code");
 }
 
-/** Join a room (idempotent), setting/refreshing the display name. */
-export async function joinRoom(roomId: string, displayName: string): Promise<void> {
-  const { supabase, user } = await requireUser();
-  const { data: room } = await supabase.from("rooms").select("id").eq("id", roomId).maybeSingle();
-  if (!room) throw new Error(`Room ${roomId} not found.`);
-  const { error } = await supabase
-    .from("room_participants")
-    .upsert({ room_id: roomId, user_id: user.id, name: displayName });
-  if (error) throw new Error(`joinRoom failed: ${error.message}`);
-}
-
 /** Leave a room. */
 export async function leaveRoom(roomId: string): Promise<void> {
   const { supabase, user } = await requireUser();
@@ -245,5 +234,73 @@ export async function getRoomState(roomId: string): Promise<RoomState | null> {
     nowPlaying: rowToNowPlaying(roomData as RoomRow),
     queue: ((queueData as QueueItemRow[] | null) ?? []).map(rowToQueueTrack),
     participants: ((participantData as ParticipantRow[] | null) ?? []).map(rowToParticipant),
+  };
+}
+
+function displayNameOf(user: {
+  email?: string;
+  user_metadata?: Record<string, unknown>;
+}): string {
+  const meta = user.user_metadata ?? {};
+  return (
+    (meta.full_name as string | undefined) ??
+    (meta.name as string | undefined) ??
+    user.email ??
+    "Guest"
+  );
+}
+
+export type EnterRoomResult =
+  | { status: "ok"; state: RoomState; me: { userId: string; name: string } }
+  | { status: "unauthenticated" }
+  | { status: "not_found" };
+
+/**
+ * Join a room and load its state in a single pass. Replaces the old
+ * getUser → getRoomState → joinRoom → getRoomState sequence (~a dozen serial
+ * round-trips) with one user fetch, one room lookup, and a parallel
+ * join + queue + participants fetch.
+ */
+export async function enterRoom(code: string): Promise<EnterRoomResult> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return { status: "unauthenticated" };
+  const name = displayNameOf(user);
+
+  const { data: roomData } = await supabase
+    .from("rooms")
+    .select(NOW_PLAYING_COLS)
+    .eq("id", code)
+    .maybeSingle();
+  if (!roomData) return { status: "not_found" };
+
+  const [, { data: queueData }, { data: participantData }] = await Promise.all([
+    supabase.from("room_participants").upsert({ room_id: code, user_id: user.id, name }),
+    supabase
+      .from("queue_items")
+      .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
+      .eq("room_id", code)
+      .order("created_at", { ascending: true }),
+    supabase.from("room_participants").select("user_id, name").eq("room_id", code),
+  ]);
+
+  const participants = ((participantData as ParticipantRow[] | null) ?? []).map(rowToParticipant);
+  // The join upsert runs in parallel with the participants read, so ensure the
+  // current user shows up immediately regardless of which landed first.
+  if (!participants.some((p) => p.userId === user.id)) {
+    participants.push({ userId: user.id, name });
+  }
+
+  return {
+    status: "ok",
+    state: {
+      id: code,
+      nowPlaying: rowToNowPlaying(roomData as RoomRow),
+      queue: ((queueData as QueueItemRow[] | null) ?? []).map(rowToQueueTrack),
+      participants,
+    },
+    me: { userId: user.id, name },
   };
 }
