@@ -457,6 +457,107 @@ a:hover {
   flex-shrink: 0;
 }
 
+/* ---- Playlists (minimal gallery) ---- */
+.pl {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: clamp(2rem, 8vh, 4rem) 1.5rem 5rem;
+}
+.pl__back {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.pl__back:hover {
+  color: var(--amber);
+}
+.pl__head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin: 1.15rem 0 2.25rem;
+}
+.pl__title {
+  font-family: var(--font-display);
+  font-size: clamp(1.9rem, 4vw, 2.5rem);
+}
+.pl__count {
+  color: var(--faint);
+  font-size: 0.9rem;
+}
+.pl__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(158px, 1fr));
+  gap: 1.9rem 1.5rem;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.pl__item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  min-width: 0;
+}
+.pl__cover {
+  position: relative;
+  aspect-ratio: 1;
+  border-radius: 12px;
+  overflow: hidden;
+  background: var(--bg-2);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px -14px rgba(0, 0, 0, 0.7);
+}
+.pl__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s var(--ease);
+}
+.pl__item:hover .pl__cover img {
+  transform: scale(1.045);
+}
+.pl__cover--empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+  font-size: 1.5rem;
+}
+.pl__meta {
+  min-width: 0;
+}
+.pl__name {
+  font-weight: 550;
+  font-size: 0.95rem;
+  line-height: 1.25;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pl__sub {
+  color: var(--muted);
+  font-size: 0.8rem;
+  margin-top: 0.15rem;
+}
+.pl__empty {
+  padding: 3rem 0;
+}
+.pl__empty-title {
+  font-family: var(--font-display);
+  font-size: 1.5rem;
+  margin-bottom: 0.35rem;
+}
+@media (max-width: 560px) {
+  .pl__grid {
+    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
+    gap: 1.5rem 1rem;
+  }
+}
+
 /* ---- Motion ---- */
 @keyframes livePulse {
   0% {

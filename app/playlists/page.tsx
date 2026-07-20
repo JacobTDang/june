@@ -58,30 +58,42 @@ export default async function PlaylistsPage() {
   }
 
   return (
-    <main className="container">
-      <a href="/" className="muted">
-        ← back
+    <main className="pl">
+      <a href="/" className="pl__back">
+        ← Back
       </a>
-      <h1 className="display" style={{ fontSize: "2rem" }}>
-        Your playlists
-      </h1>
+      <header className="pl__head">
+        <h1 className="pl__title">Your playlists</h1>
+        <span className="pl__count">
+          {playlists.length} {playlists.length === 1 ? "playlist" : "playlists"}
+        </span>
+      </header>
 
       {playlists.length === 0 ? (
-        <p className="muted">No playlists found on your account.</p>
+        <div className="pl__empty">
+          <p className="pl__empty-title">No playlists yet</p>
+          <p className="muted">Playlists from your YouTube account will show up here.</p>
+        </div>
       ) : (
-        <ul className="list">
+        <ul className="pl__grid">
           {playlists.map((p) => (
-            <li key={p.id} className="card row">
-              {p.thumbnailUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.thumbnailUrl} alt="" className="thumb" />
-              ) : (
-                <div className="thumb" />
-              )}
-              <span>
-                <strong>{p.title}</strong>
-                <span className="muted"> · {p.itemCount} songs</span>
-              </span>
+            <li key={p.id} className="pl__item">
+              <div className={`pl__cover${p.thumbnailUrl ? "" : " pl__cover--empty"}`}>
+                {p.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.thumbnailUrl} alt="" loading="lazy" />
+                ) : (
+                  <span aria-hidden="true">♪</span>
+                )}
+              </div>
+              <div className="pl__meta">
+                <div className="pl__name" title={p.title}>
+                  {p.title}
+                </div>
+                <div className="pl__sub">
+                  {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
+                </div>
+              </div>
             </li>
           ))}
         </ul>
