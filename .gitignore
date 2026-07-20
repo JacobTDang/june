@@ -2,5 +2,15 @@ node_modules
 dist
 .DS_Store
 *.log
+
+# env
 .env
-.env.local
+.env*.local
+
+# next.js
+.next
+out
+
+# typescript
+*.tsbuildinfo
+next-env.d.ts
