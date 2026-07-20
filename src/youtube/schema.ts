@@ -81,3 +81,49 @@ export type YouTubeSearchListResponse = z.infer<typeof searchListResponseSchema>
 export function parseSearchListResponse(json: unknown): YouTubeSearchListResponse {
   return searchListResponseSchema.parse(json);
 }
+
+/** A `playlists.list` item — a playlist the signed-in user owns. */
+export const playlistSchema = z.object({
+  id: z.string().min(1),
+  snippet: z.object({
+    title: z.string(),
+    thumbnails: thumbnailsSchema.optional(),
+  }),
+  contentDetails: z
+    .object({
+      itemCount: z.number(),
+    })
+    .optional(),
+});
+
+export const playlistsResponseSchema = z.object({
+  items: z.array(playlistSchema),
+  nextPageToken: z.string().optional(),
+});
+
+export type YouTubePlaylist = z.infer<typeof playlistSchema>;
+export type YouTubePlaylistsResponse = z.infer<typeof playlistsResponseSchema>;
+
+/** Validate a raw `playlists.list` API response, throwing on any unexpected shape. */
+export function parsePlaylistsResponse(json: unknown): YouTubePlaylistsResponse {
+  return playlistsResponseSchema.parse(json);
+}
+
+/** A `playlistItems.list` item — one video's place inside a playlist. */
+export const playlistItemSchema = z.object({
+  contentDetails: z.object({
+    videoId: z.string(),
+  }),
+});
+
+export const playlistItemsResponseSchema = z.object({
+  items: z.array(playlistItemSchema),
+  nextPageToken: z.string().optional(),
+});
+
+export type YouTubePlaylistItemsResponse = z.infer<typeof playlistItemsResponseSchema>;
+
+/** Validate a raw `playlistItems.list` API response, throwing on any unexpected shape. */
+export function parsePlaylistItemsResponse(json: unknown): YouTubePlaylistItemsResponse {
+  return playlistItemsResponseSchema.parse(json);
+}

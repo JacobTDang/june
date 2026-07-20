@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createYouTubeClient,
+  importPlaylist,
   searchTracks,
   type YouTubeClient,
 } from "../../src/youtube/client";
@@ -15,11 +16,11 @@ function videoItem(id: string): YouTubeVideoItem {
   };
 }
 
-/** A fetch stub that records requested URLs and replies per handler. */
+/** A fetch stub that records requested URLs + init, and replies per handler. */
 function stubFetch(handler: (url: URL) => { status?: number; body: unknown }) {
-  const calls: URL[] = [];
-  const fetch = async (url: URL): Promise<Response> => {
-    calls.push(url);
+  const calls: { url: URL; init?: RequestInit }[] = [];
+  const fetch = async (url: URL, init?: RequestInit): Promise<Response> => {
+    calls.push({ url, init });
     const { status = 200, body } = handler(url);
     return new Response(JSON.stringify(body), {
       status,
@@ -28,6 +29,9 @@ function stubFetch(handler: (url: URL) => { status?: number; body: unknown }) {
   };
   return { fetch, calls };
 }
+
+const authHeader = (init?: RequestInit): string | undefined =>
+  (init?.headers as Record<string, string> | undefined)?.Authorization;
 
 describe("createYouTubeClient", () => {
   it("requires an api key", () => {
@@ -44,7 +48,7 @@ describe("createYouTubeClient", () => {
       const ids = await client.searchVideoIds("lofi beats", { maxResults: 10 });
 
       expect(ids).toEqual(["a", "b"]);
-      const url = calls[0]!;
+      const url = calls[0]!.url;
       expect(url.pathname).toMatch(/\/search$/);
       expect(url.searchParams.get("q")).toBe("lofi beats");
       expect(url.searchParams.get("type")).toBe("video");
@@ -74,7 +78,7 @@ describe("createYouTubeClient", () => {
       const videos = await client.getVideos(["a", "b", "c"]);
 
       expect(videos.map((v) => v.id)).toEqual(["a", "b"]);
-      expect(calls[0]!.searchParams.get("part")).toBe("snippet,contentDetails,status");
+      expect(calls[0]!.url.searchParams.get("part")).toBe("snippet,contentDetails,status");
     });
 
     it("does not call the network for an empty id list", async () => {
@@ -93,7 +97,7 @@ describe("createYouTubeClient", () => {
 
       const videos = await client.getVideos(["a", "a", "b"]);
 
-      expect(calls[0]!.searchParams.get("id")).toBe("a,b");
+      expect(calls[0]!.url.searchParams.get("id")).toBe("a,b");
       expect(videos.map((v) => v.id)).toEqual(["a", "b"]);
     });
 
@@ -112,6 +116,63 @@ describe("createYouTubeClient", () => {
     });
   });
 
+  describe("listPlaylists", () => {
+    it("lists the user's playlists with an OAuth header, mapped to summaries", async () => {
+      const { fetch, calls } = stubFetch(() => ({
+        body: {
+          items: [
+            { id: "p1", snippet: { title: "Mix" }, contentDetails: { itemCount: 3 } },
+          ],
+        },
+      }));
+      const client = createYouTubeClient({ apiKey: "K", accessToken: "TOKEN", fetch });
+
+      const playlists = await client.listPlaylists();
+
+      expect(playlists).toEqual([
+        { id: "p1", title: "Mix", itemCount: 3, thumbnailUrl: undefined },
+      ]);
+      const call = calls[0]!;
+      expect(call.url.pathname).toMatch(/\/playlists$/);
+      expect(call.url.searchParams.get("mine")).toBe("true");
+      expect(authHeader(call.init)).toBe("Bearer TOKEN");
+    });
+
+    it("throws when there is no access token", async () => {
+      const { fetch, calls } = stubFetch(() => ({ body: { items: [] } }));
+      const client = createYouTubeClient({ apiKey: "K", fetch });
+      await expect(client.listPlaylists()).rejects.toThrow(/requires an OAuth access token/);
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe("listPlaylistVideoIds", () => {
+    it("paginates across pages, in playlist order", async () => {
+      const { fetch, calls } = stubFetch((url) => {
+        if (url.searchParams.get("pageToken") === null) {
+          return {
+            body: { items: [{ contentDetails: { videoId: "a" } }], nextPageToken: "p2" },
+          };
+        }
+        return { body: { items: [{ contentDetails: { videoId: "b" } }] } };
+      });
+      const client = createYouTubeClient({ apiKey: "K", accessToken: "T", fetch });
+
+      const ids = await client.listPlaylistVideoIds("PL1");
+
+      expect(ids).toEqual(["a", "b"]);
+      expect(calls).toHaveLength(2);
+      expect(calls[0]!.url.searchParams.get("playlistId")).toBe("PL1");
+      expect(calls[1]!.url.searchParams.get("pageToken")).toBe("p2");
+    });
+
+    it("requires a playlistId", async () => {
+      const { fetch } = stubFetch(() => ({ body: { items: [] } }));
+      const client = createYouTubeClient({ apiKey: "K", accessToken: "T", fetch });
+      await expect(client.listPlaylistVideoIds("")).rejects.toThrow(/playlistId is required/);
+    });
+  });
+
   it("throws with the status and message on an API error", async () => {
     const { fetch } = stubFetch(() => ({
       status: 403,
@@ -122,22 +183,49 @@ describe("createYouTubeClient", () => {
   });
 });
 
+const fakeClient = (over: Partial<YouTubeClient>): YouTubeClient => ({
+  searchVideoIds: async () => [],
+  getVideos: async () => [],
+  listPlaylists: async () => [],
+  listPlaylistVideoIds: async () => [],
+  ...over,
+});
+
 describe("searchTracks", () => {
   it("composes search and details into tracks, reporting skips", async () => {
-    const fakeClient: YouTubeClient = {
+    const client = fakeClient({
       searchVideoIds: async () => ["a", "b"],
       getVideos: async () => [
         videoItem("a"),
         { ...videoItem("b"), status: { embeddable: false } },
       ],
-    };
+    });
     let n = 0;
 
-    const { tracks, skipped } = await searchTracks(fakeClient, "q", "alice", {
+    const { tracks, skipped } = await searchTracks(client, "q", "alice", {
       makeId: () => `id-${++n}`,
     });
 
     expect(tracks.map((t) => [t.id, t.videoId])).toEqual([["id-1", "a"]]);
     expect(skipped).toEqual([{ videoId: "b", title: "Tb", reason: "not-embeddable" }]);
+  });
+});
+
+describe("importPlaylist", () => {
+  it("composes playlist items and details into tracks", async () => {
+    const client = fakeClient({
+      listPlaylistVideoIds: async () => ["a", "b"],
+      getVideos: async () => [videoItem("a"), videoItem("b")],
+    });
+    let n = 0;
+
+    const { tracks } = await importPlaylist(client, "PL1", "alice", {
+      makeId: () => `id-${++n}`,
+    });
+
+    expect(tracks.map((t) => [t.id, t.videoId])).toEqual([
+      ["id-1", "a"],
+      ["id-2", "b"],
+    ]);
   });
 });
