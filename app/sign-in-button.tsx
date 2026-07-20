@@ -13,17 +13,7 @@ export function SignInButton() {
   }
 
   return (
-    <button
-      onClick={signIn}
-      style={{
-        padding: "0.6rem 1.1rem",
-        fontSize: "1rem",
-        borderRadius: 8,
-        border: "1px solid #ccc",
-        background: "#fff",
-        cursor: "pointer",
-      }}
-    >
+    <button onClick={signIn} className="btn btn--primary">
       Sign in with Google
     </button>
   );

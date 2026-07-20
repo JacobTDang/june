@@ -3,8 +3,6 @@ import { createClient } from "@/src/lib/supabase/server";
 import { PROVIDER_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
 import { createYouTubeClient } from "@/src/youtube";
 
-const wrap = { maxWidth: 640, margin: "0 auto", padding: "5rem 1.5rem" } as const;
-
 export default async function PlaylistsPage() {
   const supabase = await createClient();
   const {
@@ -13,8 +11,8 @@ export default async function PlaylistsPage() {
 
   if (!user) {
     return (
-      <main style={wrap}>
-        <p>
+      <main className="container">
+        <p className="muted">
           You&apos;re not signed in. <a href="/">Go back and sign in</a>.
         </p>
       </main>
@@ -26,15 +24,17 @@ export default async function PlaylistsPage() {
 
   if (!apiKey) {
     return (
-      <main style={wrap}>
-        <p>Set <code>YOUTUBE_API_KEY</code> in <code>.env.local</code> and restart.</p>
+      <main className="container">
+        <p className="muted">
+          Set <code>YOUTUBE_API_KEY</code> in <code>.env.local</code> and restart.
+        </p>
       </main>
     );
   }
   if (!providerToken) {
     return (
-      <main style={wrap}>
-        <p>
+      <main className="container">
+        <p className="muted">
           No Google token found — <a href="/">sign in again</a>.
         </p>
       </main>
@@ -48,9 +48,9 @@ export default async function PlaylistsPage() {
     playlists = await client.listPlaylists();
   } catch (err) {
     return (
-      <main style={wrap}>
-        <p>Couldn&apos;t load your playlists: {(err as Error).message}</p>
-        <p>
+      <main className="container">
+        <p className="muted">Couldn&apos;t load your playlists: {(err as Error).message}</p>
+        <p className="muted">
           Your Google token may have expired — <a href="/">sign in again</a>.
         </p>
       </main>
@@ -58,24 +58,29 @@ export default async function PlaylistsPage() {
   }
 
   return (
-    <main style={wrap}>
-      <a href="/">← back</a>
-      <h1 style={{ fontSize: "2rem", margin: "1rem 0" }}>Your playlists</h1>
+    <main className="container">
+      <a href="/" className="muted">
+        ← back
+      </a>
+      <h1 className="display" style={{ fontSize: "2rem" }}>
+        Your playlists
+      </h1>
+
       {playlists.length === 0 ? (
-        <p>No playlists found on your account.</p>
+        <p className="muted">No playlists found on your account.</p>
       ) : (
-        <ul style={{ listStyle: "none", padding: 0, display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+        <ul className="list">
           {playlists.map((p) => (
-            <li key={p.id} style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+            <li key={p.id} className="card row">
               {p.thumbnailUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={p.thumbnailUrl} alt="" width={64} height={48} style={{ borderRadius: 4, objectFit: "cover" }} />
+                <img src={p.thumbnailUrl} alt="" className="thumb" />
               ) : (
-                <div style={{ width: 64, height: 48, borderRadius: 4, background: "#eee" }} />
+                <div className="thumb" />
               )}
               <span>
                 <strong>{p.title}</strong>
-                <span style={{ color: "#777" }}> · {p.itemCount} songs</span>
+                <span className="muted"> · {p.itemCount} songs</span>
               </span>
             </li>
           ))}

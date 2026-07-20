@@ -23,18 +23,7 @@ export function ConnectYouTubeButton() {
   }
 
   return (
-    <button
-      onClick={connect}
-      style={{
-        padding: "0.6rem 1.1rem",
-        fontSize: "1rem",
-        borderRadius: 8,
-        border: "1px solid #c00",
-        background: "#c00",
-        color: "#fff",
-        cursor: "pointer",
-      }}
-    >
+    <button onClick={connect} className="btn btn--primary">
       Connect your YouTube
     </button>
   );
