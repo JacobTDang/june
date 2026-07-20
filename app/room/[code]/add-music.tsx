@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Plus, Music, ArrowLeft } from "lucide-react";
 import type { MusicCandidate } from "@/src/discovery";
 import type { VideoMeta } from "@/src/lib/video-cache";
 import {
@@ -16,16 +17,25 @@ import {
 type Tab = "search" | "link" | "playlist";
 type Playlist = { id: string; title: string; itemCount: number };
 
-const inputStyle: React.CSSProperties = {
-  padding: "0.7rem 1rem",
-  borderRadius: 999,
-  border: "1px solid var(--line)",
-  background: "rgba(255,255,255,0.04)",
-  color: "var(--ink)",
-  fontSize: "0.95rem",
-  fontFamily: "var(--font-sans)",
-  flex: 1,
-};
+const TABS: { id: Tab; label: string }[] = [
+  { id: "search", label: "Search" },
+  { id: "link", label: "Paste link" },
+  { id: "playlist", label: "My playlists" },
+];
+
+/** A consistently framed cover thumbnail, with a music-note fallback. */
+function Cover({ url }: { url?: string | null }) {
+  return (
+    <div className="add__cover">
+      {url ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" />
+      ) : (
+        <Music size={16} />
+      )}
+    </div>
+  );
+}
 
 export function AddMusic({ roomId }: { roomId: string }) {
   const [tab, setTab] = useState<Tab>("search");
@@ -53,33 +63,35 @@ export function AddMusic({ roomId }: { roomId: string }) {
   }
 
   return (
-    <div className="card" style={{ margin: "1.5rem 0" }}>
-      <div className="row" style={{ gap: "0.4rem", marginBottom: "1rem" }}>
-        {(["search", "link", "playlist"] as Tab[]).map((t) => (
+    <div className="card add">
+      <div className="add__tabs" role="tablist">
+        {TABS.map((t) => (
           <button
-            key={t}
-            className={tab === t ? "btn btn--primary" : "btn"}
+            key={t.id}
+            role="tab"
+            aria-selected={tab === t.id}
+            className={`add__tab${tab === t.id ? " add__tab--on" : ""}`}
             onClick={() => {
-              setTab(t);
+              setTab(t.id);
               setMessage(null);
             }}
           >
-            {t === "search" ? "Search" : t === "link" ? "Paste link" : "My playlists"}
+            {t.label}
           </button>
         ))}
       </div>
 
       {tab === "search" && (
-        <div className="stack" style={{ alignItems: "stretch" }}>
+        <>
           <form
-            className="row"
+            className="add__search"
             onSubmit={(e) => {
               e.preventDefault();
               void run(async () => setResults(await searchMusicAction(query)));
             }}
           >
             <input
-              style={inputStyle}
+              className="input"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search for a song or artist"
@@ -89,35 +101,35 @@ export function AddMusic({ roomId }: { roomId: string }) {
               Search
             </button>
           </form>
-          <ul className="list">
-            {results.map((c) => (
-              <li key={c.sourceId} className="row" style={{ justifyContent: "space-between" }}>
-                <span className="row">
-                  {c.artworkUrl && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="thumb" src={c.artworkUrl} alt="" />
-                  )}
-                  <span>
-                    <strong>{c.title}</strong>
-                    <span className="muted"> · {c.artist}</span>
-                  </span>
-                </span>
-                <button
-                  className="btn btn--primary"
-                  disabled={busy}
-                  onClick={() => void run(() => addCandidate(roomId, c), () => `Added “${c.title}”`)}
-                >
-                  Add
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
+          {results.length > 0 && (
+            <ul className="add__list">
+              {results.map((c) => (
+                <li key={c.sourceId} className="add__result">
+                  <Cover url={c.artworkUrl} />
+                  <div className="add__meta">
+                    <div className="add__title">{c.title}</div>
+                    <div className="add__sub">{c.artist}</div>
+                  </div>
+                  <button
+                    className="add__btn"
+                    disabled={busy}
+                    aria-label={`Add ${c.title}`}
+                    onClick={() =>
+                      void run(() => addCandidate(roomId, c), () => `Added “${c.title}”`)
+                    }
+                  >
+                    <Plus size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       {tab === "link" && (
         <form
-          className="row"
+          className="add__search"
           onSubmit={(e) => {
             e.preventDefault();
             void run(
@@ -130,7 +142,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
           }}
         >
           <input
-            style={inputStyle}
+            className="input"
             value={link}
             onChange={(e) => setLink(e.target.value)}
             placeholder="Paste a YouTube link"
@@ -143,7 +155,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
       )}
 
       {tab === "playlist" && !openPlaylist && (
-        <div className="stack" style={{ alignItems: "stretch" }}>
+        <>
           <button
             className="btn"
             disabled={busy}
@@ -152,12 +164,11 @@ export function AddMusic({ roomId }: { roomId: string }) {
             {playlists ? "Refresh playlists" : "Load my playlists"}
           </button>
           {playlists && (
-            <ul className="list">
+            <ul className="add__list">
               {playlists.map((p) => (
-                <li key={p.id} className="row" style={{ justifyContent: "space-between" }}>
+                <li key={p.id} className="add__prow">
                   <button
-                    className="btn"
-                    style={{ flex: 1, justifyContent: "flex-start" }}
+                    className="add__pmeta"
                     disabled={busy}
                     onClick={() => {
                       setOpenPlaylist(p);
@@ -165,11 +176,13 @@ export function AddMusic({ roomId }: { roomId: string }) {
                       void run(async () => setPlaylistTracks(await getPlaylistTracks(p.id)));
                     }}
                   >
-                    {p.title}
-                    <span className="muted"> · {p.itemCount} songs</span>
+                    <span className="add__title">{p.title}</span>
+                    <span className="add__sub">
+                      {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
+                    </span>
                   </button>
                   <button
-                    className="btn btn--primary"
+                    className="btn btn--sm"
                     disabled={busy}
                     onClick={() =>
                       void run(
@@ -184,23 +197,25 @@ export function AddMusic({ roomId }: { roomId: string }) {
               ))}
             </ul>
           )}
-        </div>
+        </>
       )}
 
       {tab === "playlist" && openPlaylist && (
-        <div className="stack" style={{ alignItems: "stretch" }}>
-          <div className="row" style={{ justifyContent: "space-between" }}>
+        <>
+          <div className="add__plhead">
             <button
-              className="btn"
+              className="btn btn--sm"
               onClick={() => {
                 setOpenPlaylist(null);
                 setPlaylistTracks(null);
               }}
             >
-              ← Playlists
+              <ArrowLeft size={15} />
+              Playlists
             </button>
+            <span className="add__pltitle">{openPlaylist.title}</span>
             <button
-              className="btn btn--primary"
+              className="btn btn--sm"
               disabled={busy}
               onClick={() =>
                 void run(
@@ -215,41 +230,35 @@ export function AddMusic({ roomId }: { roomId: string }) {
           {playlistTracks === null ? (
             <p className="muted">Loading songs…</p>
           ) : (
-            <ul className="list">
+            <ul className="add__list">
               {playlistTracks.map((t) => (
-                <li key={t.videoId} className="row" style={{ justifyContent: "space-between" }}>
-                  <span className="row">
-                    {t.thumbnailUrl && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img className="thumb" src={t.thumbnailUrl} alt="" />
-                    )}
-                    <span>
-                      <strong>{t.title}</strong>
-                      {t.artist && <span className="muted"> · {t.artist}</span>}
-                      {!t.embeddable && <span className="muted"> · can’t play here</span>}
-                    </span>
-                  </span>
+                <li key={t.videoId} className="add__result">
+                  <Cover url={t.thumbnailUrl} />
+                  <div className="add__meta">
+                    <div className="add__title">{t.title}</div>
+                    <div className="add__sub">
+                      {t.artist ?? ""}
+                      {!t.embeddable ? " · can’t play here" : ""}
+                    </div>
+                  </div>
                   <button
-                    className="btn btn--primary"
+                    className="add__btn"
                     disabled={busy || !t.embeddable}
+                    aria-label={`Add ${t.title}`}
                     onClick={() =>
                       void run(() => addVideoById(roomId, t.videoId), () => `Added “${t.title}”`)
                     }
                   >
-                    Add
+                    <Plus size={16} />
                   </button>
                 </li>
               ))}
             </ul>
           )}
-        </div>
+        </>
       )}
 
-      {message && (
-        <p className="muted" style={{ marginTop: "0.75rem" }}>
-          {message}
-        </p>
-      )}
+      {message && <p className="add__msg">{message}</p>}
     </div>
   );
 }
