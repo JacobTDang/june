@@ -26,8 +26,11 @@ export async function GET(request: Request) {
 
   const response = NextResponse.redirect(`${origin}${next}`);
 
+  // Only capture the YouTube token during the "Connect YouTube" flow (yt=1).
+  // A plain login returns a token without the youtube scope, which we don't want.
+  const connectingYouTube = searchParams.get("yt") === "1";
   const providerToken = data.session?.provider_token;
-  if (providerToken) {
+  if (connectingYouTube && providerToken) {
     response.cookies.set(PROVIDER_TOKEN_COOKIE, providerToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",

@@ -2,19 +2,13 @@
 
 import { createClient } from "@/src/lib/supabase/client";
 
-const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
-
+/** Log into your june account with Google — identity only, no YouTube access. */
 export function SignInButton() {
   async function signIn() {
     const supabase = createClient();
     await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: {
-        scopes: YOUTUBE_SCOPE,
-        redirectTo: `${window.location.origin}/auth/callback`,
-        // Ask for a refresh token and force the scope consent screen.
-        queryParams: { access_type: "offline", prompt: "consent" },
-      },
+      options: { redirectTo: `${window.location.origin}/auth/callback` },
     });
   }
 
