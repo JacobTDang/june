@@ -431,13 +431,6 @@ a:hover {
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.02em;
 }
-.attribution {
-  text-align: center;
-  font-size: 0.72rem;
-  color: var(--faint);
-  margin-top: 1rem;
-}
-
 .empty {
   text-align: center;
   padding: 3rem 0;

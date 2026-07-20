@@ -131,9 +131,6 @@ export function Room({
               offset={offset ?? 0}
               onSkip={() => void skipTrack(initial.id)}
             />
-            <p className="attribution">
-              Streamed from YouTube · everyone hears the same moment
-            </p>
           </>
         ) : (
           <div className="empty">
