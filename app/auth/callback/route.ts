@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/src/lib/supabase/server";
 import { PROVIDER_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
+import { safeNext } from "@/src/lib/safe-next";
 
 /**
  * OAuth callback: Supabase redirects here with a `code` after Google sign-in.
@@ -10,7 +11,7 @@ import { PROVIDER_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/src/lib/supabase/
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/";
+  const next = safeNext(searchParams.get("next"));
 
   if (!code) {
     return NextResponse.redirect(`${origin}/?error=missing_code`);

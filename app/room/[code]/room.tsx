@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X } from "lucide-react";
+import { X, Link2 } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/client";
 import {
   clearQueue,
@@ -85,13 +85,13 @@ export function Room({
     router.push("/");
   }
 
-  async function copyCode() {
+  async function copyInvite() {
     try {
-      await navigator.clipboard.writeText(initial.id);
+      await navigator.clipboard.writeText(`${window.location.origin}/room/${initial.id}`);
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      /* clipboard blocked — the code is visible to type anyway */
+      /* clipboard blocked — the code is visible to read off and type anyway */
     }
   }
 
@@ -105,7 +105,8 @@ export function Room({
             <span className="live__dot" />
             Live
           </span>
-          <button className="code" onClick={copyCode} title="Copy room code">
+          <button className="code" onClick={copyInvite} title="Copy invite link">
+            <Link2 size={12} />
             {copied ? "Copied" : initial.id.replace(/-/g, " · ")}
           </button>
         </div>

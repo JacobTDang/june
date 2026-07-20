@@ -1,6 +1,7 @@
 import { ListMusic, ArrowRight } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
+import { safeNext } from "@/src/lib/safe-next";
 import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
 import { CreateJamButton } from "./create-jam-button";
@@ -19,12 +20,20 @@ function displayNameOf(user: {
   );
 }
 
-export default async function Home() {
+export default async function Home({
+  searchParams,
+}: {
+  searchParams: Promise<{ next?: string }>;
+}) {
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
   const youtubeConnected = await isYouTubeConnected();
+
+  // Where an invited-but-signed-out visitor should land after signing in.
+  const nextPath = safeNext((await searchParams).next);
+  const returnTo = nextPath === "/" ? undefined : nextPath;
 
   const displayName = user ? displayNameOf(user) : "";
 
@@ -52,9 +61,11 @@ export default async function Home() {
 
         {!user ? (
           <div className="stack" style={{ marginTop: "2.5rem" }}>
-            <SignInButton />
+            <SignInButton next={returnTo} />
             <span className="faint" style={{ fontSize: "0.85rem" }}>
-              Sign in to start a room — your friends join with a code.
+              {returnTo
+                ? "Sign in to join the jam you were invited to."
+                : "Sign in to start a room — your friends join with a code."}
             </span>
           </div>
         ) : (

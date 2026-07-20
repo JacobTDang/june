@@ -357,6 +357,9 @@ a:hover {
   animation: livePulse 2.6s var(--ease) infinite;
 }
 .code {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
   font-family: var(--font-sans);
   font-size: 0.72rem;
   letter-spacing: 0.18em;

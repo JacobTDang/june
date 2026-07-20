@@ -27,7 +27,9 @@ export default async function RoomPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) redirect(`/`);
+  // Not signed in? Send them to sign in, remembering this room so they land
+  // back here (and auto-join) afterward — that's what makes invite links work.
+  if (!user) redirect(`/?next=${encodeURIComponent(`/room/${code}`)}`);
 
   const exists = await getRoomState(code);
   if (!exists) {
