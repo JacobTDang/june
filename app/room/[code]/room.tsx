@@ -104,6 +104,9 @@ export function Room({
       ) : (
         <p className="muted">Nothing playing — add a song to start the jam.</p>
       )}
+      <p className="muted" style={{ fontSize: "0.8rem", marginTop: "0.35rem" }}>
+        Videos are streamed from YouTube.
+      </p>
 
       <AddMusic roomId={initial.id} />
 
