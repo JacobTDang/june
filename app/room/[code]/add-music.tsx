@@ -2,9 +2,12 @@
 
 import { useState } from "react";
 import type { MusicCandidate } from "@/src/discovery";
+import type { VideoMeta } from "@/src/lib/video-cache";
 import {
   addByLink,
   addCandidate,
+  addVideoById,
+  getPlaylistTracks,
   importPlaylistToRoom,
   listMyPlaylists,
   searchMusicAction,
@@ -32,6 +35,8 @@ export function AddMusic({ roomId }: { roomId: string }) {
   const [results, setResults] = useState<MusicCandidate[]>([]);
   const [link, setLink] = useState("");
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
+  const [openPlaylist, setOpenPlaylist] = useState<Playlist | null>(null);
+  const [playlistTracks, setPlaylistTracks] = useState<VideoMeta[] | null>(null);
 
   async function run<T>(fn: () => Promise<T>, ok?: (r: T) => string) {
     setBusy(true);
@@ -136,23 +141,32 @@ export function AddMusic({ roomId }: { roomId: string }) {
         </form>
       )}
 
-      {tab === "playlist" && (
+      {tab === "playlist" && !openPlaylist && (
         <div className="stack" style={{ alignItems: "stretch" }}>
           <button
             className="btn"
             disabled={busy}
             onClick={() => void run(async () => setPlaylists(await listMyPlaylists()))}
           >
-            Load my playlists
+            {playlists ? "Refresh playlists" : "Load my playlists"}
           </button>
           {playlists && (
             <ul className="list">
               {playlists.map((p) => (
                 <li key={p.id} className="row" style={{ justifyContent: "space-between" }}>
-                  <span>
-                    <strong>{p.title}</strong>
+                  <button
+                    className="btn"
+                    style={{ flex: 1, justifyContent: "flex-start" }}
+                    disabled={busy}
+                    onClick={() => {
+                      setOpenPlaylist(p);
+                      setPlaylistTracks(null);
+                      void run(async () => setPlaylistTracks(await getPlaylistTracks(p.id)));
+                    }}
+                  >
+                    {p.title}
                     <span className="muted"> · {p.itemCount} songs</span>
-                  </span>
+                  </button>
                   <button
                     className="btn btn--primary"
                     disabled={busy}
@@ -163,7 +177,65 @@ export function AddMusic({ roomId }: { roomId: string }) {
                       )
                     }
                   >
-                    Import
+                    Add all
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      {tab === "playlist" && openPlaylist && (
+        <div className="stack" style={{ alignItems: "stretch" }}>
+          <div className="row" style={{ justifyContent: "space-between" }}>
+            <button
+              className="btn"
+              onClick={() => {
+                setOpenPlaylist(null);
+                setPlaylistTracks(null);
+              }}
+            >
+              ← Playlists
+            </button>
+            <button
+              className="btn btn--primary"
+              disabled={busy}
+              onClick={() =>
+                void run(
+                  () => importPlaylistToRoom(roomId, openPlaylist.id),
+                  (n) => `Added ${n} songs.`,
+                )
+              }
+            >
+              Add all
+            </button>
+          </div>
+          {playlistTracks === null ? (
+            <p className="muted">Loading songs…</p>
+          ) : (
+            <ul className="list">
+              {playlistTracks.map((t) => (
+                <li key={t.videoId} className="row" style={{ justifyContent: "space-between" }}>
+                  <span className="row">
+                    {t.thumbnailUrl && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img className="thumb" src={t.thumbnailUrl} alt="" />
+                    )}
+                    <span>
+                      <strong>{t.title}</strong>
+                      {t.artist && <span className="muted"> · {t.artist}</span>}
+                      {!t.embeddable && <span className="muted"> · can’t play here</span>}
+                    </span>
+                  </span>
+                  <button
+                    className="btn btn--primary"
+                    disabled={busy || !t.embeddable}
+                    onClick={() =>
+                      void run(() => addVideoById(roomId, t.videoId), () => `Added “${t.title}”`)
+                    }
+                  >
+                    Add
                   </button>
                 </li>
               ))}

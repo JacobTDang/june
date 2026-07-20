@@ -6,7 +6,7 @@ import { parseVideoId } from "@/src/youtube/url";
 import { searchMusic, type MusicCandidate } from "@/src/discovery";
 import { createClient } from "../supabase/server";
 import { PROVIDER_TOKEN_COOKIE } from "../supabase/tokens";
-import { getVideoMetas } from "../video-cache";
+import { getVideoMetas, type VideoMeta } from "../video-cache";
 import { supabaseVideoCache } from "../video-cache-supabase";
 import { enqueueTrack } from "./actions";
 
@@ -47,6 +47,7 @@ export async function addByLink(roomId: string, url: string): Promise<void> {
 export async function addCandidate(roomId: string, candidate: MusicCandidate): Promise<void> {
   const supabase = await createClient();
   const youtube = await youtubeClient();
+  const cache = supabaseVideoCache(supabase, youtube);
   const key = `${candidate.source}:${candidate.sourceId}`;
 
   const { data: cached } = await supabase
@@ -54,18 +55,23 @@ export async function addCandidate(roomId: string, candidate: MusicCandidate): P
     .select("video_id")
     .eq("key", key)
     .maybeSingle();
-  let videoId = (cached as { video_id: string } | null)?.video_id ?? null;
+  const cachedId = (cached as { video_id: string } | null)?.video_id ?? null;
 
-  if (!videoId) {
+  let meta: VideoMeta | undefined;
+  if (cachedId) {
+    [meta] = await getVideoMetas([cachedId], cache);
+  } else {
+    // The top result is often the official (non-embeddable) video — pick the
+    // first result we can actually play, then cache that resolution.
     const ids = await youtube.searchVideoIds(`${candidate.artist} ${candidate.title}`, {
-      maxResults: 1,
+      maxResults: 5,
     });
-    videoId = ids[0] ?? null;
-    if (!videoId) throw new Error("Couldn't find a YouTube match for that track.");
-    await supabase.from("track_resolution").upsert({ key, video_id: videoId });
+    const metas = await getVideoMetas(ids, cache);
+    meta = metas.find((m) => m.embeddable && m.durationMs > 0);
+    if (!meta) throw new Error("Couldn't find a playable YouTube match for that track.");
+    await supabase.from("track_resolution").upsert({ key, video_id: meta.videoId });
   }
 
-  const [meta] = await getVideoMetas([videoId], supabaseVideoCache(supabase, youtube));
   if (!meta || !meta.embeddable) throw new Error("That track can't be played here.");
 
   // Prefer the clean iTunes title/artist/artwork over the YouTube channel name.
@@ -76,6 +82,24 @@ export async function addCandidate(roomId: string, candidate: MusicCandidate): P
     durationMs: meta.durationMs,
     thumbnailUrl: candidate.artworkUrl ?? meta.thumbnailUrl,
   });
+}
+
+/** A playlist's songs, ready to pick from (embeddability included). */
+export async function getPlaylistTracks(playlistId: string): Promise<VideoMeta[]> {
+  const supabase = await createClient();
+  const youtube = await youtubeClient(true);
+  const ids = await youtube.listPlaylistVideoIds(playlistId);
+  return getVideoMetas(ids, supabaseVideoCache(supabase, youtube));
+}
+
+/** Add a single video (by id) to the room, from the playlist-browse view. */
+export async function addVideoById(roomId: string, videoId: string): Promise<void> {
+  const supabase = await createClient();
+  const youtube = await youtubeClient();
+  const [meta] = await getVideoMetas([videoId], supabaseVideoCache(supabase, youtube));
+  if (!meta) throw new Error("Couldn't find that video.");
+  if (!meta.embeddable) throw new Error("That video can't be played here (embedding disabled).");
+  await enqueueTrack(roomId, meta);
 }
 
 /** The signed-in user's playlists, for the import picker. */
@@ -100,8 +124,21 @@ export async function importPlaylistToRoom(
 
   const youtube = await youtubeClient(true);
   const ids = await youtube.listPlaylistVideoIds(playlistId);
+
+  // Skip anything already in the room (queue or now playing) so re-imports
+  // don't create duplicates.
+  const [{ data: existingQueue }, { data: room }] = await Promise.all([
+    supabase.from("queue_items").select("video_id").eq("room_id", roomId),
+    supabase.from("rooms").select("now_playing_video_id").eq("id", roomId).maybeSingle(),
+  ]);
+  const present = new Set<string>(
+    ((existingQueue as { video_id: string }[] | null) ?? []).map((r) => r.video_id),
+  );
+  const nowVideo = (room as { now_playing_video_id: string | null } | null)?.now_playing_video_id;
+  if (nowVideo) present.add(nowVideo);
+
   const metas = (await getVideoMetas(ids, supabaseVideoCache(supabase, youtube))).filter(
-    (m) => m.embeddable && m.durationMs > 0,
+    (m) => m.embeddable && m.durationMs > 0 && !present.has(m.videoId),
   );
   if (metas.length === 0) return 0;
 

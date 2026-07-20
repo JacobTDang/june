@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/src/lib/supabase/client";
 import {
+  clearQueue,
   getRoomState,
   leaveRoom,
   removeQueueItem,
@@ -30,12 +31,19 @@ export function Room({
     if (next) setState(next);
   }, [initial.id]);
 
-  // Subscribe to Realtime: any change to this room refetches the shared state.
+  // Keep the shared state fresh: Realtime for instant updates, plus a polling
+  // fallback so it works even if a realtime event is missed.
   useEffect(() => {
     const supabase = createClient();
     const onChange = () => {
       void refresh();
     };
+
+    // Authenticate the realtime socket so RLS lets us receive change events.
+    void supabase.auth.getSession().then(({ data }) => {
+      if (data.session) supabase.realtime.setAuth(data.session.access_token);
+    });
+
     const channel = supabase
       .channel(`room:${initial.id}`)
       .on(
@@ -54,7 +62,11 @@ export function Room({
         onChange,
       )
       .subscribe();
+
+    const poll = setInterval(onChange, 3000);
+
     return () => {
+      clearInterval(poll);
       void supabase.removeChannel(channel);
     };
   }, [initial.id, refresh]);
@@ -110,7 +122,17 @@ export function Room({
 
       <AddMusic roomId={initial.id} />
 
-      <h2 style={{ fontSize: "1.1rem", margin: "2rem 0 0.6rem" }}>Up next ({queue.length})</h2>
+      <div
+        className="row"
+        style={{ justifyContent: "space-between", margin: "2rem 0 0.6rem" }}
+      >
+        <h2 style={{ fontSize: "1.1rem" }}>Up next ({queue.length})</h2>
+        {queue.length > 0 && (
+          <button className="btn" onClick={() => void clearQueue(initial.id)}>
+            Clear queue
+          </button>
+        )}
+      </div>
       {queue.length === 0 ? (
         <p className="muted">The queue is empty.</p>
       ) : (
