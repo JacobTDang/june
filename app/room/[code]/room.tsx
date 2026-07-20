@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Link2 } from "lucide-react";
+import { Avatar } from "../../avatar";
 import { createClient } from "@/src/lib/supabase/client";
 import {
   clearQueue,
@@ -198,7 +199,7 @@ export function Room({
           <ul className="people">
             {participants.map((p) => (
               <li key={p.userId} className="person">
-                <span className="avatar">{(p.name[0] ?? "?").toUpperCase()}</span>
+                <Avatar name={p.name} url={p.avatarUrl} size={28} />
                 <span>
                   {p.name}
                   {p.userId === me.userId ? " · you" : ""}

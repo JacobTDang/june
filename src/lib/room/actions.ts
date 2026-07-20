@@ -1,13 +1,14 @@
 "use server";
 
 import { createClient } from "../supabase/server";
+import { resolveDisplayName } from "../profile/display-name";
 import {
   rowToNowPlaying,
-  rowToParticipant,
   rowToQueueTrack,
   type AddTrackInput,
   type ParticipantRow,
   type QueueItemRow,
+  type RoomParticipant,
   type RoomRow,
   type RoomState,
 } from "./types";
@@ -233,21 +234,40 @@ export async function getRoomState(roomId: string): Promise<RoomState | null> {
     id: roomId,
     nowPlaying: rowToNowPlaying(roomData as RoomRow),
     queue: ((queueData as QueueItemRow[] | null) ?? []).map(rowToQueueTrack),
-    participants: ((participantData as ParticipantRow[] | null) ?? []).map(rowToParticipant),
+    participants: await enrichParticipants(
+      supabase,
+      (participantData as ParticipantRow[] | null) ?? [],
+    ),
   };
 }
 
-function displayNameOf(user: {
-  email?: string;
-  user_metadata?: Record<string, unknown>;
-}): string {
-  const meta = user.user_metadata ?? {};
-  return (
-    (meta.full_name as string | undefined) ??
-    (meta.name as string | undefined) ??
-    user.email ??
-    "Guest"
+/** Merge participant rows with their profiles for a fresh display name + avatar. */
+async function enrichParticipants(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  rows: ParticipantRow[],
+): Promise<RoomParticipant[]> {
+  if (rows.length === 0) return [];
+  const { data } = await supabase
+    .from("profiles")
+    .select("id, display_name, avatar_url")
+    .in(
+      "id",
+      rows.map((r) => r.user_id),
+    );
+  const byId = new Map(
+    (
+      (data as { id: string; display_name: string | null; avatar_url: string | null }[] | null) ??
+      []
+    ).map((p) => [p.id, p] as const),
   );
+  return rows.map((r) => {
+    const profile = byId.get(r.user_id);
+    return {
+      userId: r.user_id,
+      name: profile?.display_name?.trim() || r.name || "Guest",
+      avatarUrl: profile?.avatar_url ?? null,
+    };
+  });
 }
 
 export type EnterRoomResult =
@@ -267,14 +287,16 @@ export async function enterRoom(code: string): Promise<EnterRoomResult> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return { status: "unauthenticated" };
-  const name = displayNameOf(user);
 
-  const { data: roomData } = await supabase
-    .from("rooms")
-    .select(NOW_PLAYING_COLS)
-    .eq("id", code)
-    .maybeSingle();
+  const [{ data: myProfile }, { data: roomData }] = await Promise.all([
+    supabase.from("profiles").select("display_name, avatar_url").eq("id", user.id).maybeSingle(),
+    supabase.from("rooms").select(NOW_PLAYING_COLS).eq("id", code).maybeSingle(),
+  ]);
   if (!roomData) return { status: "not_found" };
+
+  const mine = myProfile as { display_name: string | null; avatar_url: string | null } | null;
+  const name = resolveDisplayName(mine?.display_name, user);
+  const myAvatar = mine?.avatar_url ?? null;
 
   const [, { data: queueData }, { data: participantData }] = await Promise.all([
     supabase.from("room_participants").upsert({ room_id: code, user_id: user.id, name }),
@@ -286,11 +308,14 @@ export async function enterRoom(code: string): Promise<EnterRoomResult> {
     supabase.from("room_participants").select("user_id, name").eq("room_id", code),
   ]);
 
-  const participants = ((participantData as ParticipantRow[] | null) ?? []).map(rowToParticipant);
+  const participants = await enrichParticipants(
+    supabase,
+    (participantData as ParticipantRow[] | null) ?? [],
+  );
   // The join upsert runs in parallel with the participants read, so ensure the
   // current user shows up immediately regardless of which landed first.
   if (!participants.some((p) => p.userId === user.id)) {
-    participants.push({ userId: user.id, name });
+    participants.push({ userId: user.id, name, avatarUrl: myAvatar });
   }
 
   return {

@@ -1,24 +1,13 @@
 import { ListMusic, ArrowRight } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
+import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
+import { Avatar } from "./avatar";
 import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
 import { CreateJamButton } from "./create-jam-button";
 import { JoinJamForm } from "./join-jam-form";
-
-function displayNameOf(user: {
-  email?: string;
-  user_metadata?: Record<string, unknown>;
-}): string {
-  const meta = user.user_metadata ?? {};
-  return (
-    (meta.full_name as string | undefined) ??
-    (meta.name as string | undefined) ??
-    user.email ??
-    "Guest"
-  );
-}
 
 export default async function Home({
   searchParams,
@@ -30,22 +19,23 @@ export default async function Home({
     data: { user },
   } = await supabase.auth.getUser();
   const youtubeConnected = await isYouTubeConnected();
+  const profile = user ? await getMyProfile() : null;
 
   // Where an invited-but-signed-out visitor should land after signing in.
   const nextPath = safeNext((await searchParams).next);
   const returnTo = nextPath === "/" ? undefined : nextPath;
 
-  const displayName = user ? displayNameOf(user) : "";
+  const displayName = profile?.displayName ?? "";
 
   return (
     <>
       {user && (
         <header className="topbar">
           <div className="account">
-            <span className="avatar" aria-hidden="true">
-              {displayName.charAt(0).toUpperCase()}
-            </span>
-            <span className="account__name">{displayName}</span>
+            <a href="/profile" className="account__me">
+              <Avatar name={displayName} url={profile?.avatarUrl} size={30} />
+              <span className="account__name">{displayName}</span>
+            </a>
             <form action="/auth/signout" method="post">
               <button type="submit" className="btn btn--sm">
                 Sign out
