@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Play } from "lucide-react";
 import { createRoom } from "@/src/lib/room/actions";
 
 export function CreateJamButton({ displayName }: { displayName: string }) {
@@ -24,7 +25,14 @@ export function CreateJamButton({ displayName }: { displayName: string }) {
   return (
     <span className="stack">
       <button className="btn btn--primary btn--lg" onClick={create} disabled={busy}>
-        {busy ? "Starting…" : "▶  Start a jam"}
+        {busy ? (
+          "Starting…"
+        ) : (
+          <>
+            <Play size={17} fill="currentColor" strokeWidth={0} />
+            Start a jam
+          </>
+        )}
       </button>
       {error && <span className="muted">{error}</span>}
     </span>

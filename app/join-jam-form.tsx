@@ -14,14 +14,13 @@ export function JoinJamForm() {
   }
 
   return (
-    <form onSubmit={submit} style={{ display: "flex", gap: "0.5rem", width: "100%" }}>
+    <form onSubmit={submit} className="join">
       <input
         value={code}
         onChange={(e) => setCode(e.target.value)}
         placeholder="Room code"
         aria-label="Room code"
         className="input"
-        style={{ flex: 1, textTransform: "uppercase", letterSpacing: "0.1em" }}
       />
       <button type="submit" className="btn">
         Join

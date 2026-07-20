@@ -457,6 +457,87 @@ a:hover {
   flex-shrink: 0;
 }
 
+/* ---- Home: top account bar + lobby ---- */
+.topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 1.1rem 1.5rem;
+  z-index: 2;
+}
+.account {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+}
+.account__name {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.lobby {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 1.4rem;
+  margin-top: 2.5rem;
+  width: 100%;
+  max-width: 22rem;
+}
+.divider {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  width: 100%;
+  color: var(--faint);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+.divider::before,
+.divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
+.join {
+  display: flex;
+  gap: 0.5rem;
+  width: 100%;
+}
+.join .input {
+  flex: 1;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.join .input::placeholder {
+  letter-spacing: 0.1em;
+}
+
+.yt-status {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  margin-top: 2rem;
+  font-size: 0.85rem;
+}
+.yt-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--live);
+  font-weight: 600;
+}
+.yt-status a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
 /* ---- Playlists (minimal gallery) ---- */
 .pl {
   max-width: 980px;

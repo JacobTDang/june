@@ -1,5 +1,6 @@
 "use client";
 
+import { ListMusic } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/client";
 
 const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
@@ -23,8 +24,9 @@ export function ConnectYouTubeButton() {
   }
 
   return (
-    <button onClick={connect} className="btn btn--primary">
-      Connect your YouTube
+    <button onClick={connect} className="btn btn--sm">
+      <ListMusic size={15} />
+      Connect YouTube
     </button>
   );
 }

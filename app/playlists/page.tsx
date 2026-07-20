@@ -1,4 +1,5 @@
 import { cookies } from "next/headers";
+import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { PROVIDER_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
 import { createYouTubeClient } from "@/src/youtube";
@@ -60,7 +61,8 @@ export default async function PlaylistsPage() {
   return (
     <main className="pl">
       <a href="/" className="pl__back">
-        ← Back
+        <ArrowLeft size={15} />
+        Back
       </a>
       <header className="pl__head">
         <h1 className="pl__title">Your playlists</h1>
