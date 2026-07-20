@@ -1,11 +1,10 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { createYouTubeClient } from "@/src/youtube";
 import { parseVideoId } from "@/src/youtube/url";
 import { searchMusic, type MusicCandidate } from "@/src/discovery";
 import { createClient } from "../supabase/server";
-import { PROVIDER_TOKEN_COOKIE } from "../supabase/tokens";
+import { getYouTubeAccessToken } from "../supabase/youtube-auth";
 import { getVideoMetas, type VideoMeta } from "../video-cache";
 import { supabaseVideoCache } from "../video-cache-supabase";
 import { enqueueTrack } from "./actions";
@@ -13,7 +12,7 @@ import { enqueueTrack } from "./actions";
 async function youtubeClient(needsAuth = false) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) throw new Error("YOUTUBE_API_KEY is not configured.");
-  const accessToken = (await cookies()).get(PROVIDER_TOKEN_COOKIE)?.value;
+  const accessToken = (await getYouTubeAccessToken()) ?? undefined;
   if (needsAuth && !accessToken) {
     throw new Error("Connect your YouTube account first.");
   }

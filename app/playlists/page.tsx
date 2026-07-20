@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
-import { PROVIDER_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
+import { getYouTubeAccessToken } from "@/src/lib/supabase/youtube-auth";
 import { createYouTubeClient } from "@/src/youtube";
 
 export default async function PlaylistsPage() {
@@ -21,8 +20,6 @@ export default async function PlaylistsPage() {
   }
 
   const apiKey = process.env.YOUTUBE_API_KEY;
-  const providerToken = (await cookies()).get(PROVIDER_TOKEN_COOKIE)?.value;
-
   if (!apiKey) {
     return (
       <main className="container">
@@ -32,27 +29,27 @@ export default async function PlaylistsPage() {
       </main>
     );
   }
-  if (!providerToken) {
-    return (
-      <main className="container">
-        <p className="muted">
-          No Google token found — <a href="/">sign in again</a>.
-        </p>
-      </main>
-    );
-  }
-
-  const client = createYouTubeClient({ apiKey, accessToken: providerToken });
 
   let playlists;
   try {
+    const accessToken = await getYouTubeAccessToken();
+    if (!accessToken) {
+      return (
+        <main className="container">
+          <p className="muted">
+            YouTube isn&apos;t connected. <a href="/">Connect it from the home page</a>.
+          </p>
+        </main>
+      );
+    }
+    const client = createYouTubeClient({ apiKey, accessToken });
     playlists = await client.listPlaylists();
   } catch (err) {
     return (
       <main className="container">
         <p className="muted">Couldn&apos;t load your playlists: {(err as Error).message}</p>
         <p className="muted">
-          Your Google token may have expired — <a href="/">sign in again</a>.
+          Your YouTube connection may need refreshing — <a href="/">reconnect it</a>.
         </p>
       </main>
     );

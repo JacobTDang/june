@@ -1,7 +1,6 @@
-import { cookies } from "next/headers";
 import { ListMusic, ArrowRight } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
-import { PROVIDER_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
+import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
 import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
 import { CreateJamButton } from "./create-jam-button";
@@ -25,7 +24,7 @@ export default async function Home() {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  const youtubeConnected = Boolean((await cookies()).get(PROVIDER_TOKEN_COOKIE)?.value);
+  const youtubeConnected = await isYouTubeConnected();
 
   const displayName = user ? displayNameOf(user) : "";
 
