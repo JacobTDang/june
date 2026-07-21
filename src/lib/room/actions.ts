@@ -2,6 +2,7 @@
 
 import { createClient } from "../supabase/server";
 import { resolveDisplayName } from "../profile/display-name";
+import { safeThumbnailUrl } from "./thumbnail";
 import {
   rowToNowPlaying,
   rowToQueueTrack,
@@ -89,8 +90,16 @@ export async function leaveRoom(roomId: string): Promise<void> {
  * Add a track. If the room is idle it starts immediately (race-safe via a
  * conditional update); otherwise it joins the FIFO queue.
  */
-export async function enqueueTrack(roomId: string, track: AddTrackInput): Promise<void> {
+export async function enqueueTrack(roomId: string, rawTrack: AddTrackInput): Promise<void> {
   const { supabase, user } = await requireUser();
+
+  // Some add paths carry client-supplied metadata; the thumbnail is rendered as
+  // an <img src> for everyone in the room. Drop any thumbnail that isn't from a
+  // provider we use so a room member can't beacon other participants' IPs.
+  const track: AddTrackInput = {
+    ...rawTrack,
+    thumbnailUrl: safeThumbnailUrl(rawTrack.thumbnailUrl) ?? undefined,
+  };
 
   const { data: participant } = await supabase
     .from("room_participants")
