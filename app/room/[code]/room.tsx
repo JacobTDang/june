@@ -2,8 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Link2 } from "lucide-react";
+import { X, Link2, UserPlus } from "lucide-react";
 import { Avatar } from "../../avatar";
+import {
+  friendStatesFor,
+  respondToRequest,
+  sendFriendRequest,
+} from "@/src/lib/friends/actions";
+import type { FriendState } from "@/src/lib/friends/state";
 import { createClient } from "@/src/lib/supabase/client";
 import {
   clearQueue,
@@ -97,6 +103,68 @@ export function Room({
   }
 
   const { nowPlaying, queue, participants } = state;
+
+  // Friend state for the other people in the room, so we can offer to add them.
+  const otherKey = participants
+    .filter((p) => p.userId !== me.userId)
+    .map((p) => p.userId)
+    .join(",");
+  const [friendStates, setFriendStates] = useState<Record<string, FriendState>>({});
+  const [fbusy, setFbusy] = useState(false);
+
+  const refreshFriendStates = useCallback(async () => {
+    if (otherKey === "") {
+      setFriendStates({});
+      return;
+    }
+    try {
+      setFriendStates(await friendStatesFor(otherKey.split(",")));
+    } catch {
+      /* leave prior states; the add controls just won't refresh */
+    }
+  }, [otherKey]);
+
+  useEffect(() => {
+    void refreshFriendStates();
+  }, [refreshFriendStates]);
+
+  async function addFriendAction(fn: () => Promise<void>) {
+    setFbusy(true);
+    try {
+      await fn();
+      await refreshFriendStates();
+    } finally {
+      setFbusy(false);
+    }
+  }
+
+  function participantAction(userId: string, name: string) {
+    if (userId === me.userId) return null;
+    const st = friendStates[userId];
+    if (!st || st === "friends") return null;
+    if (st === "requested") return <span className="friend__tag">Requested</span>;
+    if (st === "incoming") {
+      return (
+        <button
+          className="btn btn--sm"
+          disabled={fbusy}
+          onClick={() => void addFriendAction(() => respondToRequest(userId, true))}
+        >
+          Accept
+        </button>
+      );
+    }
+    return (
+      <button
+        className="add__btn"
+        aria-label={`Add ${name} as a friend`}
+        disabled={fbusy}
+        onClick={() => void addFriendAction(() => sendFriendRequest(userId))}
+      >
+        <UserPlus size={15} />
+      </button>
+    );
+  }
 
   return (
     <main className="room rise">
@@ -200,10 +268,11 @@ export function Room({
             {participants.map((p) => (
               <li key={p.userId} className="person">
                 <Avatar name={p.name} url={p.avatarUrl} size={28} />
-                <span>
+                <span className="person__name">
                   {p.name}
                   {p.userId === me.userId ? " · you" : ""}
                 </span>
+                {participantAction(p.userId, p.name)}
               </li>
             ))}
           </ul>

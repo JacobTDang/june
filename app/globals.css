@@ -453,6 +453,32 @@ a:hover {
   color: var(--faint);
 }
 
+/* ---- Public profile (/u/<username>) ---- */
+.u {
+  margin-top: 2rem;
+}
+.u__head {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  margin-bottom: 1.5rem;
+}
+.u__name {
+  font-family: var(--font-display);
+  font-size: 1.6rem;
+  line-height: 1.1;
+}
+.u__handle {
+  color: var(--muted);
+  font-size: 0.9rem;
+  margin-top: 0.25rem;
+}
+.u__action {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
 /* ---- Jam room: single editorial column ---- */
 .room {
   max-width: 600px;
@@ -659,6 +685,10 @@ a:hover {
   align-items: center;
   gap: 0.65rem;
   font-size: 0.9rem;
+}
+.person__name {
+  flex: 1;
+  min-width: 0;
 }
 
 /* ---- Add music: de-boxed, underline tabs ---- */
