@@ -1,7 +1,6 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 import { createServiceClient } from "../supabase/service";
-import { deadRoomIds, roomIsLive, type RoomLifecycleRow } from "../room/lifecycle";
 import { isAdminIdentity } from "./admin-identity";
 import { pacificDay } from "./day";
 
@@ -57,12 +56,10 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
   const rows = (usage as UsageRow[] | null) ?? [];
   const todayRow = rows.find((r) => r.day === today);
 
-  const [roomRows, users, friendships, queued] = await Promise.all([
-    // Pull the timing columns so "active" means a track that's actually still
-    // playing — not just a stale now_playing snapshot from an abandoned room.
-    service
-      .from("rooms")
-      .select("id, created_at, now_playing_video_id, now_playing_started_at, now_playing_duration_ms"),
+  const [health, users, friendships, queued] = await Promise.all([
+    // Counts computed in one bounded query; "active" means a track that's still
+    // playing, "stale" means sweepable — the same predicate the cron deletes on.
+    service.rpc("room_health"),
     service.from("profiles").select("id", { count: "exact", head: true }),
     service
       .from("friendships")
@@ -71,16 +68,15 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
     service.from("queue_items").select("id", { count: "exact", head: true }),
   ]);
 
-  const rooms = (roomRows.data as RoomLifecycleRow[] | null) ?? [];
-  const now = Date.now();
+  const h = (health.data as { total: number; active: number; stale: number }[] | null)?.[0];
 
   return {
     today: todayRow ? toQuotaDay(todayRow) : { day: today, units: 0, byEndpoint: {} },
     recent: rows.map(toQuotaDay),
     stats: {
-      rooms: rooms.length,
-      activeRooms: rooms.filter((r) => roomIsLive(r, now)).length,
-      staleRooms: deadRoomIds(rooms, now).length,
+      rooms: Number(h?.total ?? 0),
+      activeRooms: Number(h?.active ?? 0),
+      staleRooms: Number(h?.stale ?? 0),
       users: users.count ?? 0,
       friendships: friendships.count ?? 0,
       queued: queued.count ?? 0,
