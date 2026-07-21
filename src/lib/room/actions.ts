@@ -58,18 +58,16 @@ const NP_CLEARED = {
 
 /** Create a room, add the creator as a participant, and return the room code. */
 export async function createRoom(displayName: string): Promise<string> {
-  const { supabase, user } = await requireUser();
+  const { supabase } = await requireUser();
 
   for (let attempt = 0; attempt < 5; attempt++) {
     const code = generateRoomCode();
-    const { error } = await supabase.from("rooms").insert({ id: code, host_id: user.id });
-    if (!error) {
-      await supabase
-        .from("room_participants")
-        .insert({ room_id: code, user_id: user.id, name: displayName });
-      return code;
-    }
-    if (error.code !== "23505") throw new Error(`createRoom failed: ${error.message}`); // 23505 = unique violation
+    // Insert the room and the host participant atomically, so a room never
+    // briefly exists with zero participants (which cleanup would treat as
+    // empty). Raises 23505 on a code collision — retry with a fresh code.
+    const { error } = await supabase.rpc("create_room", { p_code: code, p_name: displayName });
+    if (!error) return code;
+    if (error.code !== "23505") throw new Error(`createRoom failed: ${error.message}`);
   }
   throw new Error("createRoom: could not allocate a unique room code");
 }
