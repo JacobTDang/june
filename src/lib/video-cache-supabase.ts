@@ -1,5 +1,5 @@
-import type { SupabaseClient } from "@supabase/supabase-js";
 import type { YouTubeClient } from "../youtube/client";
+import { createServiceClient } from "./supabase/service";
 import { toVideoMeta, type CacheDeps, type VideoMeta } from "./video-cache";
 
 interface VideoCacheRow {
@@ -38,10 +38,10 @@ function metaToRow(meta: VideoMeta): VideoCacheRow & { fetched_at: string } {
  * Cache IO backed by the Supabase `video_cache` table, with misses fetched via
  * the YouTube client. Plug this into `getVideoMetas` on the server.
  */
-export function supabaseVideoCache(
-  supabase: SupabaseClient,
-  youtube: YouTubeClient,
-): CacheDeps {
+export function supabaseVideoCache(youtube: YouTubeClient): CacheDeps {
+  // The video_cache is shared server infrastructure — read and written with the
+  // service role so clients can't poison it (writes are RLS-locked).
+  const supabase = createServiceClient();
   return {
     async readCache(ids) {
       const { data, error } = await supabase

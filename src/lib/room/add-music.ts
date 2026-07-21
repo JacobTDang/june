@@ -4,6 +4,7 @@ import { createYouTubeClient } from "@/src/youtube";
 import { parseVideoId } from "@/src/youtube/url";
 import { searchMusic, type MusicCandidate } from "@/src/discovery";
 import { createClient } from "../supabase/server";
+import { createServiceClient } from "../supabase/service";
 import { getYouTubeAccessToken } from "../supabase/youtube-auth";
 import { getVideoMetas, type VideoMeta } from "../video-cache";
 import { supabaseVideoCache } from "../video-cache-supabase";
@@ -30,9 +31,8 @@ export async function addByLink(roomId: string, url: string): Promise<void> {
   const videoId = parseVideoId(url);
   if (!videoId) throw new Error("That doesn't look like a YouTube link.");
 
-  const supabase = await createClient();
   const youtube = await youtubeClient();
-  const [meta] = await getVideoMetas([videoId], supabaseVideoCache(supabase, youtube));
+  const [meta] = await getVideoMetas([videoId], supabaseVideoCache(youtube));
   if (!meta) throw new Error("Couldn't find that video.");
   if (!meta.embeddable) throw new Error("That video can't be played here (embedding disabled).");
 
@@ -44,12 +44,13 @@ export async function addByLink(roomId: string, url: string): Promise<void> {
  * search.list, cached forever in track_resolution), then enqueue.
  */
 export async function addCandidate(roomId: string, candidate: MusicCandidate): Promise<void> {
-  const supabase = await createClient();
   const youtube = await youtubeClient();
-  const cache = supabaseVideoCache(supabase, youtube);
+  const cache = supabaseVideoCache(youtube);
+  // track_resolution is a shared server cache, read/written with the service role.
+  const service = createServiceClient();
   const key = `${candidate.source}:${candidate.sourceId}`;
 
-  const { data: cached } = await supabase
+  const { data: cached } = await service
     .from("track_resolution")
     .select("video_id")
     .eq("key", key)
@@ -68,7 +69,7 @@ export async function addCandidate(roomId: string, candidate: MusicCandidate): P
     const metas = await getVideoMetas(ids, cache);
     meta = metas.find((m) => m.embeddable && m.durationMs > 0);
     if (!meta) throw new Error("Couldn't find a playable YouTube match for that track.");
-    await supabase.from("track_resolution").upsert({ key, video_id: meta.videoId });
+    await service.from("track_resolution").upsert({ key, video_id: meta.videoId });
   }
 
   if (!meta || !meta.embeddable) throw new Error("That track can't be played here.");
@@ -85,17 +86,15 @@ export async function addCandidate(roomId: string, candidate: MusicCandidate): P
 
 /** A playlist's songs, ready to pick from (embeddability included). */
 export async function getPlaylistTracks(playlistId: string): Promise<VideoMeta[]> {
-  const supabase = await createClient();
   const youtube = await youtubeClient(true);
   const ids = await youtube.listPlaylistVideoIds(playlistId);
-  return getVideoMetas(ids, supabaseVideoCache(supabase, youtube));
+  return getVideoMetas(ids, supabaseVideoCache(youtube));
 }
 
 /** Add a single video (by id) to the room, from the playlist-browse view. */
 export async function addVideoById(roomId: string, videoId: string): Promise<void> {
-  const supabase = await createClient();
   const youtube = await youtubeClient();
-  const [meta] = await getVideoMetas([videoId], supabaseVideoCache(supabase, youtube));
+  const [meta] = await getVideoMetas([videoId], supabaseVideoCache(youtube));
   if (!meta) throw new Error("Couldn't find that video.");
   if (!meta.embeddable) throw new Error("That video can't be played here (embedding disabled).");
   await enqueueTrack(roomId, meta);
@@ -136,7 +135,7 @@ export async function importPlaylistToRoom(
   const nowVideo = (room as { now_playing_video_id: string | null } | null)?.now_playing_video_id;
   if (nowVideo) present.add(nowVideo);
 
-  const metas = (await getVideoMetas(ids, supabaseVideoCache(supabase, youtube))).filter(
+  const metas = (await getVideoMetas(ids, supabaseVideoCache(youtube))).filter(
     (m) => m.embeddable && m.durationMs > 0 && !present.has(m.videoId),
   );
   if (metas.length === 0) return 0;
