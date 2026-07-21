@@ -1127,6 +1127,14 @@ a:hover {
   .room {
     padding: 0 1rem 4rem;
   }
+  /* iOS Safari zooms the page in when focusing a field smaller than 16px.
+     Bump inputs to 16px on mobile to stop that jump; desktop keeps 0.9rem. */
+  .input,
+  input,
+  textarea,
+  select {
+    font-size: 16px;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
