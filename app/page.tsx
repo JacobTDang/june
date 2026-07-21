@@ -36,6 +36,9 @@ export default async function Home({
               <Avatar name={displayName} url={profile?.avatarUrl} size={30} />
               <span className="account__name">{displayName}</span>
             </a>
+            <a href="/friends" className="btn btn--sm">
+              Friends
+            </a>
             <form action="/auth/signout" method="post">
               <button type="submit" className="btn btn--sm">
                 Sign out
