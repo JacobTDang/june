@@ -1,4 +1,5 @@
 import type { AdminMetrics } from "@/src/lib/metrics/admin";
+import { cleanupDeadRoomsAction } from "./actions";
 
 const ENDPOINT_LABELS: Record<string, string> = {
   search: "Search",
@@ -86,10 +87,19 @@ export function MetricsView({ metrics, quota }: { metrics: AdminMetrics; quota: 
         <div className="tiles">
           <StatTile label="Rooms" value={stats.rooms} />
           <StatTile label="Active now" value={stats.activeRooms} />
+          <StatTile label="Stale rooms" value={stats.staleRooms} />
           <StatTile label="Users" value={stats.users} />
           <StatTile label="Friendships" value={stats.friendships} />
           <StatTile label="Queued tracks" value={stats.queued} />
         </div>
+        {stats.staleRooms > 0 && (
+          <form action={cleanupDeadRoomsAction} className="metrics__cleanup">
+            <button type="submit" className="btn btn--sm">
+              Clean up {stats.staleRooms} stale {stats.staleRooms === 1 ? "room" : "rooms"}
+            </button>
+            <span className="muted">Abandoned rooms with no live playback for 12h+.</span>
+          </form>
+        )}
       </section>
     </div>
   );

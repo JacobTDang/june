@@ -572,6 +572,16 @@ a:hover {
   letter-spacing: 0.1em;
   margin-top: 0.25rem;
 }
+.metrics__cleanup {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+.metrics__cleanup .muted {
+  font-size: 0.82rem;
+}
 
 /* ---- Public profile (/u/<username>) ---- */
 .u {

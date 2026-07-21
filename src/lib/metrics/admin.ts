@@ -1,6 +1,7 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 import { createServiceClient } from "../supabase/service";
+import { deadRoomIds, roomIsLive, type RoomLifecycleRow } from "../room/lifecycle";
 import { pacificDay } from "./day";
 
 /** YouTube Data API default daily quota. */
@@ -13,7 +14,10 @@ export interface AdminMetrics {
   recent: QuotaDay[];
   stats: {
     rooms: number;
+    /** Rooms whose current track hasn't ended — genuinely playing right now. */
     activeRooms: number;
+    /** Abandoned rooms that the cleanup sweep would delete. */
+    staleRooms: number;
     users: number;
     friendships: number;
     queued: number;
@@ -51,12 +55,12 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
   const rows = (usage as UsageRow[] | null) ?? [];
   const todayRow = rows.find((r) => r.day === today);
 
-  const [rooms, activeRooms, users, friendships, queued] = await Promise.all([
-    service.from("rooms").select("id", { count: "exact", head: true }),
+  const [roomRows, users, friendships, queued] = await Promise.all([
+    // Pull the timing columns so "active" means a track that's actually still
+    // playing — not just a stale now_playing snapshot from an abandoned room.
     service
       .from("rooms")
-      .select("id", { count: "exact", head: true })
-      .not("now_playing_video_id", "is", null),
+      .select("id, created_at, now_playing_video_id, now_playing_started_at, now_playing_duration_ms"),
     service.from("profiles").select("id", { count: "exact", head: true }),
     service
       .from("friendships")
@@ -65,12 +69,16 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
     service.from("queue_items").select("id", { count: "exact", head: true }),
   ]);
 
+  const rooms = (roomRows.data as RoomLifecycleRow[] | null) ?? [];
+  const now = Date.now();
+
   return {
     today: todayRow ? toQuotaDay(todayRow) : { day: today, units: 0, byEndpoint: {} },
     recent: rows.map(toQuotaDay),
     stats: {
-      rooms: rooms.count ?? 0,
-      activeRooms: activeRooms.count ?? 0,
+      rooms: rooms.length,
+      activeRooms: rooms.filter((r) => roomIsLive(r, now)).length,
+      staleRooms: deadRoomIds(rooms, now).length,
       users: users.count ?? 0,
       friendships: friendships.count ?? 0,
       queued: queued.count ?? 0,
