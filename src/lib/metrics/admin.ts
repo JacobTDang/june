@@ -2,6 +2,7 @@ import "server-only";
 import { createClient } from "../supabase/server";
 import { createServiceClient } from "../supabase/service";
 import { deadRoomIds, roomIsLive, type RoomLifecycleRow } from "../room/lifecycle";
+import { isAdminIdentity } from "./admin-identity";
 import { pacificDay } from "./day";
 
 /** YouTube Data API default daily quota. */
@@ -26,13 +27,14 @@ export interface AdminMetrics {
 
 /** Whether the signed-in user is the configured owner (ADMIN_EMAIL). */
 export async function isAdmin(): Promise<boolean> {
-  const admin = process.env.ADMIN_EMAIL?.trim().toLowerCase();
-  if (!admin) return false;
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  return Boolean(user?.email && user.email.toLowerCase() === admin);
+  return isAdminIdentity(
+    user ? { email: user.email ?? null, emailConfirmed: Boolean(user.email_confirmed_at) } : null,
+    process.env.ADMIN_EMAIL,
+  );
 }
 
 type UsageRow = { day: string; units: number; by_endpoint: Record<string, number> };
