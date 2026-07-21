@@ -73,14 +73,16 @@ export async function createRoom(displayName: string): Promise<string> {
   throw new Error("createRoom: could not allocate a unique room code");
 }
 
-/** Leave a room. */
+/**
+ * Leave a room. Removes our participant row and, if we were the last one,
+ * deletes the room outright (queue + participants cascade) so it doesn't linger
+ * as a dead room. Done in one SECURITY DEFINER call because the empty-room
+ * delete would otherwise be RLS-blocked once we're no longer a participant.
+ */
 export async function leaveRoom(roomId: string): Promise<void> {
-  const { supabase, user } = await requireUser();
-  await supabase
-    .from("room_participants")
-    .delete()
-    .eq("room_id", roomId)
-    .eq("user_id", user.id);
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("leave_room", { p_room: roomId });
+  if (error) throw new Error(`leaveRoom failed: ${error.message}`);
 }
 
 /**

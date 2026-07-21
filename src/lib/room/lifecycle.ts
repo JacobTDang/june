@@ -16,7 +16,12 @@ export type RoomLifecycleRow = {
   now_playing_duration_ms: number | null;
 };
 
-/** How long a room can sit with no live playback before it's swept. */
+/**
+ * How long a room can sit with no live playback before it's swept. Mirrors the
+ * default TTL in the `sweep_dead_rooms()` SQL function (which does the actual
+ * deletion for the cron job and the owner button) — keep the two in sync. These
+ * helpers drive the dashboard's live/stale counts.
+ */
 export const ROOM_STALE_MS = 12 * 60 * 60 * 1000; // 12 hours
 
 /**
