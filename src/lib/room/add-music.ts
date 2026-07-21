@@ -5,6 +5,7 @@ import { parseVideoId } from "@/src/youtube/url";
 import { searchMusic, type MusicCandidate } from "@/src/discovery";
 import { createClient } from "../supabase/server";
 import { createServiceClient } from "../supabase/service";
+import { meteredFetch } from "../metrics/youtube-usage";
 import { getYouTubeAccessToken } from "../supabase/youtube-auth";
 import { getVideoMetas, type VideoMeta } from "../video-cache";
 import { supabaseVideoCache } from "../video-cache-supabase";
@@ -17,7 +18,7 @@ async function youtubeClient(needsAuth = false) {
   if (needsAuth && !accessToken) {
     throw new Error("Connect your YouTube account first.");
   }
-  return createYouTubeClient({ apiKey, accessToken });
+  return createYouTubeClient({ apiKey, accessToken, fetch: meteredFetch() });
 }
 
 /** iTunes type-ahead search — zero YouTube quota. */

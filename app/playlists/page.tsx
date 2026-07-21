@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { getYouTubeAccessToken } from "@/src/lib/supabase/youtube-auth";
+import { meteredFetch } from "@/src/lib/metrics/youtube-usage";
 import { createYouTubeClient } from "@/src/youtube";
 
 export default async function PlaylistsPage() {
@@ -42,7 +43,7 @@ export default async function PlaylistsPage() {
         </main>
       );
     }
-    const client = createYouTubeClient({ apiKey, accessToken });
+    const client = createYouTubeClient({ apiKey, accessToken, fetch: meteredFetch() });
     playlists = await client.listPlaylists();
   } catch (err) {
     return (
