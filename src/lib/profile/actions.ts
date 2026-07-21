@@ -3,6 +3,7 @@
 import sharp from "sharp";
 import { createClient } from "../supabase/server";
 import { normalizeDisplayName, resolveDisplayName } from "./display-name";
+import { normalizeUsername } from "./username";
 import {
   AVATAR_SIZE,
   avatarObjectPath,
@@ -21,7 +22,7 @@ async function requireUser() {
   return { supabase, user };
 }
 
-export type MyProfile = { displayName: string; avatarUrl: string | null };
+export type MyProfile = { displayName: string; avatarUrl: string | null; username: string | null };
 
 /** The signed-in user's profile, seeding a row from their Google identity on first access. */
 export async function getMyProfile(): Promise<MyProfile> {
@@ -29,7 +30,7 @@ export async function getMyProfile(): Promise<MyProfile> {
 
   const { data: row } = await supabase
     .from("profiles")
-    .select("display_name, avatar_url")
+    .select("display_name, avatar_url, username")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -39,25 +40,67 @@ export async function getMyProfile(): Promise<MyProfile> {
     await supabase
       .from("profiles")
       .upsert({ id: user.id, display_name: seeded }, { onConflict: "id", ignoreDuplicates: true });
-    return { displayName: seeded, avatarUrl: null };
+    return { displayName: seeded, avatarUrl: null, username: null };
   }
 
-  const r = row as { display_name: string | null; avatar_url: string | null };
-  return { displayName: resolveDisplayName(r.display_name, user), avatarUrl: r.avatar_url };
+  const r = row as { display_name: string | null; avatar_url: string | null; username: string | null };
+  return {
+    displayName: resolveDisplayName(r.display_name, user),
+    avatarUrl: r.avatar_url,
+    username: r.username,
+  };
 }
 
-/** Save the user's chosen display name. Throws on an invalid name or a failed write. */
-export async function updateProfile(displayName: string): Promise<void> {
-  const { supabase, user } = await requireUser();
-  const name = normalizeDisplayName(displayName);
+export type UsernameAvailability =
+  | { available: true; value: string }
+  | { available: false; error: string };
 
-  const { error } = await supabase
+/** Whether a username is valid and free (excluding your own). For live feedback. */
+export async function checkUsernameAvailable(input: string): Promise<UsernameAvailability> {
+  const norm = normalizeUsername(input);
+  if (!norm.ok) return { available: false, error: norm.error };
+
+  const { supabase, user } = await requireUser();
+  const { data } = await supabase
     .from("profiles")
-    .upsert(
-      { id: user.id, display_name: name, updated_at: new Date().toISOString() },
-      { onConflict: "id" },
-    );
-  if (error) throw new Error(`Couldn't save your name: ${error.message}`);
+    .select("id")
+    .eq("username", norm.value)
+    .neq("id", user.id)
+    .maybeSingle();
+
+  if (data) return { available: false, error: "That username is taken." };
+  return { available: true, value: norm.value };
+}
+
+/** Save display name and (optionally) username. Throws on invalid input or a clash. */
+export async function updateProfile(input: {
+  displayName: string;
+  username?: string | null;
+}): Promise<void> {
+  const { supabase, user } = await requireUser();
+
+  const patch: Record<string, unknown> = {
+    id: user.id,
+    display_name: normalizeDisplayName(input.displayName),
+    updated_at: new Date().toISOString(),
+  };
+
+  if (input.username !== undefined) {
+    const raw = (input.username ?? "").trim();
+    if (raw === "") {
+      patch.username = null;
+    } else {
+      const norm = normalizeUsername(raw);
+      if (!norm.ok) throw new Error(norm.error);
+      patch.username = norm.value;
+    }
+  }
+
+  const { error } = await supabase.from("profiles").upsert(patch, { onConflict: "id" });
+  if (error) {
+    if ((error as { code?: string }).code === "23505") throw new Error("That username is taken.");
+    throw new Error(`Couldn't save your profile: ${error.message}`);
+  }
 }
 
 /**

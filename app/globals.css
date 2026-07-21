@@ -351,23 +351,53 @@ a:hover {
   align-items: center;
   gap: 1.25rem;
 }
+.profile__form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.4rem;
+}
+.profile__form .input {
+  width: 100%;
+}
 .profile__label {
   display: block;
   font-size: 0.8rem;
   color: var(--muted);
   margin-bottom: 0.5rem;
 }
-.profile__field {
-  display: flex;
-  gap: 0.5rem;
+.profile__handle {
+  position: relative;
 }
-.profile__field .input {
-  flex: 1;
+.profile__handle .input {
+  padding-left: 1.7rem;
+  text-transform: lowercase;
+}
+.profile__at {
+  position: absolute;
+  left: 0.85rem;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--faint);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+.profile__hint {
+  display: inline-block;
+  font-size: 0.78rem;
+  margin-top: 0.45rem;
+}
+.profile__hint--checking {
+  color: var(--faint);
+}
+.profile__hint--ok {
+  color: var(--accent);
+}
+.profile__hint--error {
+  color: var(--danger);
 }
 .profile__msg {
   font-size: 0.85rem;
   color: var(--muted);
-  margin-top: -1rem;
 }
 .profile__msg--err {
   color: var(--danger);
