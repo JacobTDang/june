@@ -197,13 +197,11 @@ export async function getPublicProfile(username: string): Promise<PublicProfile 
   const handle = username.trim().toLowerCase();
   if (!handle) return null;
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, username, display_name, avatar_url")
-    .eq("username", handle)
-    .maybeSingle();
-  if (!data) return null;
-  const profile = data as ProfileRow;
+  // A SECURITY DEFINER function so signed-out visitors can view a single public
+  // profile without the profiles table being readable (or enumerable) by anon.
+  const { data } = await supabase.rpc("public_profile", { handle });
+  const profile = ((data as ProfileRow[] | null) ?? [])[0];
+  if (!profile) return null;
 
   const {
     data: { user },
