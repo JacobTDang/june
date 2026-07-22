@@ -2,7 +2,14 @@
 
 import { createYouTubeClient } from "@/src/youtube";
 import { parseVideoId } from "@/src/youtube/url";
-import { searchMusic, type MusicCandidate } from "@/src/discovery";
+import {
+  searchMusic,
+  searchArtists,
+  getArtistTopSongs,
+  pickArtistMatch,
+  type MusicCandidate,
+  type ArtistCandidate,
+} from "@/src/discovery";
 import { createClient } from "../supabase/server";
 import { createServiceClient } from "../supabase/service";
 import { meteredFetch } from "../metrics/youtube-usage";
@@ -21,10 +28,23 @@ async function youtubeClient(needsAuth = false) {
   return createYouTubeClient({ apiKey, accessToken, fetch: meteredFetch() });
 }
 
-/** iTunes type-ahead search — zero YouTube quota. */
-export async function searchMusicAction(query: string): Promise<MusicCandidate[]> {
-  if (!query.trim()) return [];
-  return searchMusic(query, { limit: 8 });
+/** A song list plus, when the query strongly names an artist, that artist to open. */
+export type SearchResult = { songs: MusicCandidate[]; artist: ArtistCandidate | null };
+
+/**
+ * iTunes type-ahead search — zero YouTube quota. Searches songs and artists
+ * concurrently; surfaces an artist chip only when the query strongly names one.
+ */
+export async function searchMusicAction(query: string): Promise<SearchResult> {
+  if (!query.trim()) return { songs: [], artist: null };
+  const [songs, artists] = await Promise.all([searchMusic(query), searchArtists(query)]);
+  return { songs, artist: pickArtistMatch(query, artists) };
+}
+
+/** An artist's top songs, for the artist view. Zero YouTube quota. */
+export async function getArtistTopSongsAction(artistId: string): Promise<MusicCandidate[]> {
+  if (!artistId) return [];
+  return getArtistTopSongs(artistId);
 }
 
 /** Add a track by pasting a YouTube link or id (1 unit, cached). */

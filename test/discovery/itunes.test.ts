@@ -52,10 +52,79 @@ describe("searchMusic", () => {
     expect(url.searchParams.get("limit")).toBe("5");
   });
 
-  it("defaults the limit to 10", async () => {
+  it("defaults the limit to 15", async () => {
     const { fetch, calls } = stubFetch(() => ({ body: { resultCount: 0, results: [] } }));
     await searchMusic("x", { fetch });
-    expect(calls[0]!.url.searchParams.get("limit")).toBe("10");
+    expect(calls[0]!.url.searchParams.get("limit")).toBe("15");
+  });
+
+  it("sends the normalized term and ranks studio versions above noise", async () => {
+    const { fetch, calls } = stubFetch(() => ({
+      body: {
+        resultCount: 3,
+        results: [
+          track({ trackId: 1, trackName: "Song (Karaoke Version)", artistName: "X" }),
+          track({ trackId: 2, trackName: "Song", artistName: "X" }),
+          track({ trackId: 3, trackName: "Other", artistName: "Y" }),
+        ],
+      },
+    }));
+
+    const results = await searchMusic("Song official video", { fetch });
+
+    expect(calls).toHaveLength(1);
+    expect(calls[0]!.url.searchParams.get("term")).toBe("Song");
+    expect(results.map((r) => r.sourceId)).toEqual(["2", "3", "1"]);
+  });
+
+  it("retries with the raw query when the normalized search is sparse", async () => {
+    const { fetch, calls } = stubFetch((url) => {
+      if (url.searchParams.get("term") === "Halo") {
+        return { body: { resultCount: 1, results: [track({ trackId: 1, trackName: "Halo" })] } };
+      }
+      return {
+        body: {
+          resultCount: 3,
+          results: [
+            track({ trackId: 1, trackName: "Halo" }),
+            track({ trackId: 2, trackName: "Halo (Live at Wembley)" }),
+            track({ trackId: 3, trackName: "Halo (Karaoke)" }),
+          ],
+        },
+      };
+    });
+
+    const results = await searchMusic("Halo lyrics", { fetch });
+
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.url.searchParams.get("term")).toBe("Halo");
+    expect(calls[1]!.url.searchParams.get("term")).toBe("Halo lyrics");
+    expect(results).toHaveLength(3);
+  });
+
+  it("does not retry when the first search is already plentiful", async () => {
+    const { fetch, calls } = stubFetch(() => ({
+      body: {
+        resultCount: 4,
+        results: [1, 2, 3, 4].map((id) => track({ trackId: id })),
+      },
+    }));
+    await searchMusic("Halo lyrics", { fetch });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not retry when normalization changed nothing", async () => {
+    const { fetch, calls } = stubFetch(() => ({
+      body: { resultCount: 1, results: [track({ trackId: 1 })] },
+    }));
+    await searchMusic("daft punk", { fetch });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("does not retry on an HTTP error", async () => {
+    const { fetch, calls } = stubFetch(() => ({ status: 503, body: {} }));
+    await expect(searchMusic("Halo lyrics", { fetch })).rejects.toThrow(/503/);
+    expect(calls).toHaveLength(1);
   });
 
   it("returns an empty array when there are no results", async () => {
