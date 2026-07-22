@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Music, Play, RefreshCw } from "lucide-react";
 import { filterPlaylists } from "@/src/lib/room/playlist-window";
 
@@ -27,9 +27,29 @@ export function PlaylistCarousel({
   onRefresh: () => void;
 }) {
   const [query, setQuery] = useState("");
+  const [focusedId, setFocusedId] = useState<string | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
   const filtered = filterPlaylists(playlists, query);
+
+  // The focused card is whichever is nearest the rail's centre.
+  const updateFocus = useCallback(() => {
+    const el = railRef.current;
+    if (!el) return;
+    const centre = el.scrollLeft + el.clientWidth / 2;
+    let bestId: string | null = null;
+    let best = Infinity;
+    for (const child of Array.from(el.children)) {
+      const c = child as HTMLElement;
+      if (!c.dataset.id) continue;
+      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - centre);
+      if (d < best) {
+        best = d;
+        bestId = c.dataset.id;
+      }
+    }
+    setFocusedId(bestId);
+  }, []);
 
   // Mouse wheel scrolls the rail sideways (trackpad horizontal swipe works
   // natively). Only hijack the wheel when there's actually somewhere to scroll.
@@ -46,6 +66,23 @@ export function PlaylistCarousel({
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
+
+  // Track the centred card as the rail scrolls (and when the list changes).
+  useEffect(() => {
+    const el = railRef.current;
+    if (!el) return;
+    let raf = 0;
+    const onScroll = () => {
+      cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(updateFocus);
+    };
+    el.addEventListener("scroll", onScroll, { passive: true });
+    updateFocus();
+    return () => {
+      el.removeEventListener("scroll", onScroll);
+      cancelAnimationFrame(raf);
+    };
+  }, [updateFocus, filtered.length]);
 
   return (
     <div className="plc">
@@ -76,7 +113,8 @@ export function PlaylistCarousel({
             <button
               key={p.id}
               type="button"
-              className="plc-scard"
+              data-id={p.id}
+              className={`plc-scard${focusedId === p.id ? " plc-scard--focused" : ""}`}
               onClick={() => onOpen(p)}
               disabled={busy}
             >
