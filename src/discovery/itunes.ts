@@ -13,6 +13,18 @@ export interface MusicCandidate {
   sourceId: string;
 }
 
+/**
+ * A normalized artist search result. iTunes artist entities carry no artwork,
+ * so `artworkUrl` is filled in by the action layer (borrowed from a top song).
+ */
+export interface ArtistCandidate {
+  artistId: string;
+  name: string;
+  genre?: string;
+  artworkUrl?: string;
+  source: "itunes";
+}
+
 /** The one bit of `fetch` we use — injectable so tests need no network. */
 export type FetchLike = (input: URL) => Promise<Response>;
 
