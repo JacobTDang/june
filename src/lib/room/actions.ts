@@ -137,7 +137,7 @@ async function popOldest(
     .from("queue_items")
     .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
     .eq("room_id", roomId)
-    .order("created_at", { ascending: true })
+    .order("position", { ascending: true })
     .limit(1)
     .maybeSingle();
   return (data as QueueItemRow | null) ?? null;
@@ -213,6 +213,17 @@ export async function removeQueueItem(itemId: string): Promise<void> {
   await supabase.from("queue_items").delete().eq("id", itemId);
 }
 
+/** Move a queued track up or down (any participant). Swaps position with its
+ *  neighbor via a participant-checked function — clients can't reorder directly. */
+export async function moveQueueItem(itemId: string, direction: "up" | "down"): Promise<void> {
+  const { supabase } = await requireUser();
+  const { error } = await supabase.rpc("move_queue_item", {
+    p_item: itemId,
+    p_direction: direction,
+  });
+  if (error) throw new Error(`moveQueueItem failed: ${error.message}`);
+}
+
 /** Clear the whole queue (keeps whatever is now playing). */
 export async function clearQueue(roomId: string): Promise<void> {
   const { supabase } = await requireUser();
@@ -235,7 +246,7 @@ export async function getRoomState(roomId: string): Promise<RoomState | null> {
       .from("queue_items")
       .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
       .eq("room_id", roomId)
-      .order("created_at", { ascending: true }),
+      .order("position", { ascending: true }),
     supabase.from("room_participants").select("user_id, name").eq("room_id", roomId),
   ]);
 
@@ -313,7 +324,7 @@ export async function enterRoom(code: string): Promise<EnterRoomResult> {
       .from("queue_items")
       .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
       .eq("room_id", code)
-      .order("created_at", { ascending: true }),
+      .order("position", { ascending: true }),
     supabase.from("room_participants").select("user_id, name").eq("room_id", code),
   ]);
 

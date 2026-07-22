@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Link2, UserPlus } from "lucide-react";
+import { X, Link2, UserPlus, ChevronUp, ChevronDown } from "lucide-react";
 import { Avatar } from "../../avatar";
 import {
   friendStatesFor,
@@ -15,6 +15,7 @@ import {
   clearQueue,
   getRoomState,
   leaveRoom,
+  moveQueueItem,
   removeQueueItem,
   skipTrack,
 } from "@/src/lib/room/actions";
@@ -232,7 +233,7 @@ export function Room({
             <p className="muted">Nothing queued yet.</p>
           ) : (
             <ul className="list">
-              {queue.map((t) => (
+              {queue.map((t, i) => (
                 <li key={t.id} className="track">
                   {t.thumbnailUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
@@ -247,13 +248,31 @@ export function Room({
                       {t.addedByName ? ` · ${t.addedByName}` : ""}
                     </div>
                   </div>
-                  <button
-                    className="btn btn--sm track__remove"
-                    onClick={() => void removeQueueItem(t.id)}
-                    aria-label="Remove"
-                  >
-                    <X size={14} />
-                  </button>
+                  <div className="track__controls">
+                    <button
+                      className="btn btn--sm track__move"
+                      onClick={() => void moveQueueItem(t.id, "up")}
+                      disabled={i === 0}
+                      aria-label="Move up"
+                    >
+                      <ChevronUp size={14} />
+                    </button>
+                    <button
+                      className="btn btn--sm track__move"
+                      onClick={() => void moveQueueItem(t.id, "down")}
+                      disabled={i === queue.length - 1}
+                      aria-label="Move down"
+                    >
+                      <ChevronDown size={14} />
+                    </button>
+                    <button
+                      className="btn btn--sm track__remove"
+                      onClick={() => void removeQueueItem(t.id)}
+                      aria-label="Remove"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
                 </li>
               ))}
             </ul>

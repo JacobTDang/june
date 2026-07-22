@@ -794,12 +794,32 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.track__remove {
+.track__controls {
+  display: flex;
+  align-items: center;
+  gap: 0.15rem;
+}
+.track__controls .btn {
+  padding: 0.35rem;
   opacity: 0;
   transition: opacity 0.15s var(--ease);
 }
-.track:hover .track__remove {
+.track:hover .track__controls .btn {
   opacity: 1;
+}
+/* A boundary button (top/bottom) stays hidden but reserves its space, so the
+   row doesn't shift when hovered. */
+.track__controls .btn:disabled {
+  opacity: 0;
+}
+/* On touch there's no hover, so keep controls visible; grey out the boundary. */
+@media (hover: none) {
+  .track__controls .btn {
+    opacity: 1;
+  }
+  .track__controls .btn:disabled {
+    opacity: 0.3;
+  }
 }
 
 .people {
