@@ -732,11 +732,36 @@ a:hover {
   font-size: 1.5rem;
 }
 
-.columns {
+/* Room: queue on the left, player + add-music on the right, people below. */
+.room__main {
   display: grid;
-  grid-template-columns: 1.4fr 1fr;
+  grid-template-columns: minmax(240px, 300px) 1fr;
   gap: 2.5rem;
+  align-items: start;
 }
+.room__queue {
+  min-width: 0;
+}
+.room__center {
+  min-width: 0;
+}
+.room__people {
+  margin-top: 0.5rem;
+}
+
+/* The queue window: about five rows, then it scrolls. */
+.queue {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  max-height: 19rem;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
 .section__head {
   display: flex;
   align-items: center;
@@ -748,25 +773,39 @@ a:hover {
   margin: 0;
 }
 
-.list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-}
 .track {
   display: grid;
-  grid-template-columns: 36px 1fr auto;
+  grid-template-columns: auto 36px 1fr auto;
   align-items: center;
-  gap: 0.7rem;
+  gap: 0.55rem;
   padding: 0.4rem 0.3rem;
   border-radius: var(--r-sm);
+  background: var(--bg);
   transition: background 0.15s var(--ease);
 }
 .track:hover {
   background: var(--surface);
+}
+/* Drag handle — the only place a drag starts, so the window still scrolls. */
+.track__handle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 30px;
+  border: 0;
+  background: transparent;
+  color: var(--faint);
+  cursor: grab;
+  touch-action: none;
+  flex-shrink: 0;
+  transition: color 0.15s var(--ease);
+}
+.track__handle:hover {
+  color: var(--muted);
+}
+.track__handle:active {
+  cursor: grabbing;
 }
 .thumb {
   width: 36px;
@@ -794,41 +833,29 @@ a:hover {
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.track__controls {
-  display: flex;
-  align-items: center;
-  gap: 0.15rem;
-}
-.track__controls .btn {
+.track__remove {
   padding: 0.35rem;
   opacity: 0;
   transition: opacity 0.15s var(--ease);
 }
-.track:hover .track__controls .btn {
+.track:hover .track__remove {
   opacity: 1;
 }
-/* A boundary button (top/bottom) stays hidden but reserves its space, so the
-   row doesn't shift when hovered. */
-.track__controls .btn:disabled {
-  opacity: 0;
-}
-/* On touch there's no hover, so keep controls visible; grey out the boundary. */
+/* On touch there's no hover, so keep the remove control visible. */
 @media (hover: none) {
-  .track__controls .btn {
+  .track__remove {
     opacity: 1;
-  }
-  .track__controls .btn:disabled {
-    opacity: 0.3;
   }
 }
 
+/* People: a wrapping strip along the bottom of the room. */
 .people {
   list-style: none;
   padding: 0;
   margin: 0;
   display: flex;
-  flex-direction: column;
-  gap: 0.85rem;
+  flex-flow: row wrap;
+  gap: 0.75rem 1.5rem;
 }
 .person {
   display: flex;
@@ -837,8 +864,8 @@ a:hover {
   font-size: 0.9rem;
 }
 .person__name {
-  flex: 1;
   min-width: 0;
+  white-space: nowrap;
 }
 
 /* ---- Add music: de-boxed, underline tabs ---- */
@@ -1044,6 +1071,139 @@ a:hover {
   font-size: 0.85rem;
 }
 
+/* ---- Playlist carousel (in-room): search + three paged cards ---- */
+.plc {
+  margin-top: 0.25rem;
+}
+.plc__bar {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.plc__search {
+  flex: 1;
+  min-width: 0;
+}
+.plc__row {
+  display: flex;
+  align-items: stretch;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.plc__arrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  flex-shrink: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+.plc__arrow:hover:not(:disabled) {
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+}
+.plc__arrow:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.plc__viewport {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+.plc__cards {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.6rem;
+}
+.plc__card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  min-width: 0;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease),
+    transform 0.12s var(--ease);
+}
+.plc__card:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.plc__card:active:not(:disabled) {
+  transform: translateY(1px);
+}
+.plc__card:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.plc__cover {
+  aspect-ratio: 1;
+  width: 100%;
+  border-radius: var(--r-sm);
+  overflow: hidden;
+  background: var(--surface-2);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--faint);
+}
+.plc__cover img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.plc__name {
+  font-weight: 500;
+  font-size: 0.85rem;
+  line-height: 1.25;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.plc__count {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.plc__dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.85rem;
+}
+.plc__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--line-2);
+  transition: background 0.15s var(--ease);
+}
+.plc__dot--on {
+  background: var(--accent);
+}
+.plc__empty {
+  margin-top: 0.85rem;
+}
+
 /* ---- Playlists (minimal gallery) ---- */
 .pl {
   max-width: 980px;
@@ -1170,11 +1330,14 @@ a:hover {
   animation: fadeUp 0.5s var(--ease) both;
 }
 
-@media (max-width: 640px) {
-  .columns {
+@media (max-width: 720px) {
+  .room__main {
     grid-template-columns: 1fr;
     gap: 2rem;
   }
+}
+
+@media (max-width: 640px) {
   .room {
     padding: 0 1rem 4rem;
   }

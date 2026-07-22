@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { X, Link2, UserPlus, ChevronUp, ChevronDown } from "lucide-react";
+import { X, Link2, UserPlus, GripVertical } from "lucide-react";
+import { Reorder, useDragControls, useReducedMotion } from "motion/react";
 import { Avatar } from "../../avatar";
 import {
   friendStatesFor,
@@ -15,8 +16,8 @@ import {
   clearQueue,
   getRoomState,
   leaveRoom,
-  moveQueueItem,
   removeQueueItem,
+  reorderQueue,
   skipTrack,
 } from "@/src/lib/room/actions";
 import type { RoomState } from "@/src/lib/room/types";
@@ -24,6 +25,62 @@ import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
 import { sampleClockOffset } from "./clock-client";
+
+type QueueItem = RoomState["queue"][number];
+
+/** One draggable queue row. Drag starts from the handle, so the window still
+ *  scrolls and rows stay tappable on touch. */
+function QueueRow({
+  track,
+  reduce,
+  onRemove,
+  onDragStart,
+  onCommit,
+}: {
+  track: QueueItem;
+  reduce: boolean;
+  onRemove: () => void;
+  onDragStart: () => void;
+  onCommit: () => void;
+}) {
+  const controls = useDragControls();
+  return (
+    <Reorder.Item
+      value={track}
+      className="track"
+      dragListener={false}
+      dragControls={controls}
+      onDragStart={onDragStart}
+      onDragEnd={onCommit}
+      transition={reduce ? { duration: 0 } : undefined}
+    >
+      <button
+        type="button"
+        className="track__handle"
+        aria-label="Drag to reorder"
+        onPointerDown={(e) => controls.start(e)}
+      >
+        <GripVertical size={15} />
+      </button>
+      {track.thumbnailUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img className="thumb" src={track.thumbnailUrl} alt="" />
+      ) : (
+        <div className="thumb" />
+      )}
+      <div className="track__meta">
+        <div className="track__title">{track.title}</div>
+        <div className="track__sub">
+          {track.artist ?? ""}
+          {track.addedByName ? ` · ${track.addedByName}` : ""}
+        </div>
+      </div>
+      <button className="btn btn--sm track__remove" onClick={onRemove} aria-label="Remove">
+        <X size={14} />
+      </button>
+    </Reorder.Item>
+  );
+}
 
 export function Room({
   initial,
@@ -36,11 +93,36 @@ export function Room({
   const [state, setState] = useState<RoomState>(initial);
   const [offset, setOffset] = useState<number | null>(null);
   const [copied, setCopied] = useState(false);
+  const reduce = useReducedMotion() ?? false;
+
+  // Local, drag-reorderable copy of the queue. Kept in sync with the server
+  // except while a local reorder is being persisted (so a poll can't revert it).
+  const [queue, setQueue] = useState<QueueItem[]>(initial.queue);
+  const reorderPending = useRef(false);
 
   const refresh = useCallback(async () => {
     const next = await getRoomState(initial.id);
     if (next) setState(next);
   }, [initial.id]);
+
+  useEffect(() => {
+    if (!reorderPending.current) setQueue(state.queue);
+  }, [state.queue]);
+
+  function commitReorder() {
+    reorderPending.current = true;
+    void reorderQueue(
+      initial.id,
+      queue.map((t) => t.id),
+    )
+      .catch(() => {
+        /* realtime will bring the true order back */
+      })
+      .finally(() => {
+        reorderPending.current = false;
+        void refresh();
+      });
+  }
 
   // Keep the shared state fresh: Realtime for instant updates, plus a polling
   // fallback so it works even if a realtime event is missed.
@@ -103,7 +185,7 @@ export function Room({
     }
   }
 
-  const { nowPlaying, queue, participants } = state;
+  const { nowPlaying, participants } = state;
 
   // Friend state for the other people in the room, so we can offer to add them.
   const otherKey = participants
@@ -185,42 +267,8 @@ export function Room({
         </button>
       </div>
 
-      <section className="stage">
-        {nowPlaying ? (
-          <>
-            <div className="player-wrap">
-              {offset !== null ? (
-                <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
-              ) : (
-                <div className="player-skeleton">
-                  <span className="muted">Syncing…</span>
-                </div>
-              )}
-            </div>
-            <NowPlaying
-              nowPlaying={nowPlaying}
-              offset={offset ?? 0}
-              onSkip={() => void skipTrack(initial.id)}
-            />
-          </>
-        ) : (
-          <div className="empty">
-            <div className="empty__title">Your room is ready.</div>
-            <p className="muted" style={{ marginTop: "0.5rem" }}>
-              Add the first song — it starts playing for everyone at once.
-            </p>
-          </div>
-        )}
-      </section>
-
-      <div className="rule" />
-
-      <AddMusic roomId={initial.id} />
-
-      <div className="rule" />
-
-      <div className="columns">
-        <section>
+      <div className="room__main">
+        <section className="room__queue">
           <div className="section__head">
             <span className="eyebrow">Up next</span>
             {queue.length > 0 && (
@@ -232,71 +280,77 @@ export function Room({
           {queue.length === 0 ? (
             <p className="muted">Nothing queued yet.</p>
           ) : (
-            <ul className="list">
-              {queue.map((t, i) => (
-                <li key={t.id} className="track">
-                  {t.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img className="thumb" src={t.thumbnailUrl} alt="" />
-                  ) : (
-                    <div className="thumb" />
-                  )}
-                  <div className="track__meta">
-                    <div className="track__title">{t.title}</div>
-                    <div className="track__sub">
-                      {t.artist ?? ""}
-                      {t.addedByName ? ` · ${t.addedByName}` : ""}
-                    </div>
-                  </div>
-                  <div className="track__controls">
-                    <button
-                      className="btn btn--sm track__move"
-                      onClick={() => void moveQueueItem(t.id, "up")}
-                      disabled={i === 0}
-                      aria-label="Move up"
-                    >
-                      <ChevronUp size={14} />
-                    </button>
-                    <button
-                      className="btn btn--sm track__move"
-                      onClick={() => void moveQueueItem(t.id, "down")}
-                      disabled={i === queue.length - 1}
-                      aria-label="Move down"
-                    >
-                      <ChevronDown size={14} />
-                    </button>
-                    <button
-                      className="btn btn--sm track__remove"
-                      onClick={() => void removeQueueItem(t.id)}
-                      aria-label="Remove"
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-                </li>
+            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue">
+              {queue.map((t) => (
+                <QueueRow
+                  key={t.id}
+                  track={t}
+                  reduce={reduce}
+                  onRemove={() => void removeQueueItem(t.id)}
+                  onDragStart={() => {
+                    reorderPending.current = true;
+                  }}
+                  onCommit={commitReorder}
+                />
               ))}
-            </ul>
+            </Reorder.Group>
           )}
         </section>
 
-        <section>
-          <div className="section__head">
-            <span className="eyebrow">In the room</span>
-          </div>
-          <ul className="people">
-            {participants.map((p) => (
-              <li key={p.userId} className="person">
-                <Avatar name={p.name} url={p.avatarUrl} size={28} />
-                <span className="person__name">
-                  {p.name}
-                  {p.userId === me.userId ? " · you" : ""}
-                </span>
-                {participantAction(p.userId, p.name)}
-              </li>
-            ))}
-          </ul>
-        </section>
+        <div className="room__center">
+          <section className="stage">
+            {nowPlaying ? (
+              <>
+                <div className="player-wrap">
+                  {offset !== null ? (
+                    <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
+                  ) : (
+                    <div className="player-skeleton">
+                      <span className="muted">Syncing…</span>
+                    </div>
+                  )}
+                </div>
+                <NowPlaying
+                  nowPlaying={nowPlaying}
+                  offset={offset ?? 0}
+                  onSkip={() => void skipTrack(initial.id)}
+                />
+              </>
+            ) : (
+              <div className="empty">
+                <div className="empty__title">Your room is ready.</div>
+                <p className="muted" style={{ marginTop: "0.5rem" }}>
+                  Add the first song — it starts playing for everyone at once.
+                </p>
+              </div>
+            )}
+          </section>
+
+          <div className="rule" />
+
+          <AddMusic roomId={initial.id} />
+        </div>
       </div>
+
+      <div className="rule" />
+
+      <section className="room__people">
+        <div className="section__head">
+          <span className="eyebrow">In the room</span>
+        </div>
+        <ul className="people">
+          {participants.map((p) => (
+            <li key={p.userId} className="person">
+              <Avatar name={p.name} url={p.avatarUrl} size={28} />
+              <span className="person__name">
+                {p.name}
+                {p.userId === me.userId ? " · you" : ""}
+              </span>
+              {participantAction(p.userId, p.name)}
+            </li>
+          ))}
+        </ul>
+      </section>
     </main>
   );
 }

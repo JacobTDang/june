@@ -18,9 +18,9 @@ import {
   describeYouTubeError,
   youTubeNoticeText,
 } from "@/src/lib/supabase/youtube-error";
+import { PlaylistCarousel, type Playlist } from "./playlist-carousel";
 
 type Tab = "search" | "playlist";
-type Playlist = { id: string; title: string; itemCount: number };
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "search", label: "Search" },
@@ -81,6 +81,16 @@ export function AddMusic({ roomId }: { roomId: string }) {
     } catch (err) {
       throw new Error(youTubeNoticeText(describeYouTubeError(err)));
     }
+  }
+
+  function loadPlaylists() {
+    void run(async () => setPlaylists(await youtubeLoad(listMyPlaylists)));
+  }
+
+  function browsePlaylist(p: Playlist) {
+    setOpenPlaylist(p);
+    setPlaylistTracks(null);
+    void run(async () => setPlaylistTracks(await youtubeLoad(() => getPlaylistTracks(p.id))));
   }
 
   function clearSearch() {
@@ -227,48 +237,17 @@ export function AddMusic({ roomId }: { roomId: string }) {
 
       {tab === "playlist" && !openPlaylist && (
         <>
-          <button
-            className="btn"
-            disabled={busy}
-            onClick={() => void run(async () => setPlaylists(await youtubeLoad(listMyPlaylists)))}
-          >
-            {playlists ? "Refresh playlists" : "Load my playlists"}
-          </button>
-          {playlists && (
-            <ul className="add__list">
-              {playlists.map((p) => (
-                <li key={p.id} className="add__prow">
-                  <button
-                    className="add__pmeta"
-                    disabled={busy}
-                    onClick={() => {
-                      setOpenPlaylist(p);
-                      setPlaylistTracks(null);
-                      void run(async () =>
-                        setPlaylistTracks(await youtubeLoad(() => getPlaylistTracks(p.id))),
-                      );
-                    }}
-                  >
-                    <span className="add__title">{p.title}</span>
-                    <span className="add__sub">
-                      {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
-                    </span>
-                  </button>
-                  <button
-                    className="btn btn--sm"
-                    disabled={busy}
-                    onClick={() =>
-                      void run(
-                        () => importPlaylistToRoom(roomId, p.id),
-                        (n) => `Added ${n} songs from “${p.title}”.`,
-                      )
-                    }
-                  >
-                    Add all
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {!playlists ? (
+            <button className="btn" disabled={busy} onClick={loadPlaylists}>
+              Load my playlists
+            </button>
+          ) : (
+            <PlaylistCarousel
+              playlists={playlists}
+              busy={busy}
+              onOpen={browsePlaylist}
+              onRefresh={loadPlaylists}
+            />
           )}
         </>
       )}

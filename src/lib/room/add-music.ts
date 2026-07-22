@@ -123,11 +123,16 @@ export async function addVideoById(roomId: string, videoId: string): Promise<voi
 
 /** The signed-in user's playlists, for the import picker. */
 export async function listMyPlaylists(): Promise<
-  { id: string; title: string; itemCount: number }[]
+  { id: string; title: string; itemCount: number; thumbnailUrl: string | null }[]
 > {
   const youtube = await youtubeClient(true);
   const playlists = await youtube.listPlaylists();
-  return playlists.map((p) => ({ id: p.id, title: p.title, itemCount: p.itemCount }));
+  return playlists.map((p) => ({
+    id: p.id,
+    title: p.title,
+    itemCount: p.itemCount,
+    thumbnailUrl: p.thumbnailUrl ?? null,
+  }));
 }
 
 /** Import a whole playlist into the room's queue. Returns how many were added. */
