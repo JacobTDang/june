@@ -218,6 +218,19 @@ export async function incomingRequestCard(requesterId: string): Promise<FriendCa
   return toCard(requesterId, p as ProfileRow, "incoming");
 }
 
+/** Map of accepted-friend userId → the room they're currently in (if any). */
+export async function getActiveFriendRooms(): Promise<Record<string, string>> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("friends_active_rooms");
+  if (error) throw new Error(`Couldn't load friend activity: ${error.message}`);
+
+  const map: Record<string, string> = {};
+  for (const r of (data as { friend: string; room_id: string }[] | null) ?? []) {
+    if (!(r.friend in map)) map[r.friend] = r.room_id;
+  }
+  return map;
+}
+
 /** My relationship to a set of users (for the room's add-friend controls). */
 export async function friendStatesFor(userIds: string[]): Promise<Record<string, FriendState>> {
   const { supabase, user } = await requireUser();
