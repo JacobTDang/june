@@ -13,7 +13,7 @@ import { JoinJamForm } from "./join-jam-form";
 export default async function Home({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; full?: string }>;
 }) {
   const supabase = await createClient();
   const {
@@ -22,9 +22,12 @@ export default async function Home({
   const youtubeConnected = await isYouTubeConnected();
   const profile = user ? await getMyProfile() : null;
 
+  const sp = await searchParams;
   // Where an invited-but-signed-out visitor should land after signing in.
-  const nextPath = safeNext((await searchParams).next);
+  const nextPath = safeNext(sp.next);
   const returnTo = nextPath === "/" ? undefined : nextPath;
+  // Set when someone was turned away because the app is at its signup cap.
+  const isFull = sp.full === "1";
 
   const displayName = profile?.displayName ?? "";
 
@@ -60,6 +63,11 @@ export default async function Home({
         {!user ? (
           <Reveal delay={0.16}>
             <div className="stack" style={{ marginTop: "2.5rem" }}>
+              {isFull && (
+                <p className="muted" style={{ maxWidth: "34ch", marginBottom: "0.25rem" }}>
+                  june is full right now — it’s capped while it’s new. Check back soon.
+                </p>
+              )}
               <SignInButton next={returnTo} />
               <span className="faint" style={{ fontSize: "0.85rem" }}>
                 {returnTo
