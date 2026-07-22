@@ -1176,30 +1176,28 @@ a:hover {
   flex: 1;
   min-width: 0;
 }
-/* A horizontal rail; scroll/swipe sideways. */
+/* A centered 3-card window: the middle card is focused, neighbours peek/dim.
+   `padding-inline: calc(50% - halfCard)` lets any card scroll to the centre. */
 .plc-rail {
   display: flex;
+  gap: 0.9rem;
+  max-width: 430px;
+  margin: 0 auto;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x proximity;
-  padding: 1.25rem 0.5rem 1.5rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
+  scroll-snap-type: x mandatory;
+  padding: 1.5rem calc(50% - 75px) 1.75rem;
+  scrollbar-width: none;
 }
 .plc-rail::-webkit-scrollbar {
-  height: 8px;
+  display: none;
 }
-.plc-rail::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 4px;
-}
-/* Cover-forward cards, fanned so they overlap slightly. */
+/* Cover-forward cards; de-emphasized until they're the centered one. */
 .plc-scard {
   position: relative;
-  z-index: 1;
   flex: 0 0 auto;
   width: 150px;
-  scroll-snap-align: start;
+  scroll-snap-align: center;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -1210,24 +1208,21 @@ a:hover {
   text-align: left;
   cursor: pointer;
   overflow: hidden;
+  opacity: 0.45;
+  transform: scale(0.9);
+  box-shadow: 0 14px 34px -20px rgba(0, 0, 0, 0.8);
   transition:
-    border-color 0.18s var(--ease),
-    background 0.18s var(--ease),
-    transform 0.18s var(--ease),
-    box-shadow 0.18s var(--ease);
+    opacity 0.28s var(--ease),
+    transform 0.28s var(--ease),
+    border-color 0.18s var(--ease);
 }
-.plc-scard:not(:first-child) {
-  margin-left: -26px;
+.plc-scard--focused {
+  opacity: 1;
+  transform: scale(1);
+  border-color: var(--line-2);
 }
 .plc-scard:hover:not(:disabled) {
-  z-index: 10;
-  border-color: var(--line-2);
-  background: var(--surface-2);
-  transform: translateY(-4px);
-  box-shadow: 0 18px 42px -20px rgba(0, 0, 0, 0.8);
-}
-.plc-scard:active:not(:disabled) {
-  transform: translateY(-2px);
+  border-color: var(--accent);
 }
 .plc-scard:disabled {
   opacity: 0.6;
@@ -1270,6 +1265,7 @@ a:hover {
     opacity 0.18s var(--ease),
     transform 0.18s var(--ease);
 }
+.plc-scard--focused .plc-scard__play,
 .plc-scard:hover:not(:disabled) .plc-scard__play {
   opacity: 1;
   transform: translateY(0);
