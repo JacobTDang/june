@@ -1074,7 +1074,7 @@ a:hover {
   font-size: 0.85rem;
 }
 
-/* ---- Playlist carousel (in-room): search + three paged cards ---- */
+/* ---- Playlist deck (in-room): search + a stacked, spinnable card deck ---- */
 .plc {
   margin-top: 0.25rem;
 }
@@ -1087,78 +1087,54 @@ a:hover {
   flex: 1;
   min-width: 0;
 }
-.plc__row {
-  display: flex;
-  align-items: stretch;
-  gap: 0.5rem;
-  margin-top: 0.85rem;
+/* Stacked deck: focused card up front, the rest receding behind it. */
+.plc-deck {
+  position: relative;
+  height: 300px;
+  margin-top: 1rem;
+  touch-action: none;
+  outline: none;
+  cursor: grab;
 }
-.plc__arrow {
-  display: inline-flex;
+.plc-deck:active {
+  cursor: grabbing;
+}
+.plc-deck:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 4px;
+  border-radius: var(--r);
+}
+.plc-card {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  margin-top: -34px; /* half the height, so offset 0 sits centered */
+  height: 68px;
+  display: flex;
   align-items: center;
-  justify-content: center;
-  width: 34px;
-  flex-shrink: 0;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    color 0.15s var(--ease);
-}
-.plc__arrow:hover:not(:disabled) {
-  border-color: var(--line-2);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--ink);
-}
-.plc__arrow:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.plc__viewport {
-  flex: 1;
-  min-width: 0;
-  overflow: hidden;
-}
-.plc__cards {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 0.6rem;
-}
-.plc__card {
-  display: flex;
-  flex-direction: column;
-  gap: 0.5rem;
-  min-width: 0;
-  padding: 0.6rem;
+  gap: 0.85rem;
+  padding: 0.7rem 0.9rem;
   border: 1px solid var(--line);
   border-radius: var(--r);
   background: var(--surface);
   color: var(--ink);
   text-align: left;
   cursor: pointer;
-  transition:
-    border-color 0.15s var(--ease),
-    background 0.15s var(--ease),
-    transform 0.12s var(--ease);
+  will-change: transform, opacity;
 }
-.plc__card:hover:not(:disabled) {
+.plc-card--on {
+  background: rgba(242, 181, 82, 0.12);
   border-color: var(--accent);
-  background: var(--surface-2);
+  box-shadow: 0 12px 34px -14px rgba(0, 0, 0, 0.65);
 }
-.plc__card:active:not(:disabled) {
-  transform: translateY(1px);
-}
-.plc__card:disabled {
-  opacity: 0.6;
+.plc-card:disabled {
   cursor: default;
 }
-.plc__cover {
-  aspect-ratio: 1;
-  width: 100%;
+.plc-card__cover {
+  width: 46px;
+  height: 46px;
+  flex-shrink: 0;
   border-radius: var(--r-sm);
   overflow: hidden;
   background: var(--surface-2);
@@ -1168,40 +1144,37 @@ a:hover {
   justify-content: center;
   color: var(--faint);
 }
-.plc__cover img {
+.plc-card__cover img {
   width: 100%;
   height: 100%;
   object-fit: cover;
   display: block;
 }
-.plc__name {
-  font-weight: 500;
-  font-size: 0.85rem;
-  line-height: 1.25;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
+.plc-card__meta {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
 }
-.plc__count {
-  font-size: 0.75rem;
+.plc-card__name {
+  font-weight: 500;
+  font-size: 0.95rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.plc-card--on .plc-card__name {
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+}
+.plc-card__count {
+  font-size: 0.78rem;
   color: var(--muted);
 }
-.plc__dots {
-  display: flex;
-  justify-content: center;
-  gap: 0.4rem;
-  margin-top: 0.85rem;
-}
-.plc__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--line-2);
-  transition: background 0.15s var(--ease);
-}
-.plc__dot--on {
-  background: var(--accent);
+.plc__pos {
+  text-align: center;
+  font-size: 0.75rem;
+  margin-top: 0.5rem;
 }
 .plc__empty {
   margin-top: 0.85rem;
