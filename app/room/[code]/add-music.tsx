@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, Music, ArrowLeft } from "lucide-react";
-import type { MusicCandidate } from "@/src/discovery";
+import { Plus, Music, ArrowLeft, Disc3, ChevronRight } from "lucide-react";
+import type { MusicCandidate, ArtistCandidate } from "@/src/discovery";
 import type { VideoMeta } from "@/src/lib/video-cache";
 import {
   addByLink,
   addCandidate,
   addVideoById,
+  getArtistTopSongsAction,
   getPlaylistTracks,
   importPlaylistToRoom,
   listMyPlaylists,
@@ -46,6 +47,9 @@ export function AddMusic({ roomId }: { roomId: string }) {
 
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<MusicCandidate[]>([]);
+  const [artist, setArtist] = useState<ArtistCandidate | null>(null);
+  const [artistView, setArtistView] = useState<ArtistCandidate | null>(null);
+  const [artistSongs, setArtistSongs] = useState<MusicCandidate[] | null>(null);
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
   const [openPlaylist, setOpenPlaylist] = useState<Playlist | null>(null);
   const [playlistTracks, setPlaylistTracks] = useState<VideoMeta[] | null>(null);
@@ -66,6 +70,12 @@ export function AddMusic({ roomId }: { roomId: string }) {
     }
   }
 
+  function clearSearch() {
+    setQuery("");
+    setResults([]);
+    setArtist(null);
+  }
+
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!trimmed) return;
@@ -74,14 +84,57 @@ export function AddMusic({ roomId }: { roomId: string }) {
       void run(
         () => addByLink(roomId, trimmed),
         () => {
-          setQuery("");
-          setResults([]);
+          clearSearch();
           return "Added to the queue.";
         },
       );
     } else {
-      void run(async () => setResults(await searchMusicAction(trimmed)));
+      void run(async () => {
+        const result = await searchMusicAction(trimmed);
+        setResults(result.songs);
+        setArtist(result.artist);
+      });
     }
+  }
+
+  function openArtist(a: ArtistCandidate) {
+    setArtistView(a);
+    setArtistSongs(null);
+    void run(async () => setArtistSongs(await getArtistTopSongsAction(a.artistId)));
+  }
+
+  function closeArtist() {
+    setArtistView(null);
+    setArtistSongs(null);
+  }
+
+  /** One addable song row, shared by the search results and the artist view. */
+  function songRow(c: MusicCandidate) {
+    return (
+      <li key={c.sourceId} className="add__result">
+        <Cover url={c.artworkUrl} />
+        <div className="add__meta">
+          <div className="add__title">{c.title}</div>
+          <div className="add__sub">{c.artist}</div>
+        </div>
+        <button
+          className="add__btn"
+          disabled={busy}
+          aria-label={`Add ${c.title}`}
+          onClick={() =>
+            void run(
+              () => addCandidate(roomId, c),
+              () => {
+                clearSearch();
+                return `Added “${c.title}”`;
+              },
+            )
+          }
+        >
+          <Plus size={16} />
+        </button>
+      </li>
+    );
   }
 
   return (
@@ -105,7 +158,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
         ))}
       </div>
 
-      {tab === "search" && (
+      {tab === "search" && !artistView && (
         <>
           <form className="add__search" onSubmit={submitSearch}>
             <input
@@ -119,35 +172,42 @@ export function AddMusic({ roomId }: { roomId: string }) {
               {isLink ? "Add" : "Search"}
             </button>
           </form>
-          {results.length > 0 && (
-            <ul className="add__list">
-              {results.map((c) => (
-                <li key={c.sourceId} className="add__result">
-                  <Cover url={c.artworkUrl} />
-                  <div className="add__meta">
-                    <div className="add__title">{c.title}</div>
-                    <div className="add__sub">{c.artist}</div>
-                  </div>
-                  <button
-                    className="add__btn"
-                    disabled={busy}
-                    aria-label={`Add ${c.title}`}
-                    onClick={() =>
-                      void run(
-                        () => addCandidate(roomId, c),
-                        () => {
-                          setQuery("");
-                          setResults([]);
-                          return `Added “${c.title}”`;
-                        },
-                      )
-                    }
-                  >
-                    <Plus size={16} />
-                  </button>
-                </li>
-              ))}
-            </ul>
+          {artist && (
+            <button
+              className="add__artistchip"
+              disabled={busy}
+              onClick={() => openArtist(artist)}
+              aria-label={`Open ${artist.name}`}
+            >
+              <div className="add__cover">
+                <Disc3 size={16} />
+              </div>
+              <div className="add__meta">
+                <div className="add__title">{artist.name}</div>
+                <div className="add__sub">Artist{artist.genre ? ` · ${artist.genre}` : ""}</div>
+              </div>
+              <ChevronRight className="add__chev" size={16} />
+            </button>
+          )}
+          {results.length > 0 && <ul className="add__list">{results.map(songRow)}</ul>}
+        </>
+      )}
+
+      {tab === "search" && artistView && (
+        <>
+          <div className="add__plhead">
+            <button className="btn btn--sm" onClick={closeArtist}>
+              <ArrowLeft size={15} />
+              Back
+            </button>
+            <span className="add__pltitle">{artistView.name}</span>
+          </div>
+          {artistSongs === null ? (
+            <p className="muted">Loading songs…</p>
+          ) : artistSongs.length === 0 ? (
+            <p className="muted">No songs found for this artist.</p>
+          ) : (
+            <ul className="add__list">{artistSongs.map(songRow)}</ul>
           )}
         </>
       )}

@@ -969,6 +969,37 @@ a:hover {
   opacity: 0.4;
   cursor: default;
 }
+.add__artistchip {
+  display: grid;
+  grid-template-columns: 40px 1fr auto;
+  align-items: center;
+  gap: 0.85rem;
+  width: 100%;
+  margin-top: 0.75rem;
+  padding: 0.5rem;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease);
+}
+.add__artistchip:hover:not(:disabled) {
+  border-color: var(--accent);
+  background: var(--surface-2);
+}
+.add__artistchip:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.add__chev {
+  color: var(--faint);
+  flex-shrink: 0;
+}
+
 .add__prow {
   display: flex;
   align-items: center;
