@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, UserPlus } from "lucide-react";
 import { Avatar } from "../avatar";
 import {
+  getActiveFriendRooms,
   removeFriend,
   respondToRequest,
   searchUsers,
@@ -36,6 +37,26 @@ export function FriendsClient({
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<FriendCard[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [activeRooms, setActiveRooms] = useState<Record<string, string>>({});
+
+  // Which friends are in a jam right now — refreshed on a light poll so the
+  // "Join" affordance stays live. On error we keep the last known state.
+  useEffect(() => {
+    let alive = true;
+    const load = () => {
+      void getActiveFriendRooms()
+        .then((m) => {
+          if (alive) setActiveRooms(m);
+        })
+        .catch(() => {});
+    };
+    load();
+    const id = setInterval(load, 8000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, []);
 
   async function runSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -91,7 +112,7 @@ export function FriendsClient({
           className="input"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by username"
+          placeholder="Search by name or username"
           autoCapitalize="none"
           autoCorrect="off"
           spellCheck={false}
@@ -104,7 +125,7 @@ export function FriendsClient({
       {results !== null && (
         <div className="friends__section">
           {results.length === 0 ? (
-            <p className="muted">No one found by that username.</p>
+            <p className="muted">No one found.</p>
           ) : (
             results.map((r) => <PersonRow key={r.userId} card={r}>{resultAction(r)}</PersonRow>)
           )}
@@ -133,13 +154,31 @@ export function FriendsClient({
         {friends.length === 0 ? (
           <p className="muted">No friends yet. Search a username, or add people from a jam.</p>
         ) : (
-          friends.map((f) => (
-            <PersonRow key={f.userId} card={f}>
-              <button className="btn btn--sm" disabled={busy} onClick={() => act(() => removeFriend(f.userId))}>
-                Remove
-              </button>
-            </PersonRow>
-          ))
+          friends.map((f) => {
+            const room = activeRooms[f.userId];
+            return (
+              <PersonRow key={f.userId} card={f}>
+                {room && (
+                  <>
+                    <span className="friend__live" title="In a jam">
+                      <span className="live__dot" />
+                      In a jam
+                    </span>
+                    <button
+                      className="btn btn--sm btn--primary"
+                      disabled={busy}
+                      onClick={() => router.push(`/room/${encodeURIComponent(room)}`)}
+                    >
+                      Join
+                    </button>
+                  </>
+                )}
+                <button className="btn btn--sm" disabled={busy} onClick={() => act(() => removeFriend(f.userId))}>
+                  Remove
+                </button>
+              </PersonRow>
+            );
+          })
         )}
       </div>
     </div>

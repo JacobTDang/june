@@ -446,11 +446,20 @@ a:hover {
 }
 .friend__actions {
   display: flex;
+  align-items: center;
   gap: 0.4rem;
 }
 .friend__tag {
   font-size: 0.78rem;
   color: var(--faint);
+}
+.friend__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 /* ---- Metrics (owner dashboard) ---- */
