@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { ChevronLeft, ChevronRight, Music, RefreshCw } from "lucide-react";
-import { AnimatePresence, motion, useReducedMotion } from "motion/react";
-import { playlistWindow } from "@/src/lib/room/playlist-window";
+import { useRef, useState } from "react";
+import { Music, RefreshCw } from "lucide-react";
+import { motion, useReducedMotion } from "motion/react";
+import { clampIndex, filterPlaylists } from "@/src/lib/room/playlist-window";
 
 export type Playlist = {
   id: string;
@@ -12,13 +12,14 @@ export type Playlist = {
   thumbnailUrl?: string | null;
 };
 
-const slide = {
-  enter: (dir: number) => ({ x: dir >= 0 ? 44 : -44, opacity: 0 }),
-  center: { x: 0, opacity: 1 },
-  exit: (dir: number) => ({ x: dir >= 0 ? -44 : 44, opacity: 0 }),
-};
+const GAP = 48; // vertical px between stacked cards
+const RENDER_RADIUS = 2.6; // how many cards each side of focus to render
 
-/** Browse playlists three at a time: a name filter plus paged, animated cards. */
+/**
+ * A stacked deck of playlists: the focused card sits up front, the rest recede
+ * behind it. Drag (or scroll) vertically to spin the deck; tap the focused card
+ * to open its songs, or tap a back card to bring it forward. Arrow keys work too.
+ */
 export function PlaylistCarousel({
   playlists,
   busy,
@@ -31,21 +32,58 @@ export function PlaylistCarousel({
   onRefresh: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [page, setPage] = useState(0);
-  const [dir, setDir] = useState(0);
+  const [focus, setFocus] = useState(0);
+  const [dragOffset, setDragOffset] = useState(0); // in card-units, live during drag
   const reduce = useReducedMotion() ?? false;
 
-  const win = playlistWindow(playlists, query, page, 3);
+  const dragging = useRef(false);
+  const moved = useRef(false);
+  const startY = useRef(0);
 
-  function go(delta: number) {
-    setDir(delta);
-    setPage(win.page + delta);
+  const filtered = filterPlaylists(playlists, query);
+  const f = clampIndex(focus, filtered.length);
+  const focusF = f + dragOffset;
+  const nearest = clampIndex(Math.round(focusF), filtered.length);
+
+  function step(delta: number) {
+    setFocus(clampIndex(f + delta, filtered.length));
   }
 
   function onQuery(value: string) {
     setQuery(value);
-    setPage(0);
-    setDir(0);
+    setFocus(0);
+    setDragOffset(0);
+  }
+
+  function onPointerDown(e: React.PointerEvent) {
+    dragging.current = true;
+    moved.current = false;
+    startY.current = e.clientY;
+  }
+  function onPointerMove(e: React.PointerEvent) {
+    if (!dragging.current) return;
+    const dy = e.clientY - startY.current;
+    if (Math.abs(dy) > 4) moved.current = true;
+    setDragOffset(-dy / GAP);
+  }
+  function endDrag() {
+    if (!dragging.current) return;
+    dragging.current = false;
+    if (moved.current) setFocus(clampIndex(Math.round(focusF), filtered.length));
+    setDragOffset(0);
+  }
+
+  function onKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      step(-1);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+      e.preventDefault();
+      step(1);
+    } else if ((e.key === "Enter" || e.key === " ") && filtered[nearest]) {
+      e.preventDefault();
+      onOpen(filtered[nearest]);
+    }
   }
 
   return (
@@ -69,76 +107,75 @@ export function PlaylistCarousel({
         </button>
       </div>
 
-      {win.total === 0 ? (
+      {filtered.length === 0 ? (
         <p className="muted plc__empty">No playlists match “{query}”.</p>
       ) : (
         <>
-          <div className="plc__row">
-            <button
-              className="plc__arrow"
-              onClick={() => go(-1)}
-              disabled={win.page === 0}
-              aria-label="Previous playlists"
-            >
-              <ChevronLeft size={18} />
-            </button>
-
-            <div className="plc__viewport">
-              <AnimatePresence custom={dir} mode="wait" initial={false}>
-                <motion.div
-                  key={win.page}
-                  className="plc__cards"
-                  custom={dir}
-                  variants={reduce ? undefined : slide}
-                  initial="enter"
-                  animate="center"
-                  exit="exit"
-                  transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+          <div
+            className="plc-deck"
+            role="listbox"
+            aria-label="Your playlists"
+            tabIndex={0}
+            onPointerDown={onPointerDown}
+            onPointerMove={onPointerMove}
+            onPointerUp={endDrag}
+            onPointerCancel={endDrag}
+            onPointerLeave={endDrag}
+            onKeyDown={onKeyDown}
+          >
+            {filtered.map((p, i) => {
+              const offset = i - focusF;
+              if (Math.abs(offset) > RENDER_RADIUS) return null;
+              const abs = Math.abs(offset);
+              const isFocused = i === nearest;
+              return (
+                <motion.button
+                  key={p.id}
+                  type="button"
+                  className={`plc-card${isFocused ? " plc-card--on" : ""}`}
+                  role="option"
+                  aria-selected={isFocused}
+                  disabled={busy}
+                  style={{ zIndex: 100 - Math.round(abs) }}
+                  animate={{
+                    y: offset * GAP,
+                    scale: Math.max(0.72, 1 - abs * 0.09),
+                    opacity: Math.max(0, 1 - abs * 0.32),
+                  }}
+                  transition={
+                    dragging.current || reduce
+                      ? { duration: 0 }
+                      : { type: "spring", stiffness: 440, damping: 36 }
+                  }
+                  onClick={() => {
+                    if (moved.current) return; // it was a drag, not a tap
+                    if (isFocused) onOpen(p);
+                    else setFocus(i);
+                  }}
                 >
-                  {win.cards.map((p) => (
-                    <button
-                      key={p.id}
-                      className="plc__card"
-                      onClick={() => onOpen(p)}
-                      disabled={busy}
-                    >
-                      <span className={`plc__cover${p.thumbnailUrl ? "" : " plc__cover--empty"}`}>
-                        {p.thumbnailUrl ? (
-                          // eslint-disable-next-line @next/next/no-img-element
-                          <img src={p.thumbnailUrl} alt="" loading="lazy" />
-                        ) : (
-                          <Music size={20} />
-                        )}
-                      </span>
-                      <span className="plc__name" title={p.title}>
-                        {p.title}
-                      </span>
-                      <span className="plc__count">
-                        {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
-                      </span>
-                    </button>
-                  ))}
-                </motion.div>
-              </AnimatePresence>
-            </div>
-
-            <button
-              className="plc__arrow"
-              onClick={() => go(1)}
-              disabled={win.page >= win.pageCount - 1}
-              aria-label="More playlists"
-            >
-              <ChevronRight size={18} />
-            </button>
+                  <span className={`plc-card__cover${p.thumbnailUrl ? "" : " plc-card__cover--empty"}`}>
+                    {p.thumbnailUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={p.thumbnailUrl} alt="" loading="lazy" />
+                    ) : (
+                      <Music size={20} />
+                    )}
+                  </span>
+                  <span className="plc-card__meta">
+                    <span className="plc-card__name" title={p.title}>
+                      {p.title}
+                    </span>
+                    <span className="plc-card__count">
+                      {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
+                    </span>
+                  </span>
+                </motion.button>
+              );
+            })}
           </div>
-
-          {win.pageCount > 1 && (
-            <div className="plc__dots" aria-hidden="true">
-              {Array.from({ length: win.pageCount }, (_, i) => (
-                <span key={i} className={`plc__dot${i === win.page ? " plc__dot--on" : ""}`} />
-              ))}
-            </div>
-          )}
+          <p className="plc__pos faint">
+            {nearest + 1} / {filtered.length}
+          </p>
         </>
       )}
     </div>
