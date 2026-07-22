@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Music, Play, RefreshCw, Repeat, Shuffle, SkipBack, SkipForward } from "lucide-react";
+import { Music, Play, RefreshCw } from "lucide-react";
 import { filterPlaylists } from "@/src/lib/room/playlist-window";
 
 export type Playlist = {
@@ -87,6 +87,9 @@ export function PlaylistCarousel({
                 ) : (
                   <Music size={26} />
                 )}
+                <span className="plc-scard__play" aria-hidden="true">
+                  <Play size={16} fill="currentColor" strokeWidth={0} />
+                </span>
               </span>
               <span className="plc-scard__body">
                 <span className="plc-scard__name" title={p.title}>
@@ -94,18 +97,6 @@ export function PlaylistCarousel({
                 </span>
                 <span className="plc-scard__count">
                   {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
-                </span>
-                <span className="plc-scard__bar">
-                  <span className="plc-scard__barFill" />
-                </span>
-                <span className="plc-scard__controls" aria-hidden="true">
-                  <Shuffle size={12} />
-                  <span className="plc-scard__transport">
-                    <SkipBack size={13} />
-                    <Play size={15} className="plc-scard__play" fill="currentColor" strokeWidth={0} />
-                    <SkipForward size={13} />
-                  </span>
-                  <Repeat size={12} />
                 </span>
               </span>
             </button>
