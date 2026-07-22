@@ -26,7 +26,7 @@ export interface YouTubeClient {
   listPlaylistVideoIds(playlistId: string): Promise<string[]>;
 }
 
-/** The one bit of `fetch` we use — injectable so tests need no network. */
+/** The one bit of `fetch` we use - injectable so tests need no network. */
 type FetchLike = (input: URL, init?: RequestInit) => Promise<Response>;
 
 export interface YouTubeClientConfig {

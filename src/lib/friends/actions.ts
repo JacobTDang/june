@@ -82,7 +82,7 @@ export async function sendFriendRequest(targetId: string): Promise<void> {
     .from("friendships")
     .insert({ requester: user.id, addressee: targetId, status: "pending" });
   if (error) {
-    // A simultaneous reverse request won the pair index — accept it instead.
+    // A simultaneous reverse request won the pair index - accept it instead.
     if ((error as { code?: string }).code === "23505") {
       return void acceptFrom(supabase, targetId, user.id);
     }

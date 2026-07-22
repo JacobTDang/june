@@ -5,7 +5,7 @@
  *
  * - `not-configured`: server is missing GOOGLE_CLIENT_ID/SECRET or YOUTUBE_API_KEY.
  * - `not-connected`:  the user hasn't linked (or must relink) their YouTube account.
- * - `failed`:         a genuine failure — surfaced verbatim (fail loud).
+ * - `failed`:         a genuine failure - surfaced verbatim (fail loud).
  */
 export type YouTubeErrorKind = "not-configured" | "not-connected" | "failed";
 

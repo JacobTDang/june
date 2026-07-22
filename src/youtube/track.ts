@@ -38,7 +38,7 @@ export function pickThumbnail(thumbnails?: YouTubeThumbnails): string | undefine
 
 /**
  * Map a single YouTube video into a jam `Track`. `id` is the queue-entry id
- * (pass `newId()` in real code). Assumes the video is playable — run it through
+ * (pass `newId()` in real code). Assumes the video is playable - run it through
  * `videosToTracks` to filter first.
  */
 export function toTrack(video: YouTubeVideoItem, addedBy: string, id: string): Track {
@@ -64,7 +64,7 @@ function classify(video: YouTubeVideoItem): "playable" | SkipReason {
 /**
  * Convert a batch of YouTube videos into jam `Track`s, separating out the ones
  * that can't play here (embedding disabled, live, or no fixed duration) with a
- * reason attached. A malformed duration is *not* skipped — it throws, since
+ * reason attached. A malformed duration is *not* skipped - it throws, since
  * that signals an unexpected API change we want to know about.
  */
 export function videosToTracks(

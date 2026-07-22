@@ -4,7 +4,7 @@ import { z } from "zod";
  * Zod schemas for the slices of the YouTube Data API we depend on. These run
  * at the network boundary: `parseVideoListResponse` turns untrusted JSON into
  * typed data, throwing a clear error if YouTube ever returns a shape we don't
- * expect — so bugs surface here, not as `undefined` deep in the app.
+ * expect - so bugs surface here, not as `undefined` deep in the app.
  *
  * Only the fields we actually use are declared; Zod strips everything else.
  */
@@ -59,7 +59,7 @@ export function parseVideoListResponse(json: unknown): YouTubeVideoListResponse 
 
 /**
  * A `search.list` response. Its items carry only an id (video/channel/playlist)
- * and a snippet — no duration or status — which is why a search must be
+ * and a snippet - no duration or status - which is why a search must be
  * followed by a `videos.list` call to get playable details.
  */
 export const searchListResponseSchema = z.object({
@@ -82,7 +82,7 @@ export function parseSearchListResponse(json: unknown): YouTubeSearchListRespons
   return searchListResponseSchema.parse(json);
 }
 
-/** A `playlists.list` item — a playlist the signed-in user owns. */
+/** A `playlists.list` item - a playlist the signed-in user owns. */
 export const playlistSchema = z.object({
   id: z.string().min(1),
   snippet: z.object({
@@ -109,7 +109,7 @@ export function parsePlaylistsResponse(json: unknown): YouTubePlaylistsResponse 
   return playlistsResponseSchema.parse(json);
 }
 
-/** A `playlistItems.list` item — one video's place inside a playlist. */
+/** A `playlistItems.list` item - one video's place inside a playlist. */
 export const playlistItemSchema = z.object({
   contentDetails: z.object({
     videoId: z.string(),

@@ -15,7 +15,7 @@ const GOOGLE_TOKEN_ENDPOINT = "https://oauth2.googleapis.com/token";
  *
  * Fails loud: throws on missing config, a missing refresh token, a non-OK
  * response (e.g. the user revoked access → `invalid_grant`), or a response with
- * no access token — never returns a stale/empty token silently.
+ * no access token - never returns a stale/empty token silently.
  */
 export async function refreshAccessToken(
   refreshToken: string,
@@ -28,7 +28,7 @@ export async function refreshAccessToken(
     );
   }
   if (!refreshToken) {
-    throw new Error("No YouTube refresh token available — connect YouTube again.");
+    throw new Error("No YouTube refresh token available. Connect YouTube again.");
   }
 
   const doFetch = deps.fetch ?? fetch;

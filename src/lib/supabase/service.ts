@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 /**
  * A Supabase client authenticated with the service role key. It bypasses RLS,
  * so use it ONLY for trusted server-side writes that no user should be able to
- * forge — here, populating the shared metadata caches. Never make authorization
+ * forge - here, populating the shared metadata caches. Never make authorization
  * decisions with it, and never import it into client code (the `server-only`
  * guard turns any such import into a build error).
  */

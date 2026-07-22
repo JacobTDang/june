@@ -65,7 +65,7 @@ export default async function Home({
             <div className="stack" style={{ marginTop: "2.5rem" }}>
               {isFull && (
                 <p className="muted" style={{ maxWidth: "34ch", marginBottom: "0.25rem" }}>
-                  june is full right now — it’s capped while it’s new. Check back soon.
+                  june is full right now. It’s capped while it’s new. Check back soon.
                 </p>
               )}
               <SignInButton next={returnTo} />

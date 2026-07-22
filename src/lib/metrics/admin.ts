@@ -14,7 +14,7 @@ export interface AdminMetrics {
   recent: QuotaDay[];
   stats: {
     rooms: number;
-    /** Rooms whose current track hasn't ended — genuinely playing right now. */
+    /** Rooms whose current track hasn't ended - genuinely playing right now. */
     activeRooms: number;
     /** Abandoned rooms that the cleanup sweep would delete. */
     staleRooms: number;
@@ -58,7 +58,7 @@ export async function getAdminMetrics(): Promise<AdminMetrics> {
 
   const [health, users, friendships, queued] = await Promise.all([
     // Counts computed in one bounded query; "active" means a track that's still
-    // playing, "stale" means sweepable — the same predicate the cron deletes on.
+    // playing, "stale" means sweepable - the same predicate the cron deletes on.
     service.rpc("room_health"),
     service.from("profiles").select("id", { count: "exact", head: true }),
     service

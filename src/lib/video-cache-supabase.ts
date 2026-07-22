@@ -39,7 +39,7 @@ function metaToRow(meta: VideoMeta): VideoCacheRow & { fetched_at: string } {
  * the YouTube client. Plug this into `getVideoMetas` on the server.
  */
 export function supabaseVideoCache(youtube: YouTubeClient): CacheDeps {
-  // The video_cache is shared server infrastructure — read and written with the
+  // The video_cache is shared server infrastructure - read and written with the
   // service role so clients can't poison it (writes are RLS-locked).
   const supabase = createServiceClient();
   return {

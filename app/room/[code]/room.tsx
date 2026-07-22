@@ -181,7 +181,7 @@ export function Room({
       setCopied(true);
       setTimeout(() => setCopied(false), 1400);
     } catch {
-      /* clipboard blocked — the code is visible to read off and type anyway */
+      /* clipboard blocked - the code is visible to read off and type anyway */
     }
   }
 
@@ -320,7 +320,7 @@ export function Room({
               <div className="empty">
                 <div className="empty__title">Your room is ready.</div>
                 <p className="muted" style={{ marginTop: "0.5rem" }}>
-                  Add the first song — it starts playing for everyone at once.
+                  Add the first song. It starts playing for everyone at once.
                 </p>
               </div>
             )}

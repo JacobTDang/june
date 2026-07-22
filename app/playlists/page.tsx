@@ -60,7 +60,7 @@ export default async function PlaylistsPage() {
           <>
             <p className="muted">Couldn&apos;t load your playlists: {info.message}</p>
             <p className="muted">
-              Your YouTube connection may need refreshing — <a href="/">reconnect it</a>.
+              Your YouTube connection may need refreshing. <a href="/">Reconnect it</a>.
             </p>
           </>
         )}

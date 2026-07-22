@@ -131,7 +131,7 @@ export function FriendsClient({
       <div className="friends__section">
         <div className="eyebrow">Your friends</div>
         {friends.length === 0 ? (
-          <p className="muted">No friends yet — search a username, or add people from a jam.</p>
+          <p className="muted">No friends yet. Search a username, or add people from a jam.</p>
         ) : (
           friends.map((f) => (
             <PersonRow key={f.userId} card={f}>

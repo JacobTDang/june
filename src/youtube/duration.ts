@@ -5,7 +5,7 @@
  * `contentDetails.duration`. It supports weeks, days, hours, minutes and
  * seconds, each of which may carry a decimal fraction (result is rounded to
  * the nearest millisecond). It deliberately rejects years and calendar
- * months — whose length in milliseconds is undefined — as well as negative or
+ * months - whose length in milliseconds is undefined - as well as negative or
  * malformed input, throwing rather than silently guessing.
  */
 

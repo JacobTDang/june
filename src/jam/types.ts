@@ -2,7 +2,7 @@
 export interface Track {
   /** Unique id of this entry within the jam (used for queue operations). */
   id: string;
-  /** YouTube video id — what the IFrame player actually loads. */
+  /** YouTube video id - what the IFrame player actually loads. */
   videoId: string;
   title: string;
   /** Length of the track in milliseconds. Must be > 0. */

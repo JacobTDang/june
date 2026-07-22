@@ -6,7 +6,7 @@ import { resolveSignupCap } from "./signup-cap";
 export const SIGNUP_CAP = resolveSignupCap(process.env.SIGNUP_CAP);
 
 /**
- * Admit a user if a seat is free — or they already hold one. Returns false when
+ * Admit a user if a seat is free - or they already hold one. Returns false when
  * the app is full. Uses the service role and the trusted server-side cap, so a
  * client can't call the underlying function with a fake limit.
  */

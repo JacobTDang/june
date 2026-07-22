@@ -11,7 +11,7 @@ export default async function RoomPage({
   const result = await enterRoom(code);
 
   // Not signed in? Send them to sign in, remembering this room so they land
-  // back here (and auto-join) afterward — that's what makes invite links work.
+  // back here (and auto-join) afterward - that's what makes invite links work.
   if (result.status === "unauthenticated") {
     redirect(`/?next=${encodeURIComponent(`/room/${code}`)}`);
   }
