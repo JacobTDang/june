@@ -10,3 +10,9 @@ export {
   removeFromQueue,
 } from "./jam";
 export { newId } from "./ids";
+export {
+  estimateClockOffset,
+  sampleOffset,
+  roundTrip,
+  type ClockSample,
+} from "./clock";
