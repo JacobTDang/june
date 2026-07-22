@@ -21,7 +21,17 @@ import { enqueueTrack } from "./actions";
 async function youtubeClient(needsAuth = false) {
   const apiKey = process.env.YOUTUBE_API_KEY;
   if (!apiKey) throw new Error("YOUTUBE_API_KEY is not configured.");
-  const accessToken = (await getYouTubeAccessToken()) ?? undefined;
+
+  let accessToken: string | undefined;
+  try {
+    accessToken = (await getYouTubeAccessToken()) ?? undefined;
+  } catch (err) {
+    // A token we can't mint (server not configured, or a stale refresh token)
+    // is only fatal when the action needs one. Search / add-by-link resolve via
+    // the API key alone, so let those proceed without a token.
+    if (needsAuth) throw err;
+  }
+
   if (needsAuth && !accessToken) {
     throw new Error("Connect your YouTube account first.");
   }
