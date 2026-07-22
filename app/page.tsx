@@ -4,6 +4,7 @@ import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
 import { Avatar } from "./avatar";
+import { Reveal } from "./reveal";
 import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
 import { CreateJamButton } from "./create-jam-button";
@@ -48,21 +49,27 @@ export default async function Home({
         </header>
       )}
 
-      <main className="container hero rise">
-        <h1 className="display">june</h1>
-        <p className="lead">Play the same song, at the same second, with your friends.</p>
+      <main className="container hero">
+        <Reveal>
+          <h1 className="display">june</h1>
+        </Reveal>
+        <Reveal delay={0.08}>
+          <p className="lead">Play the same song, at the same second, with your friends.</p>
+        </Reveal>
 
         {!user ? (
-          <div className="stack" style={{ marginTop: "2.5rem" }}>
-            <SignInButton next={returnTo} />
-            <span className="faint" style={{ fontSize: "0.85rem" }}>
-              {returnTo
-                ? "Sign in to join the jam you were invited to."
-                : "Sign in to start a room — your friends join with a code."}
-            </span>
-          </div>
+          <Reveal delay={0.16}>
+            <div className="stack" style={{ marginTop: "2.5rem" }}>
+              <SignInButton next={returnTo} />
+              <span className="faint" style={{ fontSize: "0.85rem" }}>
+                {returnTo
+                  ? "Sign in to join the jam you were invited to."
+                  : "Sign in to start a room. Friends join with a code."}
+              </span>
+            </div>
+          </Reveal>
         ) : (
-          <>
+          <Reveal delay={0.16}>
             <div className="lobby">
               <CreateJamButton displayName={displayName} />
               <div className="divider">or join a room</div>
@@ -89,7 +96,7 @@ export default async function Home({
                 </>
               )}
             </div>
-          </>
+          </Reveal>
         )}
       </main>
     </>
