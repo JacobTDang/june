@@ -124,50 +124,6 @@ export function Room({
       });
   }
 
-  // Auto-scroll the queue window while a drag hovers near its top/bottom edge,
-  // so you can drag a song beyond the visible ~5-song window.
-  const queueRef = useRef<HTMLUListElement>(null);
-  const rafRef = useRef<number | null>(null);
-  const pointerY = useRef(0);
-
-  const onDragPointerMove = useCallback((e: PointerEvent) => {
-    pointerY.current = e.clientY;
-  }, []);
-
-  function autoScrollTick() {
-    const el = queueRef.current;
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      const EDGE = 44;
-      const SPEED = 12;
-      if (pointerY.current < rect.top + EDGE) el.scrollTop -= SPEED;
-      else if (pointerY.current > rect.bottom - EDGE) el.scrollTop += SPEED;
-    }
-    rafRef.current = requestAnimationFrame(autoScrollTick);
-  }
-
-  function startAutoScroll() {
-    reorderPending.current = true;
-    window.addEventListener("pointermove", onDragPointerMove);
-    if (rafRef.current === null) rafRef.current = requestAnimationFrame(autoScrollTick);
-  }
-
-  function stopAutoScroll() {
-    window.removeEventListener("pointermove", onDragPointerMove);
-    if (rafRef.current !== null) {
-      cancelAnimationFrame(rafRef.current);
-      rafRef.current = null;
-    }
-  }
-
-  // Belt-and-braces: never leave a drag loop running if the room unmounts.
-  useEffect(() => {
-    return () => {
-      window.removeEventListener("pointermove", onDragPointerMove);
-      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-    };
-  }, [onDragPointerMove]);
-
   // Keep the shared state fresh: Realtime for instant updates, plus a polling
   // fallback so it works even if a realtime event is missed.
   useEffect(() => {
@@ -320,25 +276,17 @@ export function Room({
           {queue.length === 0 ? (
             <p className="muted">Nothing queued yet.</p>
           ) : (
-            <Reorder.Group
-              ref={queueRef}
-              axis="y"
-              values={queue}
-              onReorder={setQueue}
-              className="queue"
-              layoutScroll
-            >
+            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue">
               {queue.map((t) => (
                 <QueueRow
                   key={t.id}
                   track={t}
                   reduce={reduce}
                   onRemove={() => void removeQueueItem(t.id)}
-                  onDragStart={startAutoScroll}
-                  onCommit={() => {
-                    stopAutoScroll();
-                    commitReorder();
+                  onDragStart={() => {
+                    reorderPending.current = true;
                   }}
+                  onCommit={commitReorder}
                 />
               ))}
             </Reorder.Group>
