@@ -2,6 +2,7 @@
 
 import { createClient } from "../supabase/server";
 import { friendState, type FriendState, type FriendshipRow } from "./state";
+import { mergeSearchResults } from "./search";
 
 async function requireUser() {
   const supabase = await createClient();
@@ -160,19 +161,35 @@ export async function searchUsers(query: string): Promise<FriendCard[]> {
   const q = query.trim().toLowerCase();
   if (q.length < 2) return [];
   const escaped = q.replace(/[%_\\]/g, "\\$&"); // treat wildcards as literals
+  const cols = "id, username, display_name, avatar_url";
 
-  const { data } = await supabase
-    .from("profiles")
-    .select("id, username, display_name, avatar_url")
-    .not("username", "is", null)
-    .ilike("username", `${escaped}%`)
-    .neq("id", user.id)
-    .limit(10);
+  // Match by @username prefix OR by display name (many people never set a
+  // username, so a name search is what actually finds them). Two parameterized
+  // queries rather than a hand-built .or() string, so the query can't break the
+  // filter syntax.
+  const [byUsername, byName] = await Promise.all([
+    supabase
+      .from("profiles")
+      .select(cols)
+      .not("username", "is", null)
+      .ilike("username", `${escaped}%`)
+      .neq("id", user.id)
+      .limit(10),
+    supabase
+      .from("profiles")
+      .select(cols)
+      .ilike("display_name", `%${escaped}%`)
+      .neq("id", user.id)
+      .limit(10),
+  ]);
+
+  const merged = mergeSearchResults(
+    (byUsername.data as ProfileRow[] | null) ?? [],
+    (byName.data as ProfileRow[] | null) ?? [],
+  );
 
   const rows = await myFriendships(supabase, user.id);
-  return ((data as ProfileRow[] | null) ?? []).map((p) =>
-    toCard(p.id, p, friendState(rows, user.id, p.id)),
-  );
+  return merged.map((p) => toCard(p.id, p, friendState(rows, user.id, p.id)));
 }
 
 /** My relationship to a set of users (for the room's add-friend controls). */
