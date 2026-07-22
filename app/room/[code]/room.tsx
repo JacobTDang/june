@@ -13,7 +13,6 @@ import {
 import type { FriendState } from "@/src/lib/friends/state";
 import { createClient } from "@/src/lib/supabase/client";
 import {
-  clearQueue,
   getRoomState,
   leaveRoom,
   removeQueueItem,
@@ -124,6 +123,50 @@ export function Room({
         void refresh();
       });
   }
+
+  // Auto-scroll the queue window while a drag hovers near its top/bottom edge,
+  // so you can drag a song beyond the visible ~5-song window.
+  const queueRef = useRef<HTMLUListElement>(null);
+  const rafRef = useRef<number | null>(null);
+  const pointerY = useRef(0);
+
+  const onDragPointerMove = useCallback((e: PointerEvent) => {
+    pointerY.current = e.clientY;
+  }, []);
+
+  function autoScrollTick() {
+    const el = queueRef.current;
+    if (el) {
+      const rect = el.getBoundingClientRect();
+      const EDGE = 44;
+      const SPEED = 12;
+      if (pointerY.current < rect.top + EDGE) el.scrollTop -= SPEED;
+      else if (pointerY.current > rect.bottom - EDGE) el.scrollTop += SPEED;
+    }
+    rafRef.current = requestAnimationFrame(autoScrollTick);
+  }
+
+  function startAutoScroll() {
+    reorderPending.current = true;
+    window.addEventListener("pointermove", onDragPointerMove);
+    if (rafRef.current === null) rafRef.current = requestAnimationFrame(autoScrollTick);
+  }
+
+  function stopAutoScroll() {
+    window.removeEventListener("pointermove", onDragPointerMove);
+    if (rafRef.current !== null) {
+      cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+  }
+
+  // Belt-and-braces: never leave a drag loop running if the room unmounts.
+  useEffect(() => {
+    return () => {
+      window.removeEventListener("pointermove", onDragPointerMove);
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+    };
+  }, [onDragPointerMove]);
 
   // Keep the shared state fresh: Realtime for instant updates, plus a polling
   // fallback so it works even if a realtime event is missed.
@@ -273,26 +316,29 @@ export function Room({
         <section className="room__queue">
           <div className="section__head">
             <span className="eyebrow">Up next</span>
-            {queue.length > 0 && (
-              <button className="btn btn--sm" onClick={() => void clearQueue(initial.id)}>
-                Clear
-              </button>
-            )}
           </div>
           {queue.length === 0 ? (
             <p className="muted">Nothing queued yet.</p>
           ) : (
-            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue">
+            <Reorder.Group
+              ref={queueRef}
+              axis="y"
+              values={queue}
+              onReorder={setQueue}
+              className="queue"
+              layoutScroll
+            >
               {queue.map((t) => (
                 <QueueRow
                   key={t.id}
                   track={t}
                   reduce={reduce}
                   onRemove={() => void removeQueueItem(t.id)}
-                  onDragStart={() => {
-                    reorderPending.current = true;
+                  onDragStart={startAutoScroll}
+                  onCommit={() => {
+                    stopAutoScroll();
+                    commitReorder();
                   }}
-                  onCommit={commitReorder}
                 />
               ))}
             </Reorder.Group>
