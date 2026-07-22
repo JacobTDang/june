@@ -27,7 +27,7 @@ async function record(endpoint: string, units: number): Promise<void> {
     });
     if (error) throw new Error(error.message);
   } catch (e) {
-    // Metering must never break the actual feature — surface it, don't throw.
+    // Metering must never break the actual feature - surface it, don't throw.
     console.error("[metrics] failed to record YouTube units:", e);
   }
 }

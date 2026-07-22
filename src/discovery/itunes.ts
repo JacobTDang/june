@@ -32,7 +32,7 @@ export interface ArtistCandidate {
   source: "itunes";
 }
 
-/** The one bit of `fetch` we use — injectable so tests need no network. */
+/** The one bit of `fetch` we use - injectable so tests need no network. */
 export type FetchLike = (input: URL) => Promise<Response>;
 
 export interface SearchMusicOptions {
@@ -65,7 +65,7 @@ function throwOnHttpError(response: Response): void {
   }
 }
 
-/** One iTunes song search — parse and normalize, no ranking yet. */
+/** One iTunes song search - parse and normalize, no ranking yet. */
 async function fetchSongs(
   term: string,
   limit: number,
@@ -92,14 +92,14 @@ async function fetchSongs(
 
 /**
  * Search Apple's free iTunes Search API for songs matching `query`. Costs zero
- * YouTube quota — used for type-ahead; the chosen candidate is resolved to a
+ * YouTube quota - used for type-ahead; the chosen candidate is resolved to a
  * YouTube videoId elsewhere.
  *
  * The query is normalized (noise like "official video" stripped) and results
  * are ranked so the studio version outranks karaoke/live/remix cuts. If the
  * normalized search comes back sparse *and* normalization changed the term, we
  * retry once with the raw query so over-trimming can't hide real matches. HTTP
- * errors always throw — the retry is only for the sparse case, never to mask one.
+ * errors always throw - the retry is only for the sparse case, never to mask one.
  */
 export async function searchMusic(
   query: string,
@@ -123,7 +123,7 @@ export async function searchMusic(
 
 /**
  * Search iTunes for artists matching `query` (entity=musicArtist). Artist
- * entities carry no artwork, so `artworkUrl` is left undefined here — the action
+ * entities carry no artwork, so `artworkUrl` is left undefined here - the action
  * layer borrows a cover from one of the artist's top songs. Drops rows without
  * an artistId or name.
  */

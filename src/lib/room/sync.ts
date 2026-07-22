@@ -17,7 +17,7 @@ export interface CorrectionInput {
  * Decide what a synced player should do to stay on the shared clock.
  *
  * Crucially, when the track is scheduled in the future (`expectedSeconds < 0`)
- * we HOLD rather than seek — seeking toward a negative position clamps to 0 and,
+ * we HOLD rather than seek - seeking toward a negative position clamps to 0 and,
  * every tick, yanks the player back to the start, which is what made a track
  * loop its first second forever.
  */

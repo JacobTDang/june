@@ -3,7 +3,7 @@
  * whitespace and strip the "official video" / "lyrics" style noise people
  * paste in from elsewhere, which otherwise pushes the real studio track down
  * the results. iTunes' own matching handles minor misspellings, so this only
- * removes noise — it does not attempt spell-correction.
+ * removes noise - it does not attempt spell-correction.
  *
  * Pure and import-clean (no server-only deps) so it can be unit-tested directly.
  */

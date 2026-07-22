@@ -105,7 +105,7 @@ export async function updateProfile(input: {
 
 /**
  * Process and store an uploaded avatar. sharp decodes the image (incl. HEIC),
- * honors EXIF orientation, then re-encodes to a small square WebP — which also
+ * honors EXIF orientation, then re-encodes to a small square WebP - which also
  * strips metadata and neutralizes malicious/oversized inputs. Overwrites the
  * user's single avatar object; the stored URL is cache-busted so the new image
  * isn't masked by a stale cache.
@@ -127,7 +127,7 @@ export async function uploadAvatar(formData: FormData): Promise<{ avatarUrl: str
       .webp({ quality: 82 })
       .toBuffer();
   } catch {
-    throw new Error("Couldn't read that image — try a JPG or PNG.");
+    throw new Error("Couldn't read that image. Try a JPG or PNG.");
   }
 
   const path = avatarObjectPath(user.id);

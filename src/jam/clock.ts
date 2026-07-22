@@ -1,6 +1,6 @@
 /**
  * Clock synchronization. Every client derives playback position from
- * `nowPlaying.startedAt`, which is on the *server's* clock — but each client's
+ * `nowPlaying.startedAt`, which is on the *server's* clock - but each client's
  * local clock drifts from it by seconds. These helpers estimate that offset
  * (NTP-style) so a client can compute `serverNow = Date.now() + offset`.
  */

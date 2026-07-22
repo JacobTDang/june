@@ -4,7 +4,7 @@ import type { MusicCandidate } from "./itunes";
  * Reorder song candidates so the studio version floats to the top: rows whose
  * title carries a "version qualifier" naming karaoke / cover / live / remix /
  * instrumental / etc. are demoted below the plain studio tracks. Nothing is
- * dropped — someone who actually wants the live cut still finds it lower down.
+ * dropped - someone who actually wants the live cut still finds it lower down.
  *
  * A qualifier is text inside parentheses/brackets or after a " - " suffix, e.g.
  * "Song (Live at Wembley)" or "Song - Instrumental". This scoping is what keeps

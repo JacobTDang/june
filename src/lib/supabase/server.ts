@@ -19,7 +19,7 @@ export async function createClient() {
               cookieStore.set(name, value, options);
             }
           } catch {
-            // Setting cookies from a Server Component throws; that's expected —
+            // Setting cookies from a Server Component throws; that's expected -
             // the middleware refreshes the session, so this is a safe no-op here.
           }
         },

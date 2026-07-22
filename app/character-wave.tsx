@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 
 /**
- * Character Waves — a field of monospace glyphs driven by layered pseudo-noise
+ * Character Waves - a field of monospace glyphs driven by layered pseudo-noise
  * with cursor ripples. Component from OriginKit (originkit.dev), adapted here for
  * Next.js / React 19: Framer's RenderTarget removed, `defaultProps` converted to
  * default params, made a transparent click-through overlay, throttled, and

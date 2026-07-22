@@ -42,7 +42,7 @@ async function youtubeClient(needsAuth = false) {
 export type SearchResult = { songs: MusicCandidate[]; artist: ArtistCandidate | null };
 
 /**
- * iTunes type-ahead search — zero YouTube quota. Searches songs and artists
+ * iTunes type-ahead search - zero YouTube quota. Searches songs and artists
  * concurrently; surfaces an artist chip only when the query strongly names one.
  */
 export async function searchMusicAction(query: string): Promise<SearchResult> {
@@ -92,7 +92,7 @@ export async function addCandidate(roomId: string, candidate: MusicCandidate): P
   if (cachedId) {
     [meta] = await getVideoMetas([cachedId], cache);
   } else {
-    // The top result is often the official (non-embeddable) video — pick the
+    // The top result is often the official (non-embeddable) video - pick the
     // first result we can actually play, then cache that resolution.
     const ids = await youtube.searchVideoIds(`${candidate.artist} ${candidate.title}`, {
       maxResults: 5,

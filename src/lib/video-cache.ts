@@ -2,7 +2,7 @@ import { parseIso8601Duration } from "../youtube/duration";
 import type { YouTubeVideoItem } from "../youtube/schema";
 import { pickThumbnail } from "../youtube/track";
 
-/** Playable metadata for one YouTube video — the shape we cache and reuse. */
+/** Playable metadata for one YouTube video - the shape we cache and reuse. */
 export interface VideoMeta {
   videoId: string;
   title: string;
@@ -24,7 +24,7 @@ export function toVideoMeta(item: YouTubeVideoItem): VideoMeta {
   };
 }
 
-/** The IO the cache orchestration needs — injected so the logic stays pure. */
+/** The IO the cache orchestration needs - injected so the logic stays pure. */
 export interface CacheDeps {
   /** Return whatever metadata is already cached for these ids (a subset). */
   readCache(ids: string[]): Promise<VideoMeta[]>;

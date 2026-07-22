@@ -64,7 +64,7 @@ export async function createRoom(displayName: string): Promise<string> {
     const code = generateRoomCode();
     // Insert the room and the host participant atomically, so a room never
     // briefly exists with zero participants (which cleanup would treat as
-    // empty). Raises 23505 on a code collision — retry with a fresh code.
+    // empty). Raises 23505 on a code collision - retry with a fresh code.
     const { error } = await supabase.rpc("create_room", { p_code: code, p_name: displayName });
     if (!error) return code;
     if (error.code !== "23505") throw new Error(`createRoom failed: ${error.message}`);
@@ -187,7 +187,7 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
     .update(update)
     .eq("id", roomId)
     .eq("now_playing_video_id", endedVideoId)
-    // Guard on the exact track instance we read, not just its video id — with
+    // Guard on the exact track instance we read, not just its video id - with
     // duplicate videos the id is unchanged after advancing, so concurrent
     // "ended" events would otherwise double-advance.
     .eq("now_playing_started_at", room.now_playing_started_at)
@@ -214,7 +214,7 @@ export async function removeQueueItem(itemId: string): Promise<void> {
 }
 
 /** Reorder the queue to an explicit order (any participant). Rewrites positions
- *  via a participant-checked function — clients can't reorder rows directly.
+ *  via a participant-checked function - clients can't reorder rows directly.
  *  `orderedIds` is the full queue in its new order (drag-to-reorder). */
 export async function reorderQueue(roomId: string, orderedIds: string[]): Promise<void> {
   const { supabase } = await requireUser();

@@ -7,7 +7,7 @@ export type UploadCheck = { ok: true } | { ok: false; error: string };
 
 /**
  * Coarse pre-validation before decoding: reject empty, oversized, or obviously
- * non-image uploads. sharp does the real validation by decoding — an empty
+ * non-image uploads. sharp does the real validation by decoding - an empty
  * content-type is allowed through because some pickers omit it.
  */
 export function validateAvatarFile(file: { size: number; type: string }): UploadCheck {

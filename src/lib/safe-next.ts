@@ -1,7 +1,7 @@
 /**
  * Sanitize a `next` redirect target so it can only point somewhere inside this
- * app. Anything that isn't a plain internal path — absolute URLs, protocol-
- * relative `//host`, backslash tricks, `javascript:` — collapses to the
+ * app. Anything that isn't a plain internal path - absolute URLs, protocol-
+ * relative `//host`, backslash tricks, `javascript:` - collapses to the
  * fallback, closing the open-redirect hole.
  */
 export function safeNext(next: string | null | undefined, fallback = "/"): string {

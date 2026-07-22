@@ -7,7 +7,7 @@ import { safeNext } from "@/src/lib/safe-next";
 /**
  * OAuth callback: Supabase redirects here with a `code` after Google sign-in.
  * We exchange it for a session and, critically, capture the Google access token
- * (`provider_token`) into an httpOnly cookie — it's only exposed here, once.
+ * (`provider_token`) into an httpOnly cookie - it's only exposed here, once.
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);

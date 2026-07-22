@@ -1,6 +1,6 @@
 /**
  * A user avatar: the uploaded image if there is one, otherwise a flat
- * rounded-square with their initial. Presentational — safe in server or client
+ * rounded-square with their initial. Presentational - safe in server or client
  * components.
  */
 export function Avatar({
