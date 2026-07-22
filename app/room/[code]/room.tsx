@@ -24,6 +24,7 @@ import type { RoomState } from "@/src/lib/room/types";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
+import { FriendToasts } from "./friend-toasts";
 import { sampleClockOffset } from "./clock-client";
 
 type QueueItem = RoomState["queue"][number];
@@ -251,6 +252,7 @@ export function Room({
 
   return (
     <main className="room rise">
+      <FriendToasts meId={me.userId} />
       <div className="room__bar">
         <div className="room__barL">
           <span className="live">

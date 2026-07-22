@@ -192,6 +192,32 @@ export async function searchUsers(query: string): Promise<FriendCard[]> {
   return merged.map((p) => toCard(p.id, p, friendState(rows, user.id, p.id)));
 }
 
+/**
+ * The requester's card, but only if they actually have a pending request to me.
+ * Authoritative check for the in-room toast — a realtime event just prompts it.
+ */
+export async function incomingRequestCard(requesterId: string): Promise<FriendCard | null> {
+  const { supabase, user } = await requireUser();
+
+  const { data: pending } = await supabase
+    .from("friendships")
+    .select("status")
+    .eq("requester", requesterId)
+    .eq("addressee", user.id)
+    .eq("status", "pending")
+    .maybeSingle();
+  if (!pending) return null;
+
+  const { data: p } = await supabase
+    .from("profiles")
+    .select("id, username, display_name, avatar_url")
+    .eq("id", requesterId)
+    .maybeSingle();
+  if (!p) return null;
+
+  return toCard(requesterId, p as ProfileRow, "incoming");
+}
+
 /** My relationship to a set of users (for the room's add-friend controls). */
 export async function friendStatesFor(userIds: string[]): Promise<Record<string, FriendState>> {
   const { supabase, user } = await requireUser();
