@@ -4,6 +4,7 @@ import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
 import { Avatar } from "./avatar";
+import { FriendsInJam } from "./friends-in-jam";
 import { Reveal } from "./reveal";
 import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
@@ -97,6 +98,8 @@ export default async function Home({
                 </>
               )}
             </div>
+
+            <FriendsInJam />
           </Reveal>
         )}
       </main>

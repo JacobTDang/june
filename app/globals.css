@@ -313,6 +313,31 @@ a:hover {
   gap: 0.3rem;
 }
 
+/* Home: friends currently in a jam, with a Join button. */
+.home-jams {
+  margin-top: 2.5rem;
+}
+.home-jams__list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.home-jam {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  font-size: 0.9rem;
+}
+.home-jam__name {
+  font-weight: 500;
+}
+.home-jam .friend__live {
+  margin-left: auto;
+}
+
 /* ---- Avatars: flat, rounded-square (not gradient circles) ---- */
 .avatar {
   width: 1.9rem;
