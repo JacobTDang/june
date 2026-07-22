@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { filterPlaylists, clampIndex } from "../../src/lib/room/playlist-window";
+import { filterPlaylists } from "../../src/lib/room/playlist-window";
 
 const pl = (title: string) => ({ id: title, title, itemCount: 0 });
 const list = [pl("Chill"), pl("Workout"), pl("Focus"), pl("Party"), pl("Chill Vibes")];
@@ -25,23 +25,5 @@ describe("filterPlaylists", () => {
 
   it("returns an empty list when nothing matches", () => {
     expect(filterPlaylists(list, "zzz")).toEqual([]);
-  });
-});
-
-describe("clampIndex", () => {
-  it("keeps an in-range index unchanged", () => {
-    expect(clampIndex(2, 5)).toBe(2);
-  });
-
-  it("clamps a negative index to zero", () => {
-    expect(clampIndex(-3, 5)).toBe(0);
-  });
-
-  it("clamps an index past the end to the last item", () => {
-    expect(clampIndex(9, 5)).toBe(4);
-  });
-
-  it("returns zero for an empty list", () => {
-    expect(clampIndex(3, 0)).toBe(0);
   });
 });

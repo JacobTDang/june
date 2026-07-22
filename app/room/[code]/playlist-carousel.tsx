@@ -1,9 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Music, RefreshCw } from "lucide-react";
-import { motion, useReducedMotion } from "motion/react";
-import { clampIndex, filterPlaylists } from "@/src/lib/room/playlist-window";
+import { Music, Play, RefreshCw, Repeat, Shuffle, SkipBack, SkipForward } from "lucide-react";
+import { filterPlaylists } from "@/src/lib/room/playlist-window";
 
 export type Playlist = {
   id: string;
@@ -12,13 +11,9 @@ export type Playlist = {
   thumbnailUrl?: string | null;
 };
 
-const GAP = 48; // vertical px between stacked cards
-const RENDER_RADIUS = 2.6; // how many cards each side of focus to render
-
 /**
- * A stacked deck of playlists: the focused card sits up front, the rest recede
- * behind it. Drag (or scroll) vertically to spin the deck; tap the focused card
- * to open its songs, or tap a back card to bring it forward. Arrow keys work too.
+ * Playlists as a sideways-scrolling row of Spotify-style cards: cover on top,
+ * title + count below. Scroll/swipe horizontally; tap a card to open its songs.
  */
 export function PlaylistCarousel({
   playlists,
@@ -32,83 +27,25 @@ export function PlaylistCarousel({
   onRefresh: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [focus, setFocus] = useState(0);
-  const [dragOffset, setDragOffset] = useState(0); // in card-units, live during drag
-  const reduce = useReducedMotion() ?? false;
-
-  const dragging = useRef(false);
-  const moved = useRef(false);
-  const startY = useRef(0);
-  const deckRef = useRef<HTMLDivElement>(null);
-  const lenRef = useRef(0);
+  const railRef = useRef<HTMLDivElement>(null);
 
   const filtered = filterPlaylists(playlists, query);
-  lenRef.current = filtered.length;
-  const f = clampIndex(focus, filtered.length);
-  const focusF = f + dragOffset;
-  const nearest = clampIndex(Math.round(focusF), filtered.length);
 
-  // Spin the deck by scrolling/swiping over it — no click-drag needed. A
-  // non-passive listener so we can stop the page from scrolling while spinning.
+  // Mouse wheel scrolls the rail sideways (trackpad horizontal swipe works
+  // natively). Only hijack the wheel when there's actually somewhere to scroll.
   useEffect(() => {
-    const el = deckRef.current;
+    const el = railRef.current;
     if (!el) return;
-    let acc = 0;
-    const STEP = 60;
     const onWheel = (e: WheelEvent) => {
-      if (lenRef.current <= 1) return; // nothing to spin — let the page scroll
+      if (el.scrollWidth <= el.clientWidth) return;
+      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      if (delta === 0) return;
       e.preventDefault();
-      acc += e.deltaY;
-      while (Math.abs(acc) >= STEP) {
-        const dir = Math.sign(acc);
-        setFocus((prev) => clampIndex(prev + dir, lenRef.current));
-        acc -= dir * STEP;
-      }
+      el.scrollLeft += delta;
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
-
-  function step(delta: number) {
-    setFocus(clampIndex(f + delta, filtered.length));
-  }
-
-  function onQuery(value: string) {
-    setQuery(value);
-    setFocus(0);
-    setDragOffset(0);
-  }
-
-  function onPointerDown(e: React.PointerEvent) {
-    dragging.current = true;
-    moved.current = false;
-    startY.current = e.clientY;
-  }
-  function onPointerMove(e: React.PointerEvent) {
-    if (!dragging.current) return;
-    const dy = e.clientY - startY.current;
-    if (Math.abs(dy) > 4) moved.current = true;
-    setDragOffset(-dy / GAP);
-  }
-  function endDrag() {
-    if (!dragging.current) return;
-    dragging.current = false;
-    if (moved.current) setFocus(clampIndex(Math.round(focusF), filtered.length));
-    setDragOffset(0);
-  }
-
-  function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
-      e.preventDefault();
-      step(-1);
-    } else if (e.key === "ArrowDown" || e.key === "ArrowRight") {
-      e.preventDefault();
-      step(1);
-    } else if ((e.key === "Enter" || e.key === " ") && filtered[nearest]) {
-      e.preventDefault();
-      onOpen(filtered[nearest]);
-    }
-  }
 
   return (
     <div className="plc">
@@ -116,7 +53,7 @@ export function PlaylistCarousel({
         <input
           className="input plc__search"
           value={query}
-          onChange={(e) => onQuery(e.target.value)}
+          onChange={(e) => setQuery(e.target.value)}
           placeholder="Search your playlists"
           aria-label="Search your playlists"
         />
@@ -134,74 +71,46 @@ export function PlaylistCarousel({
       {filtered.length === 0 ? (
         <p className="muted plc__empty">No playlists match “{query}”.</p>
       ) : (
-        <>
-          <div
-            ref={deckRef}
-            className="plc-deck"
-            role="listbox"
-            aria-label="Your playlists"
-            tabIndex={0}
-            onPointerDown={onPointerDown}
-            onPointerMove={onPointerMove}
-            onPointerUp={endDrag}
-            onPointerCancel={endDrag}
-            onPointerLeave={endDrag}
-            onKeyDown={onKeyDown}
-          >
-            {filtered.map((p, i) => {
-              const offset = i - focusF;
-              if (Math.abs(offset) > RENDER_RADIUS) return null;
-              const abs = Math.abs(offset);
-              const isFocused = i === nearest;
-              return (
-                <motion.button
-                  key={p.id}
-                  type="button"
-                  className={`plc-card${isFocused ? " plc-card--on" : ""}`}
-                  role="option"
-                  aria-selected={isFocused}
-                  disabled={busy}
-                  style={{ zIndex: 100 - Math.round(abs) }}
-                  animate={{
-                    y: offset * GAP,
-                    scale: Math.max(0.72, 1 - abs * 0.09),
-                    opacity: Math.max(0, 1 - abs * 0.32),
-                  }}
-                  transition={
-                    dragging.current || reduce
-                      ? { duration: 0 }
-                      : { type: "spring", stiffness: 440, damping: 36 }
-                  }
-                  onClick={() => {
-                    if (moved.current) return; // it was a drag, not a tap
-                    if (isFocused) onOpen(p);
-                    else setFocus(i);
-                  }}
-                >
-                  <span className={`plc-card__cover${p.thumbnailUrl ? "" : " plc-card__cover--empty"}`}>
-                    {p.thumbnailUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={p.thumbnailUrl} alt="" loading="lazy" />
-                    ) : (
-                      <Music size={20} />
-                    )}
+        <div className="plc-rail" ref={railRef}>
+          {filtered.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="plc-scard"
+              onClick={() => onOpen(p)}
+              disabled={busy}
+            >
+              <span className={`plc-scard__cover${p.thumbnailUrl ? "" : " plc-scard__cover--empty"}`}>
+                {p.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.thumbnailUrl} alt="" loading="lazy" />
+                ) : (
+                  <Music size={26} />
+                )}
+              </span>
+              <span className="plc-scard__body">
+                <span className="plc-scard__name" title={p.title}>
+                  {p.title}
+                </span>
+                <span className="plc-scard__count">
+                  {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
+                </span>
+                <span className="plc-scard__bar">
+                  <span className="plc-scard__barFill" />
+                </span>
+                <span className="plc-scard__controls" aria-hidden="true">
+                  <Shuffle size={12} />
+                  <span className="plc-scard__transport">
+                    <SkipBack size={13} />
+                    <Play size={15} className="plc-scard__play" fill="currentColor" strokeWidth={0} />
+                    <SkipForward size={13} />
                   </span>
-                  <span className="plc-card__meta">
-                    <span className="plc-card__name" title={p.title}>
-                      {p.title}
-                    </span>
-                    <span className="plc-card__count">
-                      {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
-                    </span>
-                  </span>
-                </motion.button>
-              );
-            })}
-          </div>
-          <p className="plc__pos faint">
-            {nearest + 1} / {filtered.length}
-          </p>
-        </>
+                  <Repeat size={12} />
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
       )}
     </div>
   );
