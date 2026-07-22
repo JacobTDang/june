@@ -1,6 +1,7 @@
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { getYouTubeAccessToken } from "@/src/lib/supabase/youtube-auth";
+import { describeYouTubeError } from "@/src/lib/supabase/youtube-error";
 import { meteredFetch } from "@/src/lib/metrics/youtube-usage";
 import { createYouTubeClient } from "@/src/youtube";
 
@@ -46,12 +47,23 @@ export default async function PlaylistsPage() {
     const client = createYouTubeClient({ apiKey, accessToken, fetch: meteredFetch() });
     playlists = await client.listPlaylists();
   } catch (err) {
+    const info = describeYouTubeError(err);
     return (
       <main className="container">
-        <p className="muted">Couldn&apos;t load your playlists: {(err as Error).message}</p>
-        <p className="muted">
-          Your YouTube connection may need refreshing — <a href="/">reconnect it</a>.
-        </p>
+        {info.kind === "not-configured" ? (
+          <p className="muted">YouTube isn&apos;t set up on this server yet.</p>
+        ) : info.kind === "not-connected" ? (
+          <p className="muted">
+            YouTube isn&apos;t connected. <a href="/">Connect it from the home page</a>.
+          </p>
+        ) : (
+          <>
+            <p className="muted">Couldn&apos;t load your playlists: {info.message}</p>
+            <p className="muted">
+              Your YouTube connection may need refreshing — <a href="/">reconnect it</a>.
+            </p>
+          </>
+        )}
       </main>
     );
   }

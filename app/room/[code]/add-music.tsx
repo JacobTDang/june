@@ -14,6 +14,10 @@ import {
   listMyPlaylists,
   searchMusicAction,
 } from "@/src/lib/room/add-music";
+import {
+  describeYouTubeError,
+  youTubeNoticeText,
+} from "@/src/lib/supabase/youtube-error";
 
 type Tab = "search" | "playlist";
 type Playlist = { id: string; title: string; itemCount: number };
@@ -67,6 +71,15 @@ export function AddMusic({ roomId }: { roomId: string }) {
       setMessage((e as Error).message);
     } finally {
       setBusy(false);
+    }
+  }
+
+  /** Run a YouTube-touching load, surfacing calm copy for setup/connection issues. */
+  async function youtubeLoad<T>(fn: () => Promise<T>): Promise<T> {
+    try {
+      return await fn();
+    } catch (err) {
+      throw new Error(youTubeNoticeText(describeYouTubeError(err)));
     }
   }
 
@@ -217,7 +230,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
           <button
             className="btn"
             disabled={busy}
-            onClick={() => void run(async () => setPlaylists(await listMyPlaylists()))}
+            onClick={() => void run(async () => setPlaylists(await youtubeLoad(listMyPlaylists)))}
           >
             {playlists ? "Refresh playlists" : "Load my playlists"}
           </button>
@@ -231,7 +244,9 @@ export function AddMusic({ roomId }: { roomId: string }) {
                     onClick={() => {
                       setOpenPlaylist(p);
                       setPlaylistTracks(null);
-                      void run(async () => setPlaylistTracks(await getPlaylistTracks(p.id)));
+                      void run(async () =>
+                        setPlaylistTracks(await youtubeLoad(() => getPlaylistTracks(p.id))),
+                      );
                     }}
                   >
                     <span className="add__title">{p.title}</span>
