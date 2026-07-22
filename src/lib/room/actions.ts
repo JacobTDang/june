@@ -225,12 +225,6 @@ export async function reorderQueue(roomId: string, orderedIds: string[]): Promis
   if (error) throw new Error(`reorderQueue failed: ${error.message}`);
 }
 
-/** Clear the whole queue (keeps whatever is now playing). */
-export async function clearQueue(roomId: string): Promise<void> {
-  const { supabase } = await requireUser();
-  await supabase.from("queue_items").delete().eq("room_id", roomId);
-}
-
 /** Full current room state, for the initial page load. */
 export async function getRoomState(roomId: string): Promise<RoomState | null> {
   const { supabase } = await requireUser();
