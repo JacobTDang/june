@@ -1,5 +1,8 @@
-export { searchMusic } from "./itunes";
-export type { MusicCandidate, SearchMusicOptions, FetchLike } from "./itunes";
+export { searchMusic, searchArtists, getArtistTopSongs } from "./itunes";
+export type { MusicCandidate, ArtistCandidate, SearchMusicOptions, FetchLike } from "./itunes";
+export { normalizeQuery } from "./normalize";
+export { rankSongResults } from "./rank";
+export { pickArtistMatch } from "./artist-match";
 export {
   itunesSearchResponseSchema,
   parseItunesSearchResponse,
