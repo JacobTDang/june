@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Music, RefreshCw } from "lucide-react";
 import { motion, useReducedMotion } from "motion/react";
 import { clampIndex, filterPlaylists } from "@/src/lib/room/playlist-window";
@@ -39,11 +39,35 @@ export function PlaylistCarousel({
   const dragging = useRef(false);
   const moved = useRef(false);
   const startY = useRef(0);
+  const deckRef = useRef<HTMLDivElement>(null);
+  const lenRef = useRef(0);
 
   const filtered = filterPlaylists(playlists, query);
+  lenRef.current = filtered.length;
   const f = clampIndex(focus, filtered.length);
   const focusF = f + dragOffset;
   const nearest = clampIndex(Math.round(focusF), filtered.length);
+
+  // Spin the deck by scrolling/swiping over it — no click-drag needed. A
+  // non-passive listener so we can stop the page from scrolling while spinning.
+  useEffect(() => {
+    const el = deckRef.current;
+    if (!el) return;
+    let acc = 0;
+    const STEP = 60;
+    const onWheel = (e: WheelEvent) => {
+      if (lenRef.current <= 1) return; // nothing to spin — let the page scroll
+      e.preventDefault();
+      acc += e.deltaY;
+      while (Math.abs(acc) >= STEP) {
+        const dir = Math.sign(acc);
+        setFocus((prev) => clampIndex(prev + dir, lenRef.current));
+        acc -= dir * STEP;
+      }
+    };
+    el.addEventListener("wheel", onWheel, { passive: false });
+    return () => el.removeEventListener("wheel", onWheel);
+  }, []);
 
   function step(delta: number) {
     setFocus(clampIndex(f + delta, filtered.length));
@@ -112,6 +136,7 @@ export function PlaylistCarousel({
       ) : (
         <>
           <div
+            ref={deckRef}
             className="plc-deck"
             role="listbox"
             aria-label="Your playlists"
