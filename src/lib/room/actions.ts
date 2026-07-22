@@ -213,15 +213,16 @@ export async function removeQueueItem(itemId: string): Promise<void> {
   await supabase.from("queue_items").delete().eq("id", itemId);
 }
 
-/** Move a queued track up or down (any participant). Swaps position with its
- *  neighbor via a participant-checked function — clients can't reorder directly. */
-export async function moveQueueItem(itemId: string, direction: "up" | "down"): Promise<void> {
+/** Reorder the queue to an explicit order (any participant). Rewrites positions
+ *  via a participant-checked function — clients can't reorder rows directly.
+ *  `orderedIds` is the full queue in its new order (drag-to-reorder). */
+export async function reorderQueue(roomId: string, orderedIds: string[]): Promise<void> {
   const { supabase } = await requireUser();
-  const { error } = await supabase.rpc("move_queue_item", {
-    p_item: itemId,
-    p_direction: direction,
+  const { error } = await supabase.rpc("reorder_queue", {
+    p_room: roomId,
+    p_item_ids: orderedIds,
   });
-  if (error) throw new Error(`moveQueueItem failed: ${error.message}`);
+  if (error) throw new Error(`reorderQueue failed: ${error.message}`);
 }
 
 /** Clear the whole queue (keeps whatever is now playing). */
