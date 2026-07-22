@@ -14,3 +14,8 @@ out
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# Added by code-review-graph
+.code-review-graph/
+
+# local dev utility scripts
+fix-mcp-auth.sh
