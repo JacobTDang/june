@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/src/lib/supabase/server";
 import { PROVIDER_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
+import { claimSeat, removeUnseatedUser } from "@/src/lib/auth/seats";
 import { safeNext } from "@/src/lib/safe-next";
 
 /**
@@ -23,6 +24,17 @@ export async function GET(request: Request) {
     return NextResponse.redirect(
       `${origin}/?error=${encodeURIComponent(error.message)}`,
     );
+  }
+
+  // Enforce the signup cap: admit members and, while there's room, new users.
+  // A rejected new account is removed so the seat count stays exact.
+  const userId = data.user?.id ?? null;
+  if (userId) {
+    const admitted = await claimSeat(userId);
+    if (!admitted) {
+      await removeUnseatedUser(userId);
+      return NextResponse.redirect(`${origin}/?full=1`);
+    }
   }
 
   const response = NextResponse.redirect(`${origin}${next}`);
