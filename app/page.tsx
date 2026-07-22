@@ -1,4 +1,4 @@
-import { ListMusic, ArrowRight } from "lucide-react";
+import { ListMusic } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
 import { getMyProfile } from "@/src/lib/profile/actions";
@@ -86,17 +86,10 @@ export default async function Home({
 
             <div className="yt-status">
               {youtubeConnected ? (
-                <>
-                  <span className="yt-badge">
-                    <ListMusic size={15} />
-                    YouTube connected
-                  </span>
-                  <span className="faint">·</span>
-                  <a href="/playlists" className="muted">
-                    Your playlists
-                    <ArrowRight size={14} />
-                  </a>
-                </>
+                <span className="yt-badge">
+                  <ListMusic size={15} />
+                  YouTube connected
+                </span>
               ) : (
                 <>
                   <span className="muted">Connect YouTube to browse your playlists</span>
