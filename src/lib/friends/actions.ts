@@ -231,6 +231,36 @@ export async function getActiveFriendRooms(): Promise<Record<string, string>> {
   return map;
 }
 
+export interface FriendInJam {
+  userId: string;
+  displayName: string;
+  avatarUrl: string | null;
+  roomId: string;
+}
+
+/** Friends who are in a jam right now, with names/avatars and the room to join. */
+export async function getFriendsInJams(): Promise<FriendInJam[]> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.rpc("friends_active_rooms");
+  if (error) throw new Error(`Couldn't load friend activity: ${error.message}`);
+
+  const roomByFriend = new Map<string, string>();
+  for (const r of (data as { friend: string; room_id: string }[] | null) ?? []) {
+    if (!roomByFriend.has(r.friend)) roomByFriend.set(r.friend, r.room_id);
+  }
+
+  const profiles = await profilesByIds(supabase, [...roomByFriend.keys()]);
+  return [...roomByFriend.entries()].map(([id, roomId]) => {
+    const p = profiles.get(id);
+    return {
+      userId: id,
+      displayName: p ? cardName(p) : "Guest",
+      avatarUrl: p?.avatar_url ?? null,
+      roomId,
+    };
+  });
+}
+
 /** My relationship to a set of users (for the room's add-friend controls). */
 export async function friendStatesFor(userIds: string[]): Promise<Record<string, FriendState>> {
   const { supabase, user } = await requireUser();
