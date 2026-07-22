@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Button } from "./button";
 
 export function JoinJamForm() {
   const router = useRouter();
@@ -22,9 +23,9 @@ export function JoinJamForm() {
         aria-label="Room code"
         className="input"
       />
-      <button type="submit" className="btn">
+      <Button type="submit" className="btn">
         Join
-      </button>
+      </Button>
     </form>
   );
 }

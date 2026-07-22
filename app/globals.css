@@ -1188,6 +1188,15 @@ a:hover {
   }
 }
 
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.spin {
+  animation: spin 0.7s linear infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

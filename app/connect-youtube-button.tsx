@@ -1,6 +1,8 @@
 "use client";
 
+import { useState } from "react";
 import { ListMusic } from "lucide-react";
+import { Button } from "./button";
 import { createClient } from "@/src/lib/supabase/client";
 
 const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
@@ -11,9 +13,12 @@ const YOUTUBE_SCOPE = "https://www.googleapis.com/auth/youtube.readonly";
  * the resulting YouTube token.
  */
 export function ConnectYouTubeButton() {
+  const [pending, setPending] = useState(false);
+
   async function connect() {
+    setPending(true);
     const supabase = createClient();
-    await supabase.auth.signInWithOAuth({
+    const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         scopes: YOUTUBE_SCOPE,
@@ -21,12 +26,13 @@ export function ConnectYouTubeButton() {
         queryParams: { access_type: "offline", prompt: "consent" },
       },
     });
+    if (error) setPending(false);
   }
 
   return (
-    <button onClick={connect} className="btn btn--sm">
+    <Button onClick={connect} pending={pending} className="btn btn--sm">
       <ListMusic size={15} />
       Connect YouTube
-    </button>
+    </Button>
   );
 }
