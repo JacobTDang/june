@@ -271,7 +271,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
               disabled={busy}
               onClick={() =>
                 void run(
-                  () => importPlaylistToRoom(roomId, openPlaylist.id),
+                  () => youtubeLoad(() => importPlaylistToRoom(roomId, openPlaylist.id)),
                   (n) => `Added ${n} songs.`,
                 )
               }
