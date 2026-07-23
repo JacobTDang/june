@@ -39,22 +39,58 @@ declare global {
   }
 }
 
+/**
+ * Load YouTube's iframe API. Try YouTube directly; if an ad blocker drops that
+ * request (onerror, or silently — no window.YT after a beat), retry through our
+ * same-origin proxy, which the blocker can't recognize as YouTube. Resolves once
+ * window.YT is ready; rejects only if even the proxy fails.
+ */
 function loadYouTubeApi(): Promise<void> {
   return new Promise((resolve, reject) => {
     if (window.YT?.Player) return resolve();
+
+    let settled = false;
+    let usedProxy = false;
+    let fallbackTimer: ReturnType<typeof setTimeout>;
+
+    const done = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(fallbackTimer);
+      resolve();
+    };
+    const fail = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(fallbackTimer);
+      reject(new Error("YouTube API blocked"));
+    };
+
     const prev = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
       prev?.();
-      resolve();
+      done();
     };
-    if (!document.getElementById("youtube-iframe-api")) {
+
+    const inject = (src: string) => {
+      document.getElementById("youtube-iframe-api")?.remove();
       const tag = document.createElement("script");
       tag.id = "youtube-iframe-api";
-      tag.src = "https://www.youtube.com/iframe_api";
-      // Ad blockers that drop this request fire onerror — surface it, don't hang.
-      tag.onerror = () => reject(new Error("YouTube API failed to load"));
+      tag.src = src;
+      tag.onerror = () => (usedProxy ? fail() : ((usedProxy = true), inject("/api/yt-api")));
       document.body.appendChild(tag);
-    }
+    };
+
+    // Blockers often drop the request silently (no onerror), so also fall back
+    // to the proxy if window.YT hasn't shown up shortly after the direct try.
+    fallbackTimer = setTimeout(() => {
+      if (!settled && !window.YT?.Player && !usedProxy) {
+        usedProxy = true;
+        inject("/api/yt-api");
+      }
+    }, 3500);
+
+    inject("https://www.youtube.com/iframe_api");
   });
 }
 
