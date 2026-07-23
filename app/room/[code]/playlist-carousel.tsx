@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Music, Play, RefreshCw } from "lucide-react";
+import { useState } from "react";
+import { Music, ChevronRight, RefreshCw } from "lucide-react";
 import { filterPlaylists } from "@/src/lib/room/playlist-window";
 
 export type Playlist = {
@@ -12,9 +12,10 @@ export type Playlist = {
 };
 
 /**
- * Playlists as a horizontal shelf of Spotify-style cards: cover on top, title +
- * count below, a play button on hover. Scroll by swipe, wheel, or the scrollbar;
- * tap a card to open its songs.
+ * Playlists as a vertical, windowed list: a cover, the title, and its song
+ * count per row. It scrolls with a plain trackpad — the same top-to-bottom
+ * gesture as the search results — and never grows past the window, so a big
+ * collection can't stretch the page. Tap a row to open its songs.
  */
 export function PlaylistCarousel({
   playlists,
@@ -28,24 +29,7 @@ export function PlaylistCarousel({
   onRefresh: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const railRef = useRef<HTMLDivElement>(null);
-
   const filtered = filterPlaylists(playlists, query);
-
-  // Mouse wheel scrolls the shelf sideways (trackpad swipe works natively).
-  useEffect(() => {
-    const el = railRef.current;
-    if (!el) return;
-    const onWheel = (e: WheelEvent) => {
-      if (el.scrollWidth <= el.clientWidth) return;
-      const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (!delta) return;
-      e.preventDefault();
-      el.scrollLeft += delta;
-    };
-    el.addEventListener("wheel", onWheel, { passive: false });
-    return () => el.removeEventListener("wheel", onWheel);
-  }, []);
 
   return (
     <div className="plc">
@@ -71,34 +55,32 @@ export function PlaylistCarousel({
       {filtered.length === 0 ? (
         <p className="muted plc__empty">No playlists match “{query}”.</p>
       ) : (
-        <div className="plc-rail" ref={railRef}>
+        <div className="plc-list">
           {filtered.map((p) => (
             <button
               key={p.id}
               type="button"
-              className="plc-scard"
+              className="plc-row"
               onClick={() => onOpen(p)}
               disabled={busy}
             >
-              <span className={`plc-scard__cover${p.thumbnailUrl ? "" : " plc-scard__cover--empty"}`}>
+              <span className="plc-row__cover">
                 {p.thumbnailUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={p.thumbnailUrl} alt="" loading="lazy" />
                 ) : (
-                  <Music size={26} />
+                  <Music size={18} />
                 )}
-                <span className="plc-scard__play" aria-hidden="true">
-                  <Play size={16} fill="currentColor" strokeWidth={0} />
-                </span>
               </span>
-              <span className="plc-scard__body">
-                <span className="plc-scard__name" title={p.title}>
+              <span className="plc-row__body">
+                <span className="plc-row__name" title={p.title}>
                   {p.title}
                 </span>
-                <span className="plc-scard__count">
+                <span className="plc-row__count">
                   {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
                 </span>
               </span>
+              <ChevronRight className="plc-row__go" size={16} />
             </button>
           ))}
         </div>
