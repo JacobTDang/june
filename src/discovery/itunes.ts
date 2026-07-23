@@ -187,3 +187,30 @@ export async function getArtistTopSongs(
   }
   return rankSongResults(songs);
 }
+
+/**
+ * Look up a single iTunes track by id — the canonical title/artist for a
+ * sourceId. Used to verify a resolution against the real track rather than a
+ * caller-supplied (possibly forged) title. Returns null if the id resolves to
+ * no usable track.
+ */
+export async function getTrackById(
+  id: string,
+  opts: SearchMusicOptions = {},
+): Promise<MusicCandidate | null> {
+  const baseUrl = opts.baseUrl ?? DEFAULT_LOOKUP_URL;
+  const doFetch: FetchLike = opts.fetch ?? ((url) => fetch(url));
+
+  const url = new URL(baseUrl);
+  url.searchParams.set("id", id);
+
+  const response = await doFetch(url);
+  throwOnHttpError(response);
+
+  const { results } = parseItunesSearchResponse(await response.json());
+  for (const row of results) {
+    const candidate = toMusicCandidate(row);
+    if (candidate && candidate.sourceId === id) return candidate;
+  }
+  return null;
+}

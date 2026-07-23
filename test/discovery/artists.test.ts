@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { searchArtists, getArtistTopSongs } from "../../src/discovery/itunes";
+import { searchArtists, getArtistTopSongs, getTrackById } from "../../src/discovery/itunes";
 
 /** A fetch stub that records requested URLs and replies per handler. */
 function stubFetch(handler: (url: URL) => { status?: number; body: unknown }) {
@@ -124,5 +124,32 @@ describe("getArtistTopSongs", () => {
   it("throws on a non-200 response", async () => {
     const { fetch } = stubFetch(() => ({ status: 500, body: {} }));
     await expect(getArtistTopSongs("1", { fetch })).rejects.toThrow(/iTunes Search API 500/);
+  });
+});
+
+describe("getTrackById", () => {
+  it("looks up a track by id and returns the matching candidate", async () => {
+    const { fetch, calls } = stubFetch(() => ({
+      body: {
+        resultCount: 1,
+        results: [songRow({ trackId: 555, trackName: "Real Song", artistName: "Real Artist" })],
+      },
+    }));
+
+    const track = await getTrackById("555", { fetch });
+
+    expect(calls[0]!.url.pathname).toBe("/lookup");
+    expect(calls[0]!.url.searchParams.get("id")).toBe("555");
+    expect(track).toMatchObject({ sourceId: "555", title: "Real Song", artist: "Real Artist" });
+  });
+
+  it("returns null when the id resolves to nothing", async () => {
+    const { fetch } = stubFetch(() => ({ body: { resultCount: 0, results: [] } }));
+    expect(await getTrackById("999", { fetch })).toBeNull();
+  });
+
+  it("throws on a non-200 response", async () => {
+    const { fetch } = stubFetch(() => ({ status: 500, body: {} }));
+    await expect(getTrackById("1", { fetch })).rejects.toThrow(/iTunes Search API 500/);
   });
 });

@@ -3,6 +3,7 @@
 import { createClient } from "../supabase/server";
 import { resolveDisplayName } from "../profile/display-name";
 import { safeThumbnailUrl } from "./thumbnail";
+import { clampText } from "./track-text";
 import {
   rowToNowPlaying,
   rowToQueueTrack,
@@ -96,6 +97,8 @@ export async function enqueueTrack(roomId: string, rawTrack: AddTrackInput): Pro
   // provider we use so a room member can't beacon other participants' IPs.
   const track: AddTrackInput = {
     ...rawTrack,
+    title: clampText(rawTrack.title),
+    artist: rawTrack.artist ? clampText(rawTrack.artist) : rawTrack.artist,
     thumbnailUrl: safeThumbnailUrl(rawTrack.thumbnailUrl) ?? undefined,
   };
 
