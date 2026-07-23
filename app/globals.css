@@ -785,6 +785,8 @@ a:hover {
 
 /* The queue: a natural full-height list, so drag-reorder isn't fighting a
    scroll container (which over-scrolled and trapped the drag). */
+/* Up-next window: about 7 songs, then it scrolls internally instead of
+   stretching the page. Drag-reorder works within the window. */
 .queue {
   list-style: none;
   padding: 0;
@@ -792,6 +794,9 @@ a:hover {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+  max-height: 22rem;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
 }
 
 .section__head {
