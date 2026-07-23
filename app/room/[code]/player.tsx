@@ -39,7 +39,7 @@ declare global {
 }
 
 function loadYouTubeApi(): Promise<void> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     if (window.YT?.Player) return resolve();
     const prev = window.onYouTubeIframeAPIReady;
     window.onYouTubeIframeAPIReady = () => {
@@ -50,6 +50,8 @@ function loadYouTubeApi(): Promise<void> {
       const tag = document.createElement("script");
       tag.id = "youtube-iframe-api";
       tag.src = "https://www.youtube.com/iframe_api";
+      // A blocked/failed request (ad blocker, VPN, or WiFi filter) fires onerror.
+      tag.onerror = () => reject(new Error("YouTube API failed to load"));
       document.body.appendChild(tag);
     }
   });
@@ -71,6 +73,7 @@ export function Player({
   const nowPlayingRef = useRef(nowPlaying);
   const [ready, setReady] = useState(false);
   const [started, setStarted] = useState(false);
+  const [loadError, setLoadError] = useState(false);
 
   offsetRef.current = offset;
   nowPlayingRef.current = nowPlaying;
@@ -82,29 +85,43 @@ export function Player({
   // an imperatively-created child that React doesn't manage.
   useEffect(() => {
     let cancelled = false;
-    void loadYouTubeApi().then(() => {
-      if (cancelled || !mountRef.current || !window.YT) return;
-      const el = document.createElement("div");
-      mountRef.current.appendChild(el);
-      playerRef.current = new window.YT.Player(el, {
-        width: "100%",
-        height: "100%",
-        playerVars: { playsinline: 1, controls: 1, rel: 0, modestbranding: 1 },
-        events: {
-          onReady: () => setReady(true),
-          onStateChange: (e) => {
-            if (e.data === YT_STATE_ENDED && currentVideo.current) {
-              void advanceTrack(roomId, currentVideo.current);
-            }
+    // If the player never becomes ready, something upstream is blocking YouTube
+    // (an ad blocker, a VPN, or a café/office WiFi filter). Say so, not a black box.
+    const failTimer = setTimeout(() => {
+      if (!cancelled) setLoadError(true);
+    }, 9000);
+    void loadYouTubeApi()
+      .then(() => {
+        if (cancelled || !mountRef.current || !window.YT) return;
+        const el = document.createElement("div");
+        mountRef.current.appendChild(el);
+        playerRef.current = new window.YT.Player(el, {
+          width: "100%",
+          height: "100%",
+          playerVars: { playsinline: 1, controls: 1, rel: 0, modestbranding: 1 },
+          events: {
+            onReady: () => {
+              clearTimeout(failTimer);
+              setLoadError(false);
+              setReady(true);
+            },
+            onStateChange: (e) => {
+              if (e.data === YT_STATE_ENDED && currentVideo.current) {
+                void advanceTrack(roomId, currentVideo.current);
+              }
+            },
+            onError: () => {
+              if (currentVideo.current) void advanceTrack(roomId, currentVideo.current);
+            },
           },
-          onError: () => {
-            if (currentVideo.current) void advanceTrack(roomId, currentVideo.current);
-          },
-        },
+        });
+      })
+      .catch(() => {
+        if (!cancelled) setLoadError(true);
       });
-    });
     return () => {
       cancelled = true;
+      clearTimeout(failTimer);
       playerRef.current?.destroy();
       playerRef.current = null;
     };
@@ -174,21 +191,32 @@ export function Player({
       }}
     >
       <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
-      {!started && (
-        <button
-          onClick={start}
-          className="btn btn--primary btn--lg"
-          style={{
-            position: "absolute",
-            inset: 0,
-            margin: "auto",
-            width: "fit-content",
-            height: "fit-content",
-          }}
-        >
-          <Play size={17} fill="currentColor" strokeWidth={0} />
-          Tap to listen in
-        </button>
+      {loadError ? (
+        <div className="player-blocked">
+          <p className="player-blocked__title">Can’t play on this network</p>
+          <p className="player-blocked__body">
+            This network is blocking YouTube — usually a café or office WiFi filter, a VPN, or an
+            ad blocker. Switch to a different network (your phone’s hotspot usually works), then
+            reload.
+          </p>
+        </div>
+      ) : (
+        !started && (
+          <button
+            onClick={start}
+            className="btn btn--primary btn--lg"
+            style={{
+              position: "absolute",
+              inset: 0,
+              margin: "auto",
+              width: "fit-content",
+              height: "fit-content",
+            }}
+          >
+            <Play size={17} fill="currentColor" strokeWidth={0} />
+            Tap to listen in
+          </button>
+        )
       )}
     </div>
   );
