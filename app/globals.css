@@ -766,6 +766,31 @@ a:hover {
   align-items: center;
   justify-content: center;
 }
+/* Shown when the YouTube embed can't load (usually an ad blocker). */
+.player-blocked {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  text-align: center;
+  padding: 1.5rem;
+}
+.player-blocked__title {
+  font-family: var(--font-display);
+  font-size: 1.15rem;
+  color: var(--ink);
+  margin: 0;
+}
+.player-blocked__body {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 0.85rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
 
 .now {
   margin-top: 1.25rem;
