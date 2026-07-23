@@ -85,6 +85,21 @@ export async function leaveRoom(roomId: string): Promise<void> {
   if (error) throw new Error(`leaveRoom failed: ${error.message}`);
 }
 
+/** The room the signed-in user is currently in (one per user), or null. */
+export async function getMyRoom(): Promise<string | null> {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await supabase
+    .from("room_participants")
+    .select("room_id")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  return (data as { room_id: string } | null)?.room_id ?? null;
+}
+
 /**
  * Add a track. If the room is idle it starts immediately (race-safe via a
  * conditional update); otherwise it joins the FIFO queue.
@@ -317,7 +332,10 @@ export async function enterRoom(code: string): Promise<EnterRoomResult> {
   const myAvatar = mine?.avatar_url ?? null;
 
   const [, { data: queueData }, { data: participantData }] = await Promise.all([
-    supabase.from("room_participants").upsert({ room_id: code, user_id: user.id, name }),
+    // One room per user: entering a room moves you here from any previous one.
+    supabase
+      .from("room_participants")
+      .upsert({ room_id: code, user_id: user.id, name }, { onConflict: "user_id" }),
     supabase
       .from("queue_items")
       .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")

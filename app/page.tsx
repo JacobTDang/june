@@ -1,6 +1,7 @@
 import { ListMusic } from "lucide-react";
 import { createClient } from "@/src/lib/supabase/server";
 import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
+import { getMyRoom } from "@/src/lib/room/actions";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
 import { Avatar } from "./avatar";
@@ -22,6 +23,8 @@ export default async function Home({
   } = await supabase.auth.getUser();
   const youtubeConnected = await isYouTubeConnected();
   const profile = user ? await getMyProfile() : null;
+  // A user is only ever in one room; surface it so a second device resumes it.
+  const currentRoom = user ? await getMyRoom() : null;
 
   const sp = await searchParams;
   // Where an invited-but-signed-out visitor should land after signing in.
@@ -80,6 +83,16 @@ export default async function Home({
         ) : (
           <Reveal delay={0.16}>
             <div className="lobby">
+              {currentRoom && (
+                <a href={`/room/${encodeURIComponent(currentRoom)}`} className="resume">
+                  <span className="resume__dot" />
+                  <span className="resume__text">
+                    <span className="resume__label">You’re in a jam</span>
+                    <span className="resume__code">{currentRoom.replace(/-/g, " · ")}</span>
+                  </span>
+                  <span className="resume__go">Return</span>
+                </a>
+              )}
               <CreateJamButton displayName={displayName} />
               <div className="divider">or join a room</div>
               <JoinJamForm />
