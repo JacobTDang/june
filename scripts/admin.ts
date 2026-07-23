@@ -1,19 +1,31 @@
 /**
- * june admin CLI — owner-only ops from your machine, using the service-role key.
- * No web auth, no owner gate: having SUPABASE_SERVICE_ROLE_KEY is the credential.
+ * june admin CLI — owner-only ops from your machine.
  *
- *   npm run admin -- metrics
- *   npm run admin -- users
- *   npm run admin -- user <email>
- *   npm run admin -- rooms
- *   npm run admin -- sweep
- *   npm run admin -- rm-user <email>
+ * Login is a browser round-trip: it opens Google sign-in, catches the callback on
+ * a one-shot loopback server, and checks the account is ADMIN_EMAIL. The session
+ * is cached under ~/.june so day-to-day commands don't reopen the browser. The
+ * actual DB work uses the service-role key.
+ *
+ *   npm run admin -- login | logout
+ *   npm run admin -- metrics | users | user <email> | rooms
+ *   npm run admin -- rm-room <code> | sweep | rm-user <email>
  *
  * Run via `npm run admin` (loads .env.local). Never deploy this.
  */
-import { createClient, type User } from "@supabase/supabase-js";
+import { createClient, type Session, type User } from "@supabase/supabase-js";
 import { createInterface } from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
+import { createServer } from "node:http";
+import { exec } from "node:child_process";
+import { homedir } from "node:os";
+import { join } from "node:path";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import {
+  isOwner,
+  parseAuthCallback,
+  parseSessionCache,
+  sessionUsable,
+} from "../src/lib/admin/cli-auth.ts";
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -62,35 +74,167 @@ async function confirm(question: string, expected: string): Promise<boolean> {
   return answer.trim() === expected;
 }
 
-/**
- * Verify the operator is the owner (ADMIN_EMAIL) by email OTP before any command
- * runs. Note: the service-role key in .env.local is the real credential — this
- * is a deliberate owner-login gate, not a wall against whoever holds that file.
- */
+// ---- Owner login: Google in the browser, caught on a loopback server ----
+// The service-role key in .env.local is the real credential; this login is a
+// deliberate owner gate with no shared secret on disk, not a wall against
+// whoever already holds that file.
+
+const REDIRECT_PORT = 9789;
+const REDIRECT_URI = `http://localhost:${REDIRECT_PORT}/callback`;
+const SESSION_DIR = join(homedir(), ".june");
+const SESSION_FILE = join(SESSION_DIR, "admin-session.json");
+
+/** Anon client for the auth handshake. PKCE with an in-process verifier store,
+ *  so signInWithOAuth and exchangeCodeForSession share the same verifier. */
+function makeAuthClient(anonKey: string) {
+  const store = new Map<string, string>();
+  return createClient(url!, anonKey, {
+    auth: {
+      flowType: "pkce",
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false,
+      storage: {
+        getItem: (k) => store.get(k) ?? null,
+        setItem: (k, v) => void store.set(k, v),
+        removeItem: (k) => void store.delete(k),
+      },
+    },
+  });
+}
+
+function openInBrowser(target: string): void {
+  const opener =
+    process.platform === "darwin" ? "open" : process.platform === "win32" ? 'start ""' : "xdg-open";
+  exec(`${opener} "${target}"`);
+}
+
+function resultPage(ok: boolean, detail: string): string {
+  const heading = ok ? "You’re signed in" : "Sign-in failed";
+  return `<!doctype html><html><head><meta charset="utf-8"><title>june admin</title>
+<style>
+  html,body{height:100%;margin:0}
+  body{display:grid;place-items:center;background:#100f12;color:#f4f1ea;
+       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+  .card{text-align:center;padding:2rem}
+  h1{font-weight:600;font-size:1.4rem;margin:0 0 .4rem;color:${ok ? "#f2b552" : "#f4f1ea"}}
+  p{margin:0;color:#8b8790;font-size:.95rem}
+</style></head>
+<body><div class="card"><h1>${heading}</h1><p>${detail}</p></div></body></html>`;
+}
+
+/** Serve exactly one loopback callback and hand back the auth code. */
+function waitForCallback(authUrl: string): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const server = createServer((req, res) => {
+      const path = req.url ?? "";
+      if (!path.startsWith("/callback")) {
+        res.writeHead(404).end(); // ignore favicon and friends — keep waiting
+        return;
+      }
+      const result = parseAuthCallback(path);
+      clearTimeout(timer);
+      if ("code" in result) {
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(resultPage(true, "You can close this tab and return to the terminal."));
+        server.close();
+        resolve(result.code);
+      } else {
+        res.writeHead(400, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(resultPage(false, result.error));
+        server.close();
+        reject(new Error(result.error));
+      }
+    });
+    const timer = setTimeout(() => {
+      server.close();
+      reject(new Error("Timed out waiting for the browser sign-in (2 minutes)."));
+    }, 120_000);
+    server.once("error", (e) =>
+      reject(
+        new Error(
+          `Couldn't start the local sign-in server on port ${REDIRECT_PORT}: ${(e as Error).message}`,
+        ),
+      ),
+    );
+    server.listen(REDIRECT_PORT, "127.0.0.1", () => {
+      console.log("\nOpening your browser to sign in as the owner…");
+      console.log(`If it doesn't open, paste this into your browser:\n${authUrl}\n`);
+      openInBrowser(authUrl);
+    });
+  });
+}
+
+async function browserLogin(auth: ReturnType<typeof makeAuthClient>): Promise<Session> {
+  const { data, error } = await auth.auth.signInWithOAuth({
+    provider: "google",
+    options: { redirectTo: REDIRECT_URI, skipBrowserRedirect: true },
+  });
+  if (error || !data?.url) {
+    return fail(`Couldn't start Google sign-in: ${error?.message ?? "no URL returned"}`);
+  }
+
+  const code = await waitForCallback(data.url);
+  const { data: sess, error: exErr } = await auth.auth.exchangeCodeForSession(code);
+  if (exErr || !sess.session) {
+    return fail(`Sign-in failed: ${exErr?.message ?? "no session returned"}`);
+  }
+  return sess.session;
+}
+
+async function saveSession(s: Session): Promise<void> {
+  await mkdir(SESSION_DIR, { recursive: true });
+  await writeFile(
+    SESSION_FILE,
+    JSON.stringify({ access_token: s.access_token, refresh_token: s.refresh_token, expires_at: s.expires_at }),
+    { mode: 0o600 },
+  );
+}
+
+async function clearSession(): Promise<void> {
+  await rm(SESSION_FILE, { force: true });
+}
+
+/** A still-valid owner session from the cache, or null → do the browser login. */
+async function sessionFromCache(auth: ReturnType<typeof makeAuthClient>): Promise<Session | null> {
+  let text: string;
+  try {
+    text = await readFile(SESSION_FILE, "utf8");
+  } catch {
+    return null;
+  }
+  const cached = parseSessionCache(text);
+  if (!cached) return null;
+
+  if (sessionUsable(cached, Math.floor(Date.now() / 1000))) {
+    const { data, error } = await auth.auth.setSession({
+      access_token: cached.access_token,
+      refresh_token: cached.refresh_token,
+    });
+    if (!error && data.session) return data.session;
+  }
+  const { data, error } = await auth.auth.refreshSession({ refresh_token: cached.refresh_token });
+  return error ? null : (data.session ?? null);
+}
+
+/** Sign in as the owner (from cache if possible, else the browser) before any command. */
 async function requireOwnerLogin(): Promise<void> {
   const adminEmail = process.env.ADMIN_EMAIL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!adminEmail) fail("ADMIN_EMAIL (the owner's email) is not set in .env.local.");
   if (!anonKey) fail("NEXT_PUBLIC_SUPABASE_ANON_KEY is not set in .env.local.");
 
-  const auth = createClient(url!, anonKey, { auth: { persistSession: false, autoRefreshToken: false } });
+  const auth = makeAuthClient(anonKey);
 
-  const { error: sendErr } = await auth.auth.signInWithOtp({
-    email: adminEmail,
-    options: { shouldCreateUser: false },
-  });
-  if (sendErr) fail(`Couldn't send a login code: ${sendErr.message}`);
-  console.log(`\nA 6-digit login code was sent to ${adminEmail}.`);
-
-  const rl = createInterface({ input, output });
-  const code = (await rl.question("Enter the code: ")).trim();
-  rl.close();
-
-  const { data, error } = await auth.auth.verifyOtp({ email: adminEmail, token: code, type: "email" });
-  if (error) fail(`Login failed: ${error.message}`);
-  if ((data.user?.email ?? "").toLowerCase() !== adminEmail.toLowerCase()) {
-    fail("Signed-in account is not the owner.");
+  let session = await sessionFromCache(auth);
+  if (!session || !isOwner(session.user?.email, adminEmail)) {
+    session = await browserLogin(auth);
+    if (!isOwner(session.user?.email, adminEmail)) {
+      await clearSession();
+      fail(`Signed-in account (${session.user?.email ?? "unknown"}) is not the owner.`);
+    }
   }
+  await saveSession(session);
   console.log(`✓ Signed in as owner (${adminEmail})`);
 }
 
@@ -189,6 +333,35 @@ async function cmdSweep(): Promise<void> {
   console.log(`Swept ${Number(data ?? 0)} dead room(s).`);
 }
 
+async function cmdRmRoom(code: string): Promise<void> {
+  const roomId = code.trim();
+  const { data: room } = await db
+    .from("rooms")
+    .select("id, now_playing_title, now_playing_artist")
+    .eq("id", roomId)
+    .maybeSingle();
+  if (!room) return fail(`No room with code ${roomId}.`);
+  const { count } = await db
+    .from("room_participants")
+    .select("user_id", { count: "exact", head: true })
+    .eq("room_id", roomId);
+
+  const np = room.now_playing_title
+    ? `▶ ${room.now_playing_title} — ${room.now_playing_artist ?? ""}`
+    : "idle";
+  console.log(`\nAbout to DELETE room ${roomId}:`);
+  console.log(`  ${np}   ${count ?? 0} here`);
+  console.log(`  → removes the room, its whole queue, and every participant row (cascade).`);
+
+  if (!(await confirm(`\nType the room code to confirm: `, roomId))) {
+    console.log("Cancelled.");
+    return;
+  }
+  const { error } = await db.from("rooms").delete().eq("id", roomId);
+  if (error) return fail(error.message);
+  console.log(`Deleted room ${roomId}.`);
+}
+
 async function cmdRmUser(email: string): Promise<void> {
   const user = findByEmail(await allUsers(), email);
   if (!user) return fail(`No user with email ${email}.`);
@@ -217,11 +390,14 @@ function fail(message: string): never {
 function usage(): never {
   console.log(
     [
-      "june admin — usage (owner login required):",
+      "june admin — usage (owner browser login required):",
+      "  npm run admin -- login              sign in and cache the session",
+      "  npm run admin -- logout             clear the cached session",
       "  npm run admin -- metrics            YouTube quota + app stats",
       "  npm run admin -- users              list all users",
       "  npm run admin -- user <email>       one user's detail",
       "  npm run admin -- rooms              list rooms",
+      "  npm run admin -- rm-room <code>     delete a room (type-to-confirm)",
       "  npm run admin -- sweep              delete dead rooms now",
       "  npm run admin -- rm-user <email>    delete a user (type-to-confirm)",
     ].join("\n"),
@@ -230,11 +406,28 @@ function usage(): never {
 }
 
 const [cmd, arg] = process.argv.slice(2);
-const COMMANDS = new Set(["metrics", "users", "user", "rooms", "sweep", "rm-user"]);
+const COMMANDS = new Set([
+  "login",
+  "logout",
+  "metrics",
+  "users",
+  "user",
+  "rooms",
+  "rm-room",
+  "sweep",
+  "rm-user",
+]);
 try {
   if (!cmd || !COMMANDS.has(cmd)) usage();
 
+  if (cmd === "logout") {
+    await clearSession();
+    console.log("Logged out — cleared the cached session.");
+    process.exit(0);
+  }
+
   await requireOwnerLogin();
+  if (cmd === "login") process.exit(0);
 
   switch (cmd) {
     case "metrics":
@@ -248,6 +441,9 @@ try {
       break;
     case "rooms":
       await cmdRooms();
+      break;
+    case "rm-room":
+      arg ? await cmdRmRoom(arg) : fail("usage: rm-room <code>");
       break;
     case "sweep":
       await cmdSweep();
