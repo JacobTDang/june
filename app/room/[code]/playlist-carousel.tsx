@@ -1,7 +1,7 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Music, Play, RefreshCw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { ChevronLeft, ChevronRight, Music, Play, RefreshCw } from "lucide-react";
 import { filterPlaylists } from "@/src/lib/room/playlist-window";
 
 export type Playlist = {
@@ -11,9 +11,12 @@ export type Playlist = {
   thumbnailUrl?: string | null;
 };
 
+const CARD_STEP = 166; // card width + gap, for the arrow nudge
+
 /**
- * Playlists as a sideways-scrolling row of Spotify-style cards: cover on top,
- * title + count below. Scroll/swipe horizontally; tap a card to open its songs.
+ * Playlists as a horizontal shelf of Spotify-style cards: cover on top, title +
+ * count below, a play button on hover. Scroll with the arrows, a swipe, the
+ * wheel, or the scrollbar; tap a card to open its songs.
  */
 export function PlaylistCarousel({
   playlists,
@@ -27,62 +30,28 @@ export function PlaylistCarousel({
   onRefresh: () => void;
 }) {
   const [query, setQuery] = useState("");
-  const [focusedId, setFocusedId] = useState<string | null>(null);
   const railRef = useRef<HTMLDivElement>(null);
 
   const filtered = filterPlaylists(playlists, query);
 
-  // The focused card is whichever is nearest the rail's centre.
-  const updateFocus = useCallback(() => {
-    const el = railRef.current;
-    if (!el) return;
-    const centre = el.scrollLeft + el.clientWidth / 2;
-    let bestId: string | null = null;
-    let best = Infinity;
-    for (const child of Array.from(el.children)) {
-      const c = child as HTMLElement;
-      if (!c.dataset.id) continue;
-      const d = Math.abs(c.offsetLeft + c.offsetWidth / 2 - centre);
-      if (d < best) {
-        best = d;
-        bestId = c.dataset.id;
-      }
-    }
-    setFocusedId(bestId);
-  }, []);
+  function nudge(direction: number) {
+    railRef.current?.scrollBy({ left: direction * CARD_STEP, behavior: "smooth" });
+  }
 
-  // Mouse wheel scrolls the rail sideways (trackpad horizontal swipe works
-  // natively). Only hijack the wheel when there's actually somewhere to scroll.
+  // Mouse wheel scrolls the shelf sideways (trackpad swipe works natively).
   useEffect(() => {
     const el = railRef.current;
     if (!el) return;
     const onWheel = (e: WheelEvent) => {
       if (el.scrollWidth <= el.clientWidth) return;
       const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
-      if (delta === 0) return;
+      if (!delta) return;
       e.preventDefault();
       el.scrollLeft += delta;
     };
     el.addEventListener("wheel", onWheel, { passive: false });
     return () => el.removeEventListener("wheel", onWheel);
   }, []);
-
-  // Track the centred card as the rail scrolls (and when the list changes).
-  useEffect(() => {
-    const el = railRef.current;
-    if (!el) return;
-    let raf = 0;
-    const onScroll = () => {
-      cancelAnimationFrame(raf);
-      raf = requestAnimationFrame(updateFocus);
-    };
-    el.addEventListener("scroll", onScroll, { passive: true });
-    updateFocus();
-    return () => {
-      el.removeEventListener("scroll", onScroll);
-      cancelAnimationFrame(raf);
-    };
-  }, [updateFocus, filtered.length]);
 
   return (
     <div className="plc">
@@ -108,37 +77,46 @@ export function PlaylistCarousel({
       {filtered.length === 0 ? (
         <p className="muted plc__empty">No playlists match “{query}”.</p>
       ) : (
-        <div className="plc-rail" ref={railRef}>
-          {filtered.map((p) => (
-            <button
-              key={p.id}
-              type="button"
-              data-id={p.id}
-              className={`plc-scard${focusedId === p.id ? " plc-scard--focused" : ""}`}
-              onClick={() => onOpen(p)}
-              disabled={busy}
-            >
-              <span className={`plc-scard__cover${p.thumbnailUrl ? "" : " plc-scard__cover--empty"}`}>
-                {p.thumbnailUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={p.thumbnailUrl} alt="" loading="lazy" />
-                ) : (
-                  <Music size={26} />
-                )}
-                <span className="plc-scard__play" aria-hidden="true">
-                  <Play size={16} fill="currentColor" strokeWidth={0} />
+        <div className="plc-shelf">
+          <button className="plc-nav" onClick={() => nudge(-1)} aria-label="Scroll left">
+            <ChevronLeft size={18} />
+          </button>
+
+          <div className="plc-rail" ref={railRef}>
+            {filtered.map((p) => (
+              <button
+                key={p.id}
+                type="button"
+                className="plc-scard"
+                onClick={() => onOpen(p)}
+                disabled={busy}
+              >
+                <span className={`plc-scard__cover${p.thumbnailUrl ? "" : " plc-scard__cover--empty"}`}>
+                  {p.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={p.thumbnailUrl} alt="" loading="lazy" />
+                  ) : (
+                    <Music size={26} />
+                  )}
+                  <span className="plc-scard__play" aria-hidden="true">
+                    <Play size={16} fill="currentColor" strokeWidth={0} />
+                  </span>
                 </span>
-              </span>
-              <span className="plc-scard__body">
-                <span className="plc-scard__name" title={p.title}>
-                  {p.title}
+                <span className="plc-scard__body">
+                  <span className="plc-scard__name" title={p.title}>
+                    {p.title}
+                  </span>
+                  <span className="plc-scard__count">
+                    {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
+                  </span>
                 </span>
-                <span className="plc-scard__count">
-                  {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
-                </span>
-              </span>
-            </button>
-          ))}
+              </button>
+            ))}
+          </div>
+
+          <button className="plc-nav" onClick={() => nudge(1)} aria-label="Scroll right">
+            <ChevronRight size={18} />
+          </button>
         </div>
       )}
     </div>
