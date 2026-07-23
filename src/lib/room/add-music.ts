@@ -6,6 +6,7 @@ import {
   searchMusic,
   searchArtists,
   getArtistTopSongs,
+  getTrackById,
   pickArtistMatch,
   type MusicCandidate,
   type ArtistCandidate,
@@ -92,15 +93,22 @@ export async function addCandidate(roomId: string, candidate: MusicCandidate): P
   if (cachedId) {
     [meta] = await getVideoMetas([cachedId], cache);
   } else {
+    // Resolve against the canonical iTunes track for this sourceId, not the
+    // caller-supplied title/artist — otherwise a forged candidate could point
+    // this shared cache key at an unrelated video for everyone. Only a
+    // canonical-verified resolution is cached (iTunes lookup is free quota).
+    const canonical = await getTrackById(candidate.sourceId).catch(() => null);
+    const query = canonical
+      ? `${canonical.artist} ${canonical.title}`
+      : `${candidate.artist} ${candidate.title}`;
+
     // The top result is often the official (non-embeddable) video - pick the
-    // first result we can actually play, then cache that resolution.
-    const ids = await youtube.searchVideoIds(`${candidate.artist} ${candidate.title}`, {
-      maxResults: 5,
-    });
+    // first result we can actually play.
+    const ids = await youtube.searchVideoIds(query, { maxResults: 5 });
     const metas = await getVideoMetas(ids, cache);
     meta = metas.find((m) => m.embeddable && m.durationMs > 0);
     if (!meta) throw new Error("Couldn't find a playable YouTube match for that track.");
-    await service.from("track_resolution").upsert({ key, video_id: meta.videoId });
+    if (canonical) await service.from("track_resolution").upsert({ key, video_id: meta.videoId });
   }
 
   if (!meta || !meta.embeddable) throw new Error("That track can't be played here.");
