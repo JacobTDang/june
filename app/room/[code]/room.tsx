@@ -276,7 +276,7 @@ export function Room({
           {queue.length === 0 ? (
             <p className="muted">Nothing queued yet.</p>
           ) : (
-            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue">
+            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
               {queue.map((t) => (
                 <QueueRow
                   key={t.id}
