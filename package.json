@@ -10,7 +10,10 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "admin": "node --env-file=.env.local scripts/admin.ts"
+    "admin": "node scripts/admin.ts"
+  },
+  "bin": {
+    "june": "scripts/admin.ts"
   },
   "devDependencies": {
     "@types/node": "^26.1.1",

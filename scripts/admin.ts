@@ -1,3 +1,4 @@
+#!/usr/bin/env node
 /**
  * june admin CLI — owner-only ops from your machine.
  *
@@ -6,11 +7,12 @@
  * is cached under ~/.june so day-to-day commands don't reopen the browser. The
  * actual DB work uses the service-role key.
  *
- *   npm run admin -- login | logout
- *   npm run admin -- metrics | users | user <email> | rooms
- *   npm run admin -- rm-room <code> | sweep | rm-user <email>
+ * Run it as `june <cmd>` after a one-time `npm link`, or `npm run admin -- <cmd>`:
+ *   june login | logout
+ *   june metrics | users | user <email> | rooms
+ *   june rm-room [code] | sweep | rm-user <email>
  *
- * Run via `npm run admin` (loads .env.local). Never deploy this.
+ * Never deploy this.
  */
 import { createClient, type Session, type User } from "@supabase/supabase-js";
 import { createInterface } from "node:readline/promises";
@@ -18,7 +20,8 @@ import { stdin as input, stdout as output } from "node:process";
 import { createServer } from "node:http";
 import { exec } from "node:child_process";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import {
   isOwner,
@@ -26,13 +29,20 @@ import {
   parseSessionCache,
   sessionUsable,
 } from "../src/lib/admin/cli-auth.ts";
+import { clampIndex, renderRoomPicker, type RoomChoice } from "../src/lib/admin/room-picker.ts";
+
+// Load .env.local relative to this file, so `june` works from any directory
+// (and `npm run admin` no longer needs an explicit --env-file).
+try {
+  process.loadEnvFile(join(dirname(fileURLToPath(import.meta.url)), "..", ".env.local"));
+} catch {
+  /* env may already be present (--env-file or real deploy vars); the check below catches a real miss */
+}
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !key) {
-  console.error(
-    "Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — run via `npm run admin` so .env.local loads.",
-  );
+  console.error("Missing NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY — check your .env.local.");
   process.exit(1);
 }
 
@@ -343,18 +353,26 @@ async function cmdUser(email: string): Promise<void> {
   console.log(`  in rooms     ${(participants ?? []).map((p) => p.room_id).join(", ") || "—"}\n`);
 }
 
-async function cmdRooms(): Promise<void> {
+/** Every room with its people count, newest first — shared by the list and the picker. */
+async function roomChoices(): Promise<RoomChoice[]> {
   const [{ data: rooms }, { data: participants }] = await Promise.all([
     db.from("rooms").select("id, now_playing_title, now_playing_artist, created_at").order("created_at", { ascending: false }),
     db.from("room_participants").select("room_id"),
   ]);
   const counts = new Map<string, number>();
   for (const p of participants ?? []) counts.set(p.room_id, (counts.get(p.room_id) ?? 0) + 1);
+  return (rooms ?? []).map((r) => ({
+    id: r.id,
+    nowPlaying: r.now_playing_title ? `▶ ${r.now_playing_title} — ${r.now_playing_artist ?? ""}` : "idle",
+    here: counts.get(r.id) ?? 0,
+  }));
+}
 
-  console.log(`\n${(rooms ?? []).length} rooms\n`);
-  for (const r of rooms ?? []) {
-    const np = r.now_playing_title ? `▶ ${r.now_playing_title} — ${r.now_playing_artist ?? ""}` : "idle";
-    console.log(`  ${r.id.padEnd(12)} ${String(counts.get(r.id) ?? 0)} here   ${np}`);
+async function cmdRooms(): Promise<void> {
+  const rooms = await roomChoices();
+  console.log(`\n${rooms.length} rooms\n`);
+  for (const r of rooms) {
+    console.log(`  ${r.id.padEnd(12)} ${String(r.here)} here   ${r.nowPlaying}`);
   }
   console.log("");
 }
@@ -365,33 +383,94 @@ async function cmdSweep(): Promise<void> {
   console.log(`Swept ${Number(data ?? 0)} dead room(s).`);
 }
 
-async function cmdRmRoom(code: string): Promise<void> {
-  const roomId = code.trim();
-  const { data: room } = await db
-    .from("rooms")
-    .select("id, now_playing_title, now_playing_artist")
-    .eq("id", roomId)
-    .maybeSingle();
-  if (!room) return fail(`No room with code ${roomId}.`);
-  const { count } = await db
-    .from("room_participants")
-    .select("user_id", { count: "exact", head: true })
-    .eq("room_id", roomId);
+async function confirmYesNo(question: string): Promise<boolean> {
+  const rl = createInterface({ input, output });
+  const answer = (await rl.question(question)).trim().toLowerCase();
+  rl.close();
+  return answer === "y" || answer === "yes";
+}
 
-  const np = room.now_playing_title
-    ? `▶ ${room.now_playing_title} — ${room.now_playing_artist ?? ""}`
-    : "idle";
-  console.log(`\nAbout to DELETE room ${roomId}:`);
-  console.log(`  ${np}   ${count ?? 0} here`);
-  console.log(`  → removes the room, its whole queue, and every participant row (cascade).`);
+const ESC = String.fromCharCode(27);
+const CTRL_C = String.fromCharCode(3);
 
-  if (!(await confirm(`\nType the room code to confirm: `, roomId))) {
-    console.log("Cancelled.");
-    return;
-  }
+/** Arrow-key room picker (raw mode). Resolves the chosen room, or null if cancelled. */
+function pickRoom(rooms: RoomChoice[]): Promise<RoomChoice | null> {
+  return new Promise((resolve) => {
+    let selected = 0;
+    const draw = (first: boolean) => {
+      if (!first) output.write(`${ESC}[${rooms.length}A`); // cursor up N lines
+      output.write(`${ESC}[0J`); // clear from cursor to end of screen
+      output.write(renderRoomPicker(rooms, selected) + "\n");
+    };
+    console.log("\nPick a room to delete — ↑/↓ to move, Enter to select, Esc or q to cancel:\n");
+    draw(true);
+
+    input.setRawMode(true);
+    input.resume();
+    input.setEncoding("utf8");
+
+    const done = (choice: RoomChoice | null) => {
+      input.setRawMode(false);
+      input.pause();
+      input.removeListener("data", onKey);
+      resolve(choice);
+    };
+    const onKey = (key: string) => {
+      if (key === CTRL_C || key === ESC || key === "q") return done(null); // Ctrl-C / Esc / q
+      if (key === "\r" || key === "\n") return done(rooms[selected] ?? null); // Enter
+      if (key === `${ESC}[A` || key === "k") {
+        selected = clampIndex(selected, -1, rooms.length);
+        draw(false);
+      } else if (key === `${ESC}[B` || key === "j") {
+        selected = clampIndex(selected, 1, rooms.length);
+        draw(false);
+      }
+    };
+    input.on("data", onKey);
+  });
+}
+
+async function deleteRoom(roomId: string): Promise<void> {
   const { error } = await db.from("rooms").delete().eq("id", roomId);
   if (error) return fail(error.message);
   console.log(`Deleted room ${roomId}.`);
+}
+
+async function cmdRmRoom(code?: string): Promise<void> {
+  if (code) {
+    const roomId = code.trim();
+    const { data: room } = await db
+      .from("rooms")
+      .select("id, now_playing_title, now_playing_artist")
+      .eq("id", roomId)
+      .maybeSingle();
+    if (!room) return fail(`No room with code ${roomId}.`);
+    const { count } = await db
+      .from("room_participants")
+      .select("user_id", { count: "exact", head: true })
+      .eq("room_id", roomId);
+    const np = room.now_playing_title
+      ? `▶ ${room.now_playing_title} — ${room.now_playing_artist ?? ""}`
+      : "idle";
+    console.log(`\nAbout to DELETE room ${roomId}:`);
+    console.log(`  ${np}   ${count ?? 0} here`);
+    console.log(`  → removes the room, its whole queue, and every participant row (cascade).`);
+    if (!(await confirm(`\nType the room code to confirm: `, roomId))) {
+      return void console.log("Cancelled.");
+    }
+    return deleteRoom(roomId);
+  }
+
+  // No code given → highlight one from a list.
+  if (!input.isTTY) return fail("No terminal for the picker — run: june rm-room <code>");
+  const rooms = await roomChoices();
+  if (rooms.length === 0) return void console.log("No rooms to delete.");
+  const chosen = await pickRoom(rooms);
+  if (!chosen) return void console.log("Cancelled.");
+  console.log(`\nDelete room ${chosen.id} — ${chosen.nowPlaying} (${chosen.here} here)?`);
+  console.log("This removes its whole queue and every participant row (cascade).");
+  if (!(await confirmYesNo("Delete? [y/N] "))) return void console.log("Cancelled.");
+  return deleteRoom(chosen.id);
 }
 
 async function cmdRmUser(email: string): Promise<void> {
@@ -423,15 +502,17 @@ function usage(): never {
   console.log(
     [
       "june admin — usage (owner browser login required):",
-      "  npm run admin -- login              sign in and cache the session",
-      "  npm run admin -- logout             clear the cached session",
-      "  npm run admin -- metrics            YouTube quota + app stats",
-      "  npm run admin -- users              list all users",
-      "  npm run admin -- user <email>       one user's detail",
-      "  npm run admin -- rooms              list rooms",
-      "  npm run admin -- rm-room <code>     delete a room (type-to-confirm)",
-      "  npm run admin -- sweep              delete dead rooms now",
-      "  npm run admin -- rm-user <email>    delete a user (type-to-confirm)",
+      "  june login              sign in and cache the session",
+      "  june logout             clear the cached session",
+      "  june metrics            YouTube quota + app stats",
+      "  june users              list all users",
+      "  june user <email>       one user's detail",
+      "  june rooms              list rooms",
+      "  june rm-room [code]     delete a room — pick from a list, or pass a code",
+      "  june sweep              delete dead rooms now",
+      "  june rm-user <email>    delete a user (type-to-confirm)",
+      "",
+      "(no `june` command yet? run `npm link` once, or use `npm run admin -- <cmd>`)",
     ].join("\n"),
   );
   process.exit(0);
@@ -475,7 +556,7 @@ try {
       await cmdRooms();
       break;
     case "rm-room":
-      arg ? await cmdRmRoom(arg) : fail("usage: rm-room <code>");
+      await cmdRmRoom(arg);
       break;
     case "sweep":
       await cmdSweep();
