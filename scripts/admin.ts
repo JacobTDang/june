@@ -110,17 +110,47 @@ function openInBrowser(target: string): void {
 }
 
 function resultPage(ok: boolean, detail: string): string {
-  const heading = ok ? "You’re signed in" : "Sign-in failed";
-  return `<!doctype html><html><head><meta charset="utf-8"><title>june admin</title>
+  const heading = ok ? "Authentication successful" : "Sign-in failed";
+  const pill = ok ? "Signed in" : "Couldn’t sign in";
+  const safe = detail.replace(
+    /[&<>"]/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c] ?? c,
+  );
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>june admin</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500&display=swap" rel="stylesheet" />
 <style>
-  html,body{height:100%;margin:0}
-  body{display:grid;place-items:center;background:#100f12;color:#f4f1ea;
-       font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-  .card{text-align:center;padding:2rem}
-  h1{font-weight:600;font-size:1.4rem;margin:0 0 .4rem;color:${ok ? "#f2b552" : "#f4f1ea"}}
-  p{margin:0;color:#8b8790;font-size:.95rem}
-</style></head>
-<body><div class="card"><h1>${heading}</h1><p>${detail}</p></div></body></html>`;
+  :root { --bg:#100f12; --ink:#f4f1ea; --muted:#8b8790; --accent:#f2b552; }
+  * { box-sizing:border-box; }
+  html,body { height:100%; margin:0; }
+  body { background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    display:flex; align-items:center; justify-content:center; padding:2rem; }
+  .card { text-align:center; max-width:32rem; }
+  .pill { display:inline-flex; align-items:center; gap:.5rem; margin:0 0 1.5rem;
+    padding:.34rem .8rem; border-radius:999px; font-size:.8rem; font-weight:600;
+    letter-spacing:.02em; background:rgba(242,181,82,.12); color:var(--accent); }
+  .pill--err { background:rgba(255,255,255,.06); color:var(--muted); }
+  .pill .dot { width:7px; height:7px; border-radius:50%; background:currentColor; }
+  h1 { font-family:"Fraunces",Georgia,serif; font-weight:500; font-size:2.4rem;
+    line-height:1.08; letter-spacing:-.01em; margin:0 0 .65rem; }
+  p { margin:0; color:var(--muted); font-size:1rem; line-height:1.5; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <span class="pill${ok ? "" : " pill--err"}"><span class="dot"></span>${pill}</span>
+    <h1>${heading}</h1>
+    <p>${safe}</p>
+  </div>
+</body>
+</html>`;
 }
 
 /** Serve exactly one loopback callback and hand back the auth code. */
@@ -157,7 +187,9 @@ function waitForCallback(authUrl: string): Promise<string> {
         ),
       ),
     );
-    server.listen(REDIRECT_PORT, "127.0.0.1", () => {
+    // Bind without a host so we catch the callback whether the browser resolves
+    // localhost to IPv4 (127.0.0.1) or IPv6 (::1) — a common loopback mismatch.
+    server.listen(REDIRECT_PORT, () => {
       console.log("\nOpening your browser to sign in as the owner…");
       console.log(`If it doesn't open, paste this into your browser:\n${authUrl}\n`);
       openInBrowser(authUrl);
