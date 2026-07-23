@@ -1214,21 +1214,19 @@ a:hover {
   overflow-y: hidden;
   scroll-snap-type: x proximity;
   scroll-behavior: smooth;
-  padding: 0.5rem 0.25rem 0.9rem;
-  scrollbar-width: thin;
-  scrollbar-color: var(--line-2) transparent;
+  padding: 1rem 0.35rem 1.4rem;
+  scrollbar-width: none;
+  /* Cards dissolve at the shelf edges — a soft cue that there's more to scroll. */
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent);
+  mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent);
 }
 .plc-rail::-webkit-scrollbar {
-  height: 6px;
-}
-.plc-rail::-webkit-scrollbar-thumb {
-  background: var(--line-2);
-  border-radius: 3px;
+  display: none;
 }
 .plc-scard {
   position: relative;
   flex: 0 0 auto;
-  width: 150px;
+  width: 152px;
   scroll-snap-align: start;
   display: flex;
   flex-direction: column;
@@ -1241,16 +1239,19 @@ a:hover {
   cursor: pointer;
   overflow: hidden;
   transition:
-    border-color 0.15s var(--ease),
-    background 0.15s var(--ease),
-    transform 0.12s var(--ease);
+    border-color 0.18s var(--ease),
+    background 0.18s var(--ease),
+    transform 0.18s var(--ease),
+    box-shadow 0.18s var(--ease);
 }
 .plc-scard:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--line-2);
   background: var(--surface-2);
+  transform: translateY(-4px);
+  box-shadow: 0 16px 34px -18px rgba(0, 0, 0, 0.75);
 }
 .plc-scard:active:not(:disabled) {
-  transform: translateY(1px);
+  transform: translateY(-2px);
 }
 .plc-scard:disabled {
   opacity: 0.6;
@@ -1260,7 +1261,7 @@ a:hover {
   position: relative;
   aspect-ratio: 1;
   width: 100%;
-  background: var(--surface-2);
+  background: linear-gradient(150deg, var(--surface-2), var(--surface));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1272,13 +1273,27 @@ a:hover {
   object-fit: cover;
   display: block;
 }
+/* Scrim that fades in with the play button, so the amber reads on any cover. */
+.plc-scard__cover::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(0, 0, 0, 0.5), transparent 58%);
+  opacity: 0;
+  transition: opacity 0.18s var(--ease);
+  pointer-events: none;
+}
+.plc-scard:hover:not(:disabled) .plc-scard__cover::after {
+  opacity: 1;
+}
 /* One signature affordance: a play button that rises in on hover. */
 .plc-scard__play {
   position: absolute;
-  right: 0.5rem;
-  bottom: 0.5rem;
-  width: 34px;
-  height: 34px;
+  right: 0.55rem;
+  bottom: 0.55rem;
+  z-index: 1;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   background: var(--accent);
   color: var(--accent-ink);
@@ -1287,35 +1302,37 @@ a:hover {
   justify-content: center;
   padding-left: 2px; /* optically center the play triangle */
   opacity: 0;
-  transform: translateY(8px);
-  box-shadow: 0 8px 18px -6px rgba(0, 0, 0, 0.7);
+  transform: translateY(10px) scale(0.9);
+  box-shadow: 0 8px 18px -4px rgba(0, 0, 0, 0.6);
   transition:
-    opacity 0.18s var(--ease),
-    transform 0.18s var(--ease);
+    opacity 0.2s var(--ease),
+    transform 0.2s var(--ease);
 }
 .plc-scard:hover:not(:disabled) .plc-scard__play {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(0) scale(1);
 }
 .plc-scard__body {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
-  padding: 0.6rem 0.65rem 0.7rem;
+  gap: 0.25rem;
+  padding: 0.65rem 0.7rem 0.78rem;
 }
 .plc-scard__name {
   font-weight: 600;
   font-size: 0.85rem;
-  line-height: 1.25;
-  min-height: 2.1em;
+  line-height: 1.3;
+  letter-spacing: -0.01em;
+  min-height: 2.2em;
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
   overflow: hidden;
 }
 .plc-scard__count {
-  font-size: 0.73rem;
+  font-size: 0.72rem;
   color: var(--muted);
+  letter-spacing: 0.01em;
 }
 .plc__empty {
   margin-top: 0.85rem;
