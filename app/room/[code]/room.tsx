@@ -297,6 +297,9 @@ export function Room({
           <section className="stage">
             {nowPlaying ? (
               <>
+                <div className="section__head">
+                  <span className="eyebrow">Now playing</span>
+                </div>
                 <div className="player-wrap">
                   {offset !== null ? (
                     <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
@@ -321,29 +324,31 @@ export function Room({
               </div>
             )}
           </section>
+        </div>
+
+        <aside className="room__rail">
+          <section className="room__people">
+            <div className="section__head">
+              <span className="eyebrow">In the room</span>
+            </div>
+            <ul className="people">
+              {participants.map((p) => (
+                <li key={p.userId} className="person">
+                  <Avatar name={p.name} url={p.avatarUrl} size={28} />
+                  <span className="person__name">
+                    {p.name}
+                    {p.userId === me.userId ? " · you" : ""}
+                  </span>
+                  {participantAction(p.userId, p.name)}
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <div className="rule" />
 
           <AddMusic roomId={initial.id} />
-        </div>
-
-        <section className="room__people">
-          <div className="section__head">
-            <span className="eyebrow">In the room</span>
-          </div>
-          <ul className="people">
-            {participants.map((p) => (
-              <li key={p.userId} className="person">
-                <Avatar name={p.name} url={p.avatarUrl} size={28} />
-                <span className="person__name">
-                  {p.name}
-                  {p.userId === me.userId ? " · you" : ""}
-                </span>
-                {participantAction(p.userId, p.name)}
-              </li>
-            ))}
-          </ul>
-        </section>
+        </aside>
       </div>
     </main>
   );
