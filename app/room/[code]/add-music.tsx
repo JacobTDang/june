@@ -14,10 +14,7 @@ import {
   listMyPlaylists,
   searchMusicAction,
 } from "@/src/lib/room/add-music";
-import {
-  describeYouTubeError,
-  youTubeNoticeText,
-} from "@/src/lib/supabase/youtube-error";
+import type { YouTubeResult } from "@/src/lib/supabase/youtube-error";
 import { PlaylistCarousel, type Playlist } from "./playlist-carousel";
 
 type Tab = "search" | "playlist";
@@ -74,23 +71,21 @@ export function AddMusic({ roomId }: { roomId: string }) {
     }
   }
 
-  /** Run a YouTube-touching load, surfacing calm copy for setup/connection issues. */
-  async function youtubeLoad<T>(fn: () => Promise<T>): Promise<T> {
-    try {
-      return await fn();
-    } catch (err) {
-      throw new Error(youTubeNoticeText(describeYouTubeError(err)));
-    }
+  /** Unwrap a server action's result, throwing its notice so `run` shows it. A
+   *  client-side throw isn't redacted the way the server's raw error would be. */
+  function unwrap<T>(result: YouTubeResult<T>): T {
+    if (!result.ok) throw new Error(result.notice);
+    return result.data;
   }
 
   function loadPlaylists() {
-    void run(async () => setPlaylists(await youtubeLoad(listMyPlaylists)));
+    void run(async () => setPlaylists(unwrap(await listMyPlaylists())));
   }
 
   function browsePlaylist(p: Playlist) {
     setOpenPlaylist(p);
     setPlaylistTracks(null);
-    void run(async () => setPlaylistTracks(await youtubeLoad(() => getPlaylistTracks(p.id))));
+    void run(async () => setPlaylistTracks(unwrap(await getPlaylistTracks(p.id))));
   }
 
   function clearSearch() {
@@ -105,7 +100,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
     if (isLink) {
       // Paste-a-link, folded into the same field.
       void run(
-        () => addByLink(roomId, trimmed),
+        async () => unwrap(await addByLink(roomId, trimmed)),
         () => {
           clearSearch();
           return "Added to the queue.";
@@ -146,7 +141,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
           aria-label={`Add ${c.title}`}
           onClick={() =>
             void run(
-              () => addCandidate(roomId, c),
+              async () => unwrap(await addCandidate(roomId, c)),
               () => {
                 clearSearch();
                 return `Added “${c.title}”`;
@@ -271,7 +266,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
               disabled={busy}
               onClick={() =>
                 void run(
-                  () => youtubeLoad(() => importPlaylistToRoom(roomId, openPlaylist.id)),
+                  async () => unwrap(await importPlaylistToRoom(roomId, openPlaylist.id)),
                   (n) => `Added ${n} songs.`,
                 )
               }
@@ -298,7 +293,10 @@ export function AddMusic({ roomId }: { roomId: string }) {
                     disabled={busy || !t.embeddable}
                     aria-label={`Add ${t.title}`}
                     onClick={() =>
-                      void run(() => addVideoById(roomId, t.videoId), () => `Added “${t.title}”`)
+                      void run(
+                        async () => unwrap(await addVideoById(roomId, t.videoId)),
+                        () => `Added “${t.title}”`,
+                      )
                     }
                   >
                     <Plus size={16} />
