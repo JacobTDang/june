@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { ChevronLeft, ChevronRight, Music, Play, RefreshCw } from "lucide-react";
+import { Music, Play, RefreshCw } from "lucide-react";
 import { filterPlaylists } from "@/src/lib/room/playlist-window";
 
 export type Playlist = {
@@ -11,12 +11,10 @@ export type Playlist = {
   thumbnailUrl?: string | null;
 };
 
-const CARD_STEP = 166; // card width + gap, for the arrow nudge
-
 /**
  * Playlists as a horizontal shelf of Spotify-style cards: cover on top, title +
- * count below, a play button on hover. Scroll with the arrows, a swipe, the
- * wheel, or the scrollbar; tap a card to open its songs.
+ * count below, a play button on hover. Scroll by swipe, wheel, or the scrollbar;
+ * tap a card to open its songs.
  */
 export function PlaylistCarousel({
   playlists,
@@ -33,10 +31,6 @@ export function PlaylistCarousel({
   const railRef = useRef<HTMLDivElement>(null);
 
   const filtered = filterPlaylists(playlists, query);
-
-  function nudge(direction: number) {
-    railRef.current?.scrollBy({ left: direction * CARD_STEP, behavior: "smooth" });
-  }
 
   // Mouse wheel scrolls the shelf sideways (trackpad swipe works natively).
   useEffect(() => {
@@ -77,46 +71,36 @@ export function PlaylistCarousel({
       {filtered.length === 0 ? (
         <p className="muted plc__empty">No playlists match “{query}”.</p>
       ) : (
-        <div className="plc-shelf">
-          <button className="plc-nav" onClick={() => nudge(-1)} aria-label="Scroll left">
-            <ChevronLeft size={18} />
-          </button>
-
-          <div className="plc-rail" ref={railRef}>
-            {filtered.map((p) => (
-              <button
-                key={p.id}
-                type="button"
-                className="plc-scard"
-                onClick={() => onOpen(p)}
-                disabled={busy}
-              >
-                <span className={`plc-scard__cover${p.thumbnailUrl ? "" : " plc-scard__cover--empty"}`}>
-                  {p.thumbnailUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={p.thumbnailUrl} alt="" loading="lazy" />
-                  ) : (
-                    <Music size={26} />
-                  )}
-                  <span className="plc-scard__play" aria-hidden="true">
-                    <Play size={16} fill="currentColor" strokeWidth={0} />
-                  </span>
+        <div className="plc-rail" ref={railRef}>
+          {filtered.map((p) => (
+            <button
+              key={p.id}
+              type="button"
+              className="plc-scard"
+              onClick={() => onOpen(p)}
+              disabled={busy}
+            >
+              <span className={`plc-scard__cover${p.thumbnailUrl ? "" : " plc-scard__cover--empty"}`}>
+                {p.thumbnailUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={p.thumbnailUrl} alt="" loading="lazy" />
+                ) : (
+                  <Music size={26} />
+                )}
+                <span className="plc-scard__play" aria-hidden="true">
+                  <Play size={16} fill="currentColor" strokeWidth={0} />
                 </span>
-                <span className="plc-scard__body">
-                  <span className="plc-scard__name" title={p.title}>
-                    {p.title}
-                  </span>
-                  <span className="plc-scard__count">
-                    {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
-                  </span>
+              </span>
+              <span className="plc-scard__body">
+                <span className="plc-scard__name" title={p.title}>
+                  {p.title}
                 </span>
-              </button>
-            ))}
-          </div>
-
-          <button className="plc-nav" onClick={() => nudge(1)} aria-label="Scroll right">
-            <ChevronRight size={18} />
-          </button>
+                <span className="plc-scard__count">
+                  {p.itemCount} {p.itemCount === 1 ? "song" : "songs"}
+                </span>
+              </span>
+            </button>
+          ))}
         </div>
       )}
     </div>

@@ -819,6 +819,10 @@ a:hover {
   border-radius: var(--r-sm);
   background: var(--bg);
   transition: background 0.15s var(--ease);
+  /* Let a trackpad/wheel scroll the queue over the rows; the drag lives on the
+     handle (touch-action: none) so it doesn't swallow the scroll gesture.
+     !important overrides the touch-action motion sets on draggable items. */
+  touch-action: pan-y !important;
 }
 .track:hover {
   background: var(--surface);
@@ -1181,52 +1185,28 @@ a:hover {
   flex: 1;
   min-width: 0;
 }
-/* A horizontal shelf: arrows + native swipe + wheel + scrollbar all scroll it. */
-.plc-shelf {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-top: 1rem;
-}
-.plc-nav {
-  flex-shrink: 0;
-  width: 30px;
-  height: 30px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--line);
-  border-radius: var(--r-sm);
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition:
-    background 0.15s var(--ease),
-    border-color 0.15s var(--ease),
-    color 0.15s var(--ease);
-}
-.plc-nav:hover {
-  border-color: var(--line-2);
-  background: rgba(255, 255, 255, 0.05);
-  color: var(--ink);
-}
+/* A horizontal shelf: swipe, wheel, or drag the scrollbar to scroll. */
 .plc-rail {
-  flex: 1;
-  min-width: 0;
+  margin-top: 1rem;
   display: flex;
-  gap: 0.9rem;
+  gap: 0.85rem;
   overflow-x: auto;
   overflow-y: hidden;
   scroll-snap-type: x proximity;
   scroll-behavior: smooth;
-  padding: 1rem 0.35rem 1.4rem;
-  scrollbar-width: none;
-  /* Cards dissolve at the shelf edges — a soft cue that there's more to scroll. */
-  -webkit-mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent);
-  mask-image: linear-gradient(to right, transparent, #000 26px, #000 calc(100% - 26px), transparent);
+  padding: 0.85rem 0.15rem 0.4rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
 }
 .plc-rail::-webkit-scrollbar {
-  display: none;
+  height: 8px;
+}
+.plc-rail::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 4px;
+}
+.plc-rail::-webkit-scrollbar-track {
+  background: transparent;
 }
 .plc-scard {
   position: relative;
