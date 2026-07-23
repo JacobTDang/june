@@ -1176,28 +1176,60 @@ a:hover {
   flex: 1;
   min-width: 0;
 }
-/* A centered 3-card window: the middle card is focused, neighbours peek/dim.
-   `padding-inline: calc(50% - halfCard)` lets any card scroll to the centre. */
+/* A horizontal shelf: arrows + native swipe + wheel + scrollbar all scroll it. */
+.plc-shelf {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-top: 1rem;
+}
+.plc-nav {
+  flex-shrink: 0;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition:
+    background 0.15s var(--ease),
+    border-color 0.15s var(--ease),
+    color 0.15s var(--ease);
+}
+.plc-nav:hover {
+  border-color: var(--line-2);
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--ink);
+}
 .plc-rail {
+  flex: 1;
+  min-width: 0;
   display: flex;
   gap: 0.9rem;
-  max-width: 430px;
-  margin: 0 auto;
   overflow-x: auto;
   overflow-y: hidden;
-  scroll-snap-type: x mandatory;
-  padding: 1.5rem calc(50% - 75px) 1.75rem;
-  scrollbar-width: none;
+  scroll-snap-type: x proximity;
+  scroll-behavior: smooth;
+  padding: 0.5rem 0.25rem 0.9rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--line-2) transparent;
 }
 .plc-rail::-webkit-scrollbar {
-  display: none;
+  height: 6px;
 }
-/* Cover-forward cards; de-emphasized until they're the centered one. */
+.plc-rail::-webkit-scrollbar-thumb {
+  background: var(--line-2);
+  border-radius: 3px;
+}
 .plc-scard {
   position: relative;
   flex: 0 0 auto;
   width: 150px;
-  scroll-snap-align: center;
+  scroll-snap-align: start;
   display: flex;
   flex-direction: column;
   padding: 0;
@@ -1208,21 +1240,17 @@ a:hover {
   text-align: left;
   cursor: pointer;
   overflow: hidden;
-  opacity: 0.45;
-  transform: scale(0.9);
-  box-shadow: 0 14px 34px -20px rgba(0, 0, 0, 0.8);
   transition:
-    opacity 0.28s var(--ease),
-    transform 0.28s var(--ease),
-    border-color 0.18s var(--ease);
-}
-.plc-scard--focused {
-  opacity: 1;
-  transform: scale(1);
-  border-color: var(--line-2);
+    border-color 0.15s var(--ease),
+    background 0.15s var(--ease),
+    transform 0.12s var(--ease);
 }
 .plc-scard:hover:not(:disabled) {
   border-color: var(--accent);
+  background: var(--surface-2);
+}
+.plc-scard:active:not(:disabled) {
+  transform: translateY(1px);
 }
 .plc-scard:disabled {
   opacity: 0.6;
@@ -1265,7 +1293,6 @@ a:hover {
     opacity 0.18s var(--ease),
     transform 0.18s var(--ease);
 }
-.plc-scard--focused .plc-scard__play,
 .plc-scard:hover:not(:disabled) .plc-scard__play {
   opacity: 1;
   transform: translateY(0);
