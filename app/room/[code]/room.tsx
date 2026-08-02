@@ -302,7 +302,12 @@ export function Room({
                 </div>
                 <div className="player-wrap">
                   {offset !== null ? (
-                    <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
+                    <Player
+                      roomId={initial.id}
+                      nowPlaying={nowPlaying}
+                      offset={offset}
+                      upNext={queue.slice(0, 2)}
+                    />
                   ) : (
                     <div className="player-skeleton">
                       <span className="muted">Syncing…</span>

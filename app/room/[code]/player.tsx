@@ -4,157 +4,190 @@ import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
 import { advanceTrack } from "@/src/lib/room/actions";
 import { playbackCorrection } from "@/src/lib/room/sync";
-import type { RoomNowPlaying } from "@/src/lib/room/types";
+import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
+import { createAudioServer, type AudioServer } from "@/src/audio/client";
+import { shouldSkipPreparing } from "@/src/audio/preparing";
+import { createClient } from "@/src/lib/supabase/client";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
 const DRIFT_THRESHOLD_S = 1.2;
-const YT_STATE_ENDED = 0;
+/** How often to re-check the link while a track is still downloading. */
+const PREPARING_POLL_MS = 3000;
+/** How often to retry when mp3server is unreachable. */
+const UNREACHABLE_RETRY_MS = 5000;
+/** How many upcoming queue tracks to pre-download. */
+const PREFETCH_COUNT = 2;
 
-interface YTPlayerEvent {
-  data: number;
-}
-interface YTPlayer {
-  loadVideoById(opts: { videoId: string; startSeconds?: number }): void;
-  playVideo(): void;
-  pauseVideo(): void;
-  seekTo(seconds: number, allowSeekAhead: boolean): void;
-  getCurrentTime(): number;
-  destroy(): void;
-}
-interface YTPlayerOptions {
-  width?: string;
-  height?: string;
-  playerVars?: Record<string, unknown>;
-  events?: {
-    onReady?: () => void;
-    onStateChange?: (e: YTPlayerEvent) => void;
-    onError?: (e: YTPlayerEvent) => void;
-  };
-}
-declare global {
-  interface Window {
-    YT?: { Player: new (el: HTMLElement, opts: YTPlayerOptions) => YTPlayer };
-    onYouTubeIframeAPIReady?: () => void;
+/**
+ * One sample of silence. Played inside the tap gesture so iOS marks the
+ * element user-activated; the real (asynchronously minted) src can then be
+ * play()ed programmatically.
+ */
+const SILENCE =
+  "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQAAAAA=";
+
+type Status =
+  | { kind: "idle" }
+  | { kind: "loading" }
+  | { kind: "preparing" }
+  | { kind: "playing" }
+  | { kind: "unreachable" }
+  | { kind: "skipped"; title: string };
+
+let cachedServer: AudioServer | null = null;
+function audioServer(): AudioServer {
+  if (!cachedServer) {
+    const baseUrl = process.env.NEXT_PUBLIC_MP3SERVER_URL;
+    if (!baseUrl) throw new Error("NEXT_PUBLIC_MP3SERVER_URL is not configured.");
+    const supabase = createClient();
+    cachedServer = createAudioServer({
+      baseUrl,
+      getAccessToken: async () =>
+        (await supabase.auth.getSession()).data.session?.access_token ?? null,
+    });
   }
+  return cachedServer;
 }
 
-function loadYouTubeApi(): Promise<void> {
-  return new Promise((resolve, reject) => {
-    if (window.YT?.Player) return resolve();
-    const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => {
-      prev?.();
-      resolve();
-    };
-    if (!document.getElementById("youtube-iframe-api")) {
-      const tag = document.createElement("script");
-      tag.id = "youtube-iframe-api";
-      tag.src = "https://www.youtube.com/iframe_api";
-      // A blocked/failed request (ad blocker, VPN, or WiFi filter) fires onerror.
-      tag.onerror = () => reject(new Error("YouTube API failed to load"));
-      document.body.appendChild(tag);
-    }
-  });
+function statusText(status: Status): string {
+  switch (status.kind) {
+    case "idle":
+      return "Nothing playing.";
+    case "loading":
+      return "Tuning in…";
+    case "preparing":
+      return "Preparing this track…";
+    case "playing":
+      return "Listening in sync.";
+    case "unreachable":
+      return "Can’t reach the audio server — retrying…";
+    case "skipped":
+      return `Couldn’t prepare “${status.title}” — skipping.`;
+  }
 }
 
 export function Player({
   roomId,
   nowPlaying,
   offset,
+  upNext,
 }: {
   roomId: string;
   nowPlaying: RoomNowPlaying | null;
   offset: number;
+  upNext: QueueTrack[];
 }) {
-  const mountRef = useRef<HTMLDivElement>(null);
-  const playerRef = useRef<YTPlayer | null>(null);
-  const currentVideo = useRef<string | null>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const offsetRef = useRef(offset);
   const nowPlayingRef = useRef(nowPlaying);
-  const [ready, setReady] = useState(false);
+  const currentVideo = useRef<string | null>(null);
+  /** videoIds this session already asked the server to download. */
+  const ensured = useRef(new Set<string>());
+  /** Whether the current track already got its one link re-mint. */
+  const reminted = useRef(false);
   const [started, setStarted] = useState(false);
-  const [loadError, setLoadError] = useState(false);
+  const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [reloadNonce, setReloadNonce] = useState(0);
 
   offsetRef.current = offset;
   nowPlayingRef.current = nowPlaying;
 
-  const positionSeconds = (np: RoomNowPlaying) =>
-    Math.max(0, (Date.now() + offsetRef.current - np.startedAt) / 1000);
+  // Primitive key so realtime refreshes (new object, same track) don't
+  // cancel and restart an in-flight load.
+  const trackKey = nowPlaying ? `${nowPlaying.videoId}:${reloadNonce}` : null;
 
-  // Create the player once. YT replaces the element it's given, so we hand it
-  // an imperatively-created child that React doesn't manage.
+  // Load the shared track: mint a stream link, or trigger the download and
+  // poll until it exists. Cancelled (and restarted) when the track changes.
   useEffect(() => {
-    let cancelled = false;
-    // If the player never becomes ready, something upstream is blocking YouTube
-    // (an ad blocker, a VPN, or a café/office WiFi filter). Say so, not a black box.
-    const failTimer = setTimeout(() => {
-      if (!cancelled) setLoadError(true);
-    }, 9000);
-    void loadYouTubeApi()
-      .then(() => {
-        if (cancelled || !mountRef.current || !window.YT) return;
-        const el = document.createElement("div");
-        mountRef.current.appendChild(el);
-        playerRef.current = new window.YT.Player(el, {
-          width: "100%",
-          height: "100%",
-          playerVars: { playsinline: 1, controls: 1, rel: 0, modestbranding: 1 },
-          events: {
-            onReady: () => {
-              clearTimeout(failTimer);
-              setLoadError(false);
-              setReady(true);
-            },
-            onStateChange: (e) => {
-              if (e.data === YT_STATE_ENDED && currentVideo.current) {
-                void advanceTrack(roomId, currentVideo.current);
-              }
-            },
-            onError: () => {
-              if (currentVideo.current) void advanceTrack(roomId, currentVideo.current);
-            },
-          },
-        });
-      })
-      .catch(() => {
-        if (!cancelled) setLoadError(true);
-      });
-    return () => {
-      cancelled = true;
-      clearTimeout(failTimer);
-      playerRef.current?.destroy();
-      playerRef.current = null;
-    };
-  }, [roomId]);
-
-  // Load / switch tracks and seek to the shared position (only after the user
-  // gesture, since autoplay-with-sound is blocked).
-  useEffect(() => {
-    const player = playerRef.current;
-    if (!ready || !player || !started) return;
-    if (!nowPlaying) {
-      player.pauseVideo();
+    const audio = audioRef.current;
+    if (!started || !audio) return;
+    const np = nowPlayingRef.current;
+    if (!np || trackKey === null) {
+      audio.pause();
+      audio.removeAttribute("src");
       currentVideo.current = null;
+      setStatus({ kind: "idle" });
       return;
     }
-    if (currentVideo.current !== nowPlaying.videoId) {
-      currentVideo.current = nowPlaying.videoId;
-      player.loadVideoById({ videoId: nowPlaying.videoId, startSeconds: positionSeconds(nowPlaying) });
-      player.playVideo();
-    }
-  }, [ready, started, nowPlaying]);
 
-  // Drift correction + end-of-track fallback.
+    if (currentVideo.current !== np.videoId) reminted.current = false;
+    currentVideo.current = np.videoId;
+    const preparingSince = Date.now();
+    let cancelled = false;
+    const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+    async function load() {
+      setStatus({ kind: "loading" });
+      while (!cancelled) {
+        let url: string | null;
+        try {
+          url = await audioServer().mintStreamUrl(np!.videoId);
+          if (url === null && !ensured.current.has(np!.videoId)) {
+            ensured.current.add(np!.videoId);
+            try {
+              await audioServer().ensureDownload(np!.videoId);
+            } catch (err) {
+              ensured.current.delete(np!.videoId); // retried on the next poll
+              throw err;
+            }
+          }
+        } catch {
+          if (cancelled) return;
+          setStatus({ kind: "unreachable" });
+          await sleep(UNREACHABLE_RETRY_MS);
+          continue;
+        }
+        if (cancelled) return;
+
+        if (url === null) {
+          if (shouldSkipPreparing(preparingSince, Date.now())) {
+            setStatus({ kind: "skipped", title: np!.title });
+            void advanceTrack(roomId, np!.videoId);
+            return;
+          }
+          setStatus({ kind: "preparing" });
+          await sleep(PREPARING_POLL_MS);
+          continue;
+        }
+
+        const el = audioRef.current;
+        if (!el || cancelled) return;
+        el.src = url;
+        el.currentTime = Math.max(
+          0,
+          (Date.now() + offsetRef.current - np!.startedAt) / 1000,
+        );
+        try {
+          await el.play();
+        } catch {
+          // `started` already gates the autoplay gesture, so a rejection here
+          // means the source itself failed — the element's onError re-mint
+          // path takes over.
+        }
+        if (!cancelled) setStatus({ kind: "playing" });
+        return;
+      }
+    }
+
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [started, trackKey, roomId]);
+
+  // Drift correction + end-of-track fallback, same policy as before.
   useEffect(() => {
-    if (!ready || !started) return;
+    if (!started) return;
     const id = setInterval(() => {
-      const player = playerRef.current;
+      const audio = audioRef.current;
       const np = nowPlayingRef.current;
-      if (!player || !np || currentVideo.current !== np.videoId) return;
-      const expected = (Date.now() + offsetRef.current - np.startedAt) / 1000;
+      if (!audio || !np || currentVideo.current !== np.videoId || !audio.src) return;
+      // Respect a local pause (e.g. from the lock screen); the next tick
+      // after resuming re-seeks to the shared clock.
+      if (audio.paused) return;
       const action = playbackCorrection({
-        expectedSeconds: expected,
-        actualSeconds: player.getCurrentTime(),
+        expectedSeconds: (Date.now() + offsetRef.current - np.startedAt) / 1000,
+        actualSeconds: audio.currentTime,
         durationMs: np.durationMs,
         driftThresholdSeconds: DRIFT_THRESHOLD_S,
       });
@@ -162,61 +195,95 @@ export function Player({
         void advanceTrack(roomId, np.videoId);
         return;
       }
-      if (action.kind === "seek") {
-        player.seekTo(action.toSeconds, true);
-      }
+      if (action.kind === "seek") audio.currentTime = action.toSeconds;
     }, 2000);
     return () => clearInterval(id);
-  }, [ready, started, roomId]);
+  }, [started, roomId]);
 
-  function start() {
-    setStarted(true);
-    const player = playerRef.current;
-    const np = nowPlayingRef.current;
-    if (player && np) {
-      currentVideo.current = np.videoId;
-      player.loadVideoById({ videoId: np.videoId, startSeconds: positionSeconds(np) });
-      player.playVideo();
+  // Lock-screen metadata + controls.
+  useEffect(() => {
+    if (!started || !nowPlaying || !("mediaSession" in navigator)) return;
+    navigator.mediaSession.metadata = new MediaMetadata({
+      title: nowPlaying.title,
+      artist: nowPlaying.artist ?? "",
+      album: "june",
+      artwork: nowPlaying.thumbnailUrl
+        ? [{ src: nowPlaying.thumbnailUrl, sizes: "480x480" }]
+        : [],
+    });
+    navigator.mediaSession.setActionHandler("play", () => void audioRef.current?.play());
+    navigator.mediaSession.setActionHandler("pause", () => audioRef.current?.pause());
+  }, [started, nowPlaying]);
+
+  // Pre-download upcoming tracks so they're ready when the room reaches them.
+  // Best effort by design (see the spec): a failure here surfaces later as a
+  // brief "Preparing" via the loader's self-heal, so it is not reported.
+  useEffect(() => {
+    if (!started) return;
+    for (const track of upNext.slice(0, PREFETCH_COUNT)) {
+      if (ensured.current.has(track.videoId)) continue;
+      ensured.current.add(track.videoId);
+      void audioServer()
+        .mintStreamUrl(track.videoId)
+        .then((url) =>
+          url === null ? audioServer().ensureDownload(track.videoId) : undefined,
+        )
+        .then(() => undefined)
+        .catch(() => ensured.current.delete(track.videoId));
+    }
+  }, [started, upNext]);
+
+  function syncPlaybackState() {
+    if ("mediaSession" in navigator) {
+      navigator.mediaSession.playbackState = audioRef.current?.paused
+        ? "paused"
+        : "playing";
     }
   }
 
+  function onEnded() {
+    if (currentVideo.current) void advanceTrack(roomId, currentVideo.current);
+  }
+
+  function onError() {
+    // One re-mint per track: a signed link can expire mid-play. A second
+    // failure means the source itself is broken — move the room along.
+    if (reminted.current) {
+      if (currentVideo.current) void advanceTrack(roomId, currentVideo.current);
+      return;
+    }
+    reminted.current = true;
+    setReloadNonce((n) => n + 1);
+  }
+
+  function start() {
+    const audio = audioRef.current;
+    if (audio) {
+      audio.src = SILENCE;
+      // Unlock inside the gesture; the rejection (if any) is irrelevant
+      // because the loader immediately replaces the source.
+      void audio.play().catch(() => {});
+    }
+    setStarted(true);
+  }
+
   return (
-    <div
-      style={{
-        position: "relative",
-        aspectRatio: "16 / 9",
-        background: "#000",
-        borderRadius: 8,
-        overflow: "hidden",
-      }}
-    >
-      <div ref={mountRef} style={{ width: "100%", height: "100%" }} />
-      {loadError ? (
-        <div className="player-blocked">
-          <p className="player-blocked__title">Can’t play on this network</p>
-          <p className="player-blocked__body">
-            This network is blocking YouTube — usually a café or office WiFi filter, a VPN, or an
-            ad blocker. Switch to a different network (your phone’s hotspot usually works), then
-            reload.
-          </p>
-        </div>
+    <div className="audio-stage">
+      <audio
+        ref={audioRef}
+        playsInline
+        onEnded={onEnded}
+        onError={onError}
+        onPlay={syncPlaybackState}
+        onPause={syncPlaybackState}
+      />
+      {!started ? (
+        <button onClick={start} className="btn btn--primary btn--lg">
+          <Play size={17} fill="currentColor" strokeWidth={0} />
+          Tap to listen in
+        </button>
       ) : (
-        !started && (
-          <button
-            onClick={start}
-            className="btn btn--primary btn--lg"
-            style={{
-              position: "absolute",
-              inset: 0,
-              margin: "auto",
-              width: "fit-content",
-              height: "fit-content",
-            }}
-          >
-            <Play size={17} fill="currentColor" strokeWidth={0} />
-            Tap to listen in
-          </button>
-        )
+        <p className="muted audio-stage__status">{statusText(status)}</p>
       )}
     </div>
   );
