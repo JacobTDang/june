@@ -259,13 +259,19 @@ export function Player({
     }
   }
 
+  function isUnlockClip(): boolean {
+    return audioRef.current?.currentSrc.startsWith("data:") ?? false;
+  }
+
   function onEnded() {
+    // The zero-length unlock clip ends instantly — it must not advance the room.
+    if (isUnlockClip()) return;
     if (currentVideo.current) void advanceTrack(roomId, currentVideo.current);
   }
 
   function onError() {
     // The unlock clip erroring must not burn the track's one re-mint.
-    if (audioRef.current?.currentSrc.startsWith("data:")) return;
+    if (isUnlockClip()) return;
     // One re-mint per track: a signed link can expire mid-play. A second
     // failure means the source itself is broken — move the room along.
     if (reminted.current) {
