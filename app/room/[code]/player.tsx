@@ -112,7 +112,7 @@ export function Player({
 
     if (currentVideo.current !== np.videoId) reminted.current = false;
     currentVideo.current = np.videoId;
-    const preparingSince = Date.now();
+    let preparingSince: number | null = null;
     let cancelled = false;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -123,12 +123,10 @@ export function Player({
         try {
           url = await audioServer().mintStreamUrl(np!.videoId);
           if (url === null && !ensured.current.has(np!.videoId)) {
-            ensured.current.add(np!.videoId);
-            try {
-              await audioServer().ensureDownload(np!.videoId);
-            } catch (err) {
-              ensured.current.delete(np!.videoId); // retried on the next poll
-              throw err;
+            // Only a confirmed "queued" marks the id ensured — a throttled
+            // request enqueued nothing, so the next poll must ask again.
+            if ((await audioServer().ensureDownload(np!.videoId)) === "queued") {
+              ensured.current.add(np!.videoId);
             }
           }
         } catch {
@@ -140,6 +138,9 @@ export function Player({
         if (cancelled) return;
 
         if (url === null) {
+          // Start the preparing clock at the first confirmed "not stored
+          // yet" — server outage time must not eat the 90s budget.
+          preparingSince ??= Date.now();
           if (shouldSkipPreparing(preparingSince, Date.now())) {
             setStatus({ kind: "skipped", title: np!.title });
             void advanceTrack(roomId, np!.videoId);
@@ -159,10 +160,17 @@ export function Player({
         );
         try {
           await el.play();
-        } catch {
-          // `started` already gates the autoplay gesture, so a rejection here
-          // means the source itself failed — the element's onError re-mint
-          // path takes over.
+        } catch (err) {
+          if (cancelled) return;
+          if (err instanceof DOMException && err.name === "NotAllowedError") {
+            // Autoplay was blocked after all — re-offer the tap gate rather
+            // than claiming to play.
+            setStarted(false);
+            setStatus({ kind: "idle" });
+            return;
+          }
+          // Any other rejection is a source failure, which also fires the
+          // element's onError — the re-mint path there takes over.
         }
         if (!cancelled) setStatus({ kind: "playing" });
         return;
@@ -213,6 +221,12 @@ export function Player({
     });
     navigator.mediaSession.setActionHandler("play", () => void audioRef.current?.play());
     navigator.mediaSession.setActionHandler("pause", () => audioRef.current?.pause());
+    return () => {
+      navigator.mediaSession.metadata = null;
+      navigator.mediaSession.setActionHandler("play", null);
+      navigator.mediaSession.setActionHandler("pause", null);
+      navigator.mediaSession.playbackState = "none";
+    };
   }, [started, nowPlaying]);
 
   // Pre-download upcoming tracks so they're ready when the room reaches them.
@@ -222,14 +236,18 @@ export function Player({
     if (!started) return;
     for (const track of upNext.slice(0, PREFETCH_COUNT)) {
       if (ensured.current.has(track.videoId)) continue;
-      ensured.current.add(track.videoId);
-      void audioServer()
-        .mintStreamUrl(track.videoId)
-        .then((url) =>
-          url === null ? audioServer().ensureDownload(track.videoId) : undefined,
-        )
-        .then(() => undefined)
-        .catch(() => ensured.current.delete(track.videoId));
+      void (async () => {
+        const url = await audioServer().mintStreamUrl(track.videoId);
+        if (
+          url !== null ||
+          (await audioServer().ensureDownload(track.videoId)) === "queued"
+        ) {
+          ensured.current.add(track.videoId);
+        }
+      })().catch(() => {
+        // Best effort by design (see the spec): the loader's play-time
+        // self-heal covers anything prefetch misses, and it reports errors.
+      });
     }
   }, [started, upNext]);
 
@@ -246,6 +264,8 @@ export function Player({
   }
 
   function onError() {
+    // The unlock clip erroring must not burn the track's one re-mint.
+    if (audioRef.current?.currentSrc.startsWith("data:")) return;
     // One re-mint per track: a signed link can expire mid-play. A second
     // failure means the source itself is broken — move the room along.
     if (reminted.current) {
