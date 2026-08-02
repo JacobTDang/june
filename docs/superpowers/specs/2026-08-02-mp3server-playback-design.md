@@ -76,10 +76,13 @@ queuer's tab staying open.
   16:9 video box becomes a compact status card (Tap to listen /
   Preparing… / error); `NowPlaying` already shows title, artist, and
   progress.
-- **Add-music paths** (search, paste link, playlist import) fire
-  best-effort `ensureDownload` per added track. A 429 from mp3server's
-  per-user pending cap is tolerated (large playlist imports) because the
-  play-time self-heal covers any track that missed prefetch.
+- **Player-driven prefetch.** The add paths all run in server actions, so
+  the prefetch hook lives where the browser session token already is: the
+  room player best-effort `ensureDownload`s the next two queued tracks.
+  One code path covers every add route, including bulk playlist import,
+  and nothing depends on the adder's tab. A 429 from mp3server's per-user
+  pending cap is tolerated because the play-time self-heal covers any
+  track that missed prefetch.
 - **Media Session API** — title/artist/artwork metadata so the lock screen
   shows the track while backgrounded.
 - The "network is blocking YouTube" error UI is removed along with the
