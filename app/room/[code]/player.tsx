@@ -154,9 +154,20 @@ export function Player({
         const el = audioRef.current;
         if (!el || cancelled) return;
         el.src = url;
-        el.currentTime = Math.max(
-          0,
-          (Date.now() + offsetRef.current - np!.startedAt) / 1000,
+        // Seek only once metadata is in: a seek before then aborts the
+        // media fetch (see the drift-loop guard). Recompute the position at
+        // metadata time so the wait itself doesn't add drift.
+        el.addEventListener(
+          "loadedmetadata",
+          () => {
+            const current = nowPlayingRef.current;
+            if (!current || current.videoId !== np!.videoId) return;
+            el.currentTime = Math.max(
+              0,
+              (Date.now() + offsetRef.current - current.startedAt) / 1000,
+            );
+          },
+          { once: true },
         );
         try {
           await el.play();
@@ -193,6 +204,10 @@ export function Player({
       // Respect a local pause (e.g. from the lock screen); the next tick
       // after resuming re-seeks to the shared clock.
       if (audio.paused) return;
+      // Seeking media that hasn't loaded metadata aborts and restarts its
+      // fetch — on a 2s cadence that livelocks the load forever. Wait for
+      // metadata before correcting drift.
+      if (audio.readyState < HTMLMediaElement.HAVE_METADATA) return;
       const action = playbackCorrection({
         expectedSeconds: (Date.now() + offsetRef.current - np.startedAt) / 1000,
         actualSeconds: audio.currentTime,
