@@ -936,13 +936,18 @@ reverse_proxy api:8000
       - "80:80"
       - "443:443"
     environment:
-      MP3SERVER_DOMAIN: ${MP3SERVER_DOMAIN:?set the public hostname in .env}
+      # Default-empty on purpose: a `:?` requirement here would break plain
+      # `docker compose up` — compose interpolates every ${VAR} before profile
+      # filtering. An empty domain makes Caddy itself fail loudly at startup,
+      # which only the prod profile ever runs.
+      MP3SERVER_DOMAIN: ${MP3SERVER_DOMAIN:-}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddydata:/data
       - caddyconfig:/config
     depends_on:
-      - api
+      api:
+        condition: service_healthy
     restart: unless-stopped
     logging: *logging
 ```
@@ -971,7 +976,9 @@ volumes:
 cd /Users/jacobdang/Desktop/projects/mp3server && docker compose config -q && MP3SERVER_DOMAIN=example.com docker compose --profile prod config -q && echo OK
 ```
 
-Expected: `OK` (no output from the config checks).
+Expected: `OK` (no output from the config checks). The first clause runs with NO
+`MP3SERVER_DOMAIN` anywhere in the environment — that is the regression check
+for plain local dev.
 
 - [ ] **Step 5: Run the mp3server test suite (unchanged code, sanity)**
 
