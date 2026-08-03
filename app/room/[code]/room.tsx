@@ -19,6 +19,7 @@ import {
   reorderQueue,
   skipTrack,
 } from "@/src/lib/room/actions";
+import { visibleParticipants } from "@/src/lib/room/presence";
 import type { RoomState } from "@/src/lib/room/types";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
@@ -100,6 +101,10 @@ export function Room({
   const [queue, setQueue] = useState<QueueItem[]>(initial.queue);
   const reorderPending = useRef(false);
 
+  // User ids currently connected to the room's realtime channel, or null while
+  // presence is unknown (before the first sync, or realtime down).
+  const [online, setOnline] = useState<Set<string> | null>(null);
+
   const refresh = useCallback(async () => {
     const next = await getRoomState(initial.id);
     if (next) setState(next);
@@ -137,7 +142,7 @@ export function Room({
     });
 
     const channel = supabase
-      .channel(`room:${initial.id}`)
+      .channel(`room:${initial.id}`, { config: { presence: { key: me.userId } } })
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "rooms", filter: `id=eq.${initial.id}` },
@@ -153,7 +158,18 @@ export function Room({
         { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${initial.id}` },
         onChange,
       )
-      .subscribe();
+      .on("presence", { event: "sync" }, () => {
+        setOnline(new Set(Object.keys(channel.presenceState())));
+      })
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void channel.track({ online_at: Date.now() });
+        } else {
+          // Channel dropped or errored: presence is unknown, so fall back to
+          // showing full membership instead of an empty room.
+          setOnline(null);
+        }
+      });
 
     const poll = setInterval(onChange, 3000);
 
@@ -161,7 +177,7 @@ export function Room({
       clearInterval(poll);
       void supabase.removeChannel(channel);
     };
-  }, [initial.id, refresh]);
+  }, [initial.id, refresh, me.userId]);
 
   // Estimate the client→server clock offset once, for synced playback.
   useEffect(() => {
@@ -185,7 +201,9 @@ export function Room({
     }
   }
 
-  const { nowPlaying, participants } = state;
+  const { nowPlaying } = state;
+  // Membership filtered down to who's actually connected right now.
+  const participants = visibleParticipants(state.participants, online, me.userId);
 
   // Friend state for the other people in the room, so we can offer to add them.
   const otherKey = participants
