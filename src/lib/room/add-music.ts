@@ -1,7 +1,7 @@
 "use server";
 
 import { createYouTubeClient } from "@/src/youtube";
-import { parseVideoId } from "@/src/youtube/url";
+import { isMixPlaylistId, parsePlaylistId, parseVideoId } from "@/src/youtube/url";
 import {
   searchMusic,
   searchArtists,
@@ -167,20 +167,52 @@ export async function listMyPlaylists(): Promise<
   });
 }
 
-/** Import a whole playlist into the room's queue. Returns how many were added. */
+/** Import one of the signed-in user's own playlists (the My-playlists tab).
+ *  Returns how many tracks were added. */
 export async function importPlaylistToRoom(
   roomId: string,
   playlistId: string,
 ): Promise<YouTubeResult<number>> {
   return runYouTube(async () => {
+    const youtube = await youtubeClient(true);
+    return importVideoIds(roomId, await youtube.listPlaylistVideoIds(playlistId), youtube);
+  });
+}
+
+/**
+ * Add a playlist someone pasted a link to. Read with the API key, so it works
+ * for any public playlist without the pasting user connecting a YouTube
+ * account; a token is still used when one exists, which covers your own
+ * private lists.
+ */
+export async function addPlaylistByLink(
+  roomId: string,
+  url: string,
+): Promise<YouTubeResult<number>> {
+  return runYouTube(async () => {
+    const playlistId = parsePlaylistId(url);
+    if (!playlistId) throw new Error("That doesn't look like a YouTube playlist link.");
+    if (isMixPlaylistId(playlistId)) {
+      throw new Error("YouTube mixes can't be imported — try a normal playlist.");
+    }
+
+    const youtube = await youtubeClient();
+    return importVideoIds(roomId, await youtube.listPublicPlaylistVideoIds(playlistId), youtube);
+  });
+}
+
+/** Shared tail of both import paths: filter, dedupe against the room, enqueue. */
+async function importVideoIds(
+  roomId: string,
+  ids: string[],
+  youtube: Awaited<ReturnType<typeof youtubeClient>>,
+): Promise<number> {
+  {
     const supabase = await createClient();
     const {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) throw new Error("You must be signed in.");
-
-    const youtube = await youtubeClient(true);
-    const ids = await youtube.listPlaylistVideoIds(playlistId);
 
     // Skip anything already in the room (queue or now playing) so re-imports
     // don't create duplicates.
@@ -229,5 +261,5 @@ export async function importPlaylistToRoom(
     }
 
     return metas.length;
-  });
+  }
 }

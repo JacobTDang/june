@@ -171,6 +171,38 @@ describe("createYouTubeClient", () => {
       const client = createYouTubeClient({ apiKey: "K", accessToken: "T", fetch });
       await expect(client.listPlaylistVideoIds("")).rejects.toThrow(/playlistId is required/);
     });
+
+    it("needs an access token", async () => {
+      const { fetch, calls } = stubFetch(() => ({ body: { items: [] } }));
+      const client = createYouTubeClient({ apiKey: "K", fetch });
+      await expect(client.listPlaylistVideoIds("PL1")).rejects.toThrow(
+        /requires an OAuth access token/,
+      );
+      expect(calls).toHaveLength(0);
+    });
+  });
+
+  describe("listPublicPlaylistVideoIds", () => {
+    it("reads a public playlist with the API key alone", async () => {
+      // A pasted playlist link must not oblige the pasting user to connect a
+      // YouTube account.
+      const { fetch, calls } = stubFetch(() => ({
+        body: { items: [{ contentDetails: { videoId: "a" } }] },
+      }));
+      const client = createYouTubeClient({ apiKey: "K", fetch });
+
+      expect(await client.listPublicPlaylistVideoIds("PL1")).toEqual(["a"]);
+      expect(calls[0]!.url.searchParams.get("playlistId")).toBe("PL1");
+    });
+
+    it("still sends a token when there is one, so your own private list works", async () => {
+      const { fetch, calls } = stubFetch(() => ({ body: { items: [] } }));
+      const client = createYouTubeClient({ apiKey: "K", accessToken: "T", fetch });
+
+      await client.listPublicPlaylistVideoIds("PL1");
+
+      expect((calls[0]!.init?.headers as Record<string, string>).Authorization).toBe("Bearer T");
+    });
   });
 
   it("throws with the status and message on an API error", async () => {
@@ -188,6 +220,7 @@ const fakeClient = (over: Partial<YouTubeClient>): YouTubeClient => ({
   getVideos: async () => [],
   listPlaylists: async () => [],
   listPlaylistVideoIds: async () => [],
+  listPublicPlaylistVideoIds: async () => [],
   ...over,
 });
 

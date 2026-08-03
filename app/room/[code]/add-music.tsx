@@ -6,6 +6,7 @@ import type { MusicCandidate, ArtistCandidate } from "@/src/discovery";
 import type { VideoMeta } from "@/src/lib/video-cache";
 import {
   addByLink,
+  addPlaylistByLink,
   addCandidate,
   addVideoById,
   getArtistTopSongsAction,
@@ -15,6 +16,7 @@ import {
   searchMusicAction,
 } from "@/src/lib/room/add-music";
 import type { YouTubeResult } from "@/src/lib/supabase/youtube-error";
+import { parsePlaylistId } from "@/src/youtube/url";
 import {
   AUTO_SEARCH_DEBOUNCE_MS,
   createRequestGate,
@@ -64,6 +66,9 @@ export function AddMusic({ roomId }: { roomId: string }) {
 
   const trimmed = query.trim();
   const isLink = YT_LINK.test(trimmed);
+  // Only a link that names a playlist and no single video; the same rule the
+  // server applies, so the button label matches what will happen.
+  const isPlaylistLink = parsePlaylistId(trimmed) !== null;
 
   async function run<T>(fn: () => Promise<T>, ok?: (r: T) => string) {
     setBusy(true);
@@ -134,7 +139,20 @@ export function AddMusic({ roomId }: { roomId: string }) {
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!trimmed) return;
-    if (isLink) {
+    if (isPlaylistLink) {
+      // A playlist link adds the whole list. A link naming both a video and a
+      // playlist isn't one (parsePlaylistId returns null), so sharing a track
+      // from inside a playlist still adds that track.
+      void run(
+        async () => unwrap(await addPlaylistByLink(roomId, trimmed)),
+        (added) => {
+          clearSearch();
+          return added === 0
+            ? "Everything in that playlist is already in the room."
+            : `Added ${added} ${added === 1 ? "track" : "tracks"} from that playlist.`;
+        },
+      );
+    } else if (isLink) {
       // Paste-a-link, folded into the same field.
       void run(
         async () => unwrap(await addByLink(roomId, trimmed)),
@@ -225,8 +243,12 @@ export function AddMusic({ roomId }: { roomId: string }) {
               placeholder="Search a song, or paste a YouTube link"
               aria-label="Search or paste a link"
             />
-            <button type="submit" className={isLink ? "btn btn--primary" : "btn"} disabled={busy}>
-              {isLink ? "Add" : "Search"}
+            <button
+              type="submit"
+              className={isLink || isPlaylistLink ? "btn btn--primary" : "btn"}
+              disabled={busy}
+            >
+              {isPlaylistLink ? "Add playlist" : isLink ? "Add" : "Search"}
             </button>
           </form>
           {/* Only while nothing is on screen yet: once results are up, the
