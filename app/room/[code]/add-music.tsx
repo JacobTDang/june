@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Plus, Music, ArrowLeft, Disc3, ChevronRight } from "lucide-react";
 import type { MusicCandidate, ArtistCandidate } from "@/src/discovery";
 import type { VideoMeta } from "@/src/lib/video-cache";
@@ -15,6 +15,11 @@ import {
   searchMusicAction,
 } from "@/src/lib/room/add-music";
 import type { YouTubeResult } from "@/src/lib/supabase/youtube-error";
+import {
+  AUTO_SEARCH_DEBOUNCE_MS,
+  createRequestGate,
+  shouldAutoSearch,
+} from "@/src/discovery/typeahead";
 import { PlaylistCarousel, type Playlist } from "./playlist-carousel";
 
 type Tab = "search" | "playlist";
@@ -47,6 +52,8 @@ export function AddMusic({ roomId }: { roomId: string }) {
   const [message, setMessage] = useState<string | null>(null);
 
   const [query, setQuery] = useState("");
+  const [searching, setSearching] = useState(false);
+  const searchGate = useRef(createRequestGate());
   const [results, setResults] = useState<MusicCandidate[]>([]);
   const [artist, setArtist] = useState<ArtistCandidate | null>(null);
   const [artistView, setArtistView] = useState<ArtistCandidate | null>(null);
@@ -94,6 +101,36 @@ export function AddMusic({ roomId }: { roomId: string }) {
     setArtist(null);
   }
 
+  // Search while typing. The gate makes the newest request the only one that
+  // can write results, so a slow response to a half-typed query can't land
+  // last and replace better ones. Pressing Search still works and goes
+  // through submitSearch — it shares the same gate, so whichever request was
+  // started last wins there too.
+  useEffect(() => {
+    if (!shouldAutoSearch(query, isLink)) return;
+
+    const timer = setTimeout(() => {
+      const token = searchGate.current.begin();
+      setSearching(true);
+      void searchMusicAction(query.trim())
+        .then((result) => {
+          if (!searchGate.current.accept(token)) return;
+          setResults(result.songs);
+          setArtist(result.artist);
+        })
+        .catch(() => {
+          // Typeahead is opportunistic: a failed keystroke-search leaves the
+          // previous results alone and says nothing. Pressing Search runs the
+          // same query through `run`, which does report the failure.
+        })
+        .finally(() => {
+          if (searchGate.current.accept(token)) setSearching(false);
+        });
+    }, AUTO_SEARCH_DEBOUNCE_MS);
+
+    return () => clearTimeout(timer);
+  }, [query, isLink]);
+
   function submitSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!trimmed) return;
@@ -107,8 +144,10 @@ export function AddMusic({ roomId }: { roomId: string }) {
         },
       );
     } else {
+      const token = searchGate.current.begin();
       void run(async () => {
         const result = await searchMusicAction(trimmed);
+        if (!searchGate.current.accept(token)) return;
         setResults(result.songs);
         setArtist(result.artist);
       });
@@ -190,6 +229,14 @@ export function AddMusic({ roomId }: { roomId: string }) {
               {isLink ? "Add" : "Search"}
             </button>
           </form>
+          {/* Only while nothing is on screen yet: once results are up, the
+              next keystroke's search replaces them in place, and a spinner
+              over stale-but-useful results is just flicker. */}
+          {searching && results.length === 0 && (
+            <p className="add__hint" role="status">
+              Searching…
+            </p>
+          )}
           {artist && (
             <button
               className="add__artistchip"

@@ -1,8 +1,14 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play } from "lucide-react";
+import { Play, Volume2, VolumeX } from "lucide-react";
 import { advanceTrack, markTrackReady } from "@/src/lib/room/actions";
+import {
+  PLAYBACK_MODE_STORAGE_KEY,
+  readPlaybackMode,
+  shouldPlayHere,
+  type PlaybackMode,
+} from "@/src/lib/room/playback-mode";
 import { playbackCorrection } from "@/src/lib/room/sync";
 import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
@@ -107,6 +113,17 @@ export function Player({
   /** Whether the current track already got its one link re-mint. */
   const reminted = useRef(false);
   const [started, setStarted] = useState(false);
+  // Per-device, so a second screen can follow the jam without doubling the
+  // sound. Read from storage after mount: the server can't know this device's
+  // choice, and rendering it during SSR would mismatch on hydration.
+  const [mode, setMode] = useState<PlaybackMode>("play");
+  useEffect(() => {
+    try {
+      setMode(readPlaybackMode(window.localStorage.getItem(PLAYBACK_MODE_STORAGE_KEY)));
+    } catch {
+      // Storage unavailable — stay on the default and play.
+    }
+  }, []);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [reloadNonce, setReloadNonce] = useState(0);
   // Set when the loader's NotAllowedError path re-offers the tap gate;
@@ -130,6 +147,20 @@ export function Player({
     const audio = audioRef.current;
     if (!started || !audio) return;
     const np = nowPlayingRef.current;
+    // Following along silently: hold no source at all rather than a paused
+    // one, so this device neither streams bytes nor claims the media session.
+    // Note the boundary this draws: readiness (markTrackReady, below) is
+    // confirmed by a device that is actually loading the track, so a room
+    // where *every* device is silent parks on a pending track until someone
+    // switches their sound back on — at which point this effect re-runs and
+    // the jam starts. Nobody listening, nothing playing.
+    if (!shouldPlayHere(mode, started, np !== null)) {
+      audio.pause();
+      audio.removeAttribute("src");
+      currentVideo.current = null;
+      setStatus({ kind: "idle" });
+      return;
+    }
     if (!np || trackKey === null) {
       audio.pause();
       audio.removeAttribute("src");
@@ -257,7 +288,7 @@ export function Player({
     return () => {
       cancelled = true;
     };
-  }, [started, trackKey, roomId]);
+  }, [started, trackKey, roomId, mode]);
 
   // Drift correction + end-of-track fallback, same policy as before.
   useEffect(() => {
@@ -265,7 +296,25 @@ export function Player({
     const id = setInterval(() => {
       const audio = audioRef.current;
       const np = nowPlayingRef.current;
-      if (!audio || !np || np.startedAt === null) return;
+      if (!np || np.startedAt === null) return;
+      const expectedSeconds = (Date.now() + offsetRef.current - np.startedAt) / 1000;
+
+      // Following silently: there's no element to correct, but the track
+      // still has to end. Without this, a room where every device chose
+      // "listen in" would sit on a finished track forever, since the advance
+      // normally rides on the playing device's clock check.
+      if (mode === "silent") {
+        const action = playbackCorrection({
+          expectedSeconds,
+          actualSeconds: expectedSeconds,
+          durationMs: np.durationMs,
+          driftThresholdSeconds: DRIFT_THRESHOLD_S,
+        });
+        if (action.kind === "advance") void advanceTrack(roomId, np.videoId);
+        return;
+      }
+
+      if (!audio) return;
       if (currentVideo.current !== np.videoId || !audio.src) return;
       // Respect a local pause (e.g. from the lock screen); the next tick
       // after resuming re-seeks to the shared clock.
@@ -275,7 +324,7 @@ export function Player({
       // metadata before correcting drift.
       if (audio.readyState < HTMLMediaElement.HAVE_METADATA) return;
       const action = playbackCorrection({
-        expectedSeconds: (Date.now() + offsetRef.current - np.startedAt) / 1000,
+        expectedSeconds,
         actualSeconds: audio.currentTime,
         durationMs: np.durationMs,
         driftThresholdSeconds: DRIFT_THRESHOLD_S,
@@ -287,11 +336,13 @@ export function Player({
       if (action.kind === "seek") audio.currentTime = action.toSeconds;
     }, 2000);
     return () => clearInterval(id);
-  }, [started, roomId]);
+  }, [started, roomId, mode]);
 
-  // Lock-screen metadata + controls.
+  // Lock-screen metadata + controls. Not claimed while following silently:
+  // this device isn't the one making sound, so it has no business owning the
+  // lock screen or the headphone buttons.
   useEffect(() => {
-    if (!started || !nowPlaying || !("mediaSession" in navigator)) return;
+    if (mode === "silent" || !started || !nowPlaying || !("mediaSession" in navigator)) return;
     navigator.mediaSession.metadata = new MediaMetadata({
       title: nowPlaying.title,
       artist: nowPlaying.artist ?? "",
@@ -312,7 +363,7 @@ export function Player({
       navigator.mediaSession.setActionHandler("pause", null);
       navigator.mediaSession.playbackState = "none";
     };
-  }, [started, nowPlaying]);
+  }, [started, nowPlaying, mode]);
 
   // Pre-download upcoming tracks so they're ready when the room reaches them.
   // Best effort by design (see the spec): a failure here surfaces later as a
@@ -379,13 +430,40 @@ export function Player({
     setStarted(true);
   }
 
+  /** Flip this device between making sound and following along silently.
+   *  Switching to "play" is itself the user gesture browsers require, so it
+   *  can unlock and start in one step rather than re-showing the tap gate. */
+  function togglePlayback() {
+    const next: PlaybackMode = mode === "play" ? "silent" : "play";
+    setMode(next);
+    try {
+      window.localStorage.setItem(PLAYBACK_MODE_STORAGE_KEY, next);
+    } catch {
+      // Storage can be unavailable (private mode, blocked cookies). The
+      // choice still applies to this session; it just won't be remembered.
+    }
+    if (next === "play" && !started) start();
+  }
+
+  const silent = mode === "silent";
+
   return (
     <div className="audio-stage">
       <PixelVisualizer
         audio={audioRef.current}
-        mode={visualizerMode(status)}
+        // Nothing to react to when this device isn't the one playing.
+        mode={silent ? "idle" : visualizerMode(status)}
         artworkUrl={nowPlaying?.thumbnailUrl ?? null}
       />
+      <button
+        className="audio-stage__device"
+        onClick={togglePlayback}
+        title={silent ? "Play the jam on this device" : "Follow the jam without sound here"}
+        aria-label={silent ? "Play on this device" : "Stop playing on this device"}
+        aria-pressed={!silent}
+      >
+        {silent ? <VolumeX size={15} /> : <Volume2 size={15} />}
+      </button>
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
@@ -404,7 +482,17 @@ export function Player({
             </p>
           </div>
         )}
-        {!started ? (
+        {silent ? (
+          <>
+            <button onClick={togglePlayback} className="btn btn--primary btn--lg">
+              <Play size={17} fill="currentColor" strokeWidth={0} />
+              Play on this device
+            </button>
+            <p className="audio-stage__notice">
+              You&rsquo;re following the jam here — the sound is playing on your other device.
+            </p>
+          </>
+        ) : !started ? (
           <>
             <button onClick={start} className="btn btn--primary btn--lg">
               <Play size={17} fill="currentColor" strokeWidth={0} />
