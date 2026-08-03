@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { isSilentFrame, spectrumColumns, type SpectrumConfig } from "@/src/audio/spectrum";
+import { highResArtwork } from "@/src/audio/artwork";
 
 export type VisualizerMode = "reactive" | "pulse" | "idle";
 
@@ -16,18 +17,21 @@ export type VisualizerMode = "reactive" | "pulse" | "idle";
  * verbatim here; this file only maps that data onto the dot field.
  */
 
-/** Dot pitch this grid targets, in CSS px — matches the bg wave's spacing
- * (elementSize=22 in WavesBackground) so the grid reads as the same
- * design-system texture, not a bespoke widget. Columns/rows are then derived
- * from the card's actual size, so ~24x7 is the grid at the card's normal
- * size, not a hardcoded constant. */
-const TARGET_CELL_PX = 22;
+/** Dot pitch this grid targets, in CSS px. Originally matched the bg wave's
+ * spacing (elementSize=22 in WavesBackground); deliberately tighter here so
+ * the card reads as a dense constellation over the album-art backdrop
+ * rather than a sparse grid — roughly double the dots per axis versus that
+ * 22px pitch. Columns/rows are then derived from the card's actual size, not
+ * hardcoded. */
+const TARGET_CELL_PX = 13;
 const MIN_COLUMNS = 12;
-const MAX_COLUMNS = 40;
+const MAX_COLUMNS = 70;
 const MIN_ROWS = 4;
-const MAX_ROWS = 10;
+const MAX_ROWS = 20;
 
-const FFT_SIZE = 128;
+/** Raised from 128 (64 bins) so the wider MAX_COLUMNS above has headroom —
+ * see the module-load assertion just below. */
+const FFT_SIZE = 256;
 const SPECTRUM_SMOOTHING = 0.65;
 
 // spectrumColumns throws if columns > bins.length (bins.length is
@@ -65,12 +69,17 @@ const RADIAL_FALLOFF = 0.35;
  * across several rings instead of only the centre dot. */
 const BAND_CURVE = 1.6;
 /** Unlit baseline radius (as a fraction of the cell pitch) — the same static
- * dot size idle/quiet dots have always had. */
-const DOT_RADIUS_RATIO = 0.13;
+ * dot size idle/quiet dots have always had. Nudged down slightly from 0.13:
+ * the ratio alone scales with the cell pitch, but a whole ring's worth of
+ * these tightly-packed cells blooming together at once now reads as one
+ * fused band rather than distinct sparks unless the gap between neighbours
+ * grows a bit to compensate for the higher dot count per ring. */
+const DOT_RADIUS_RATIO = 0.11;
 /** Fully-bloomed radius at intensity 1. Chosen so a dot at peak size (with
  * the cell pitch this grid targets) still leaves a visible gap to its
- * neighbours rather than merging into a blob — see drawRadial. */
-const DOT_RADIUS_RATIO_PEAK = 0.32;
+ * neighbours rather than merging into a blob — see drawRadial. Nudged down
+ * from 0.32 for the same reason as DOT_RADIUS_RATIO above. */
+const DOT_RADIUS_RATIO_PEAK = 0.27;
 
 /** Per-band attack/decay factors for the reactive envelope: rise fast toward
  * a new peak, fall slowly back down, so the bloom breathes instead of
@@ -354,13 +363,23 @@ function drawRadial(
 export function PixelVisualizer({
   audio,
   mode,
+  artworkUrl,
 }: {
   audio: HTMLAudioElement | null;
   mode: VisualizerMode;
+  artworkUrl?: string | null;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef(mode);
+  // The blurred album-art backdrop behind the dot field ("the record is
+  // behind the music"). URL rewriting to a high-res variant is pure and
+  // lives in src/audio/artwork.ts; this component only tracks which
+  // resolved URL (if any) failed to load, so a broken image degrades to
+  // today's plain-surface look — dots only, no broken-image icon — rather
+  // than leaving that to chance.
+  const resolvedArtwork = highResArtwork(artworkUrl);
+  const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
   const gridRef = useRef<Grid>({
     cols: MIN_COLUMNS,
     rows: MIN_ROWS,
@@ -628,6 +647,20 @@ export function PixelVisualizer({
 
   return (
     <div ref={containerRef} className="audio-stage__canvas" aria-hidden="true">
+      {resolvedArtwork !== null && resolvedArtwork !== failedArtwork && (
+        // Keyed by URL: a track change swaps this element wholesale (a
+        // fresh mount, not a re-render of the same node), so the CSS
+        // fade-in animation on .audio-stage__backdrop plays fresh every
+        // time instead of a double-buffer crossfade system.
+        <img
+          key={resolvedArtwork}
+          src={resolvedArtwork}
+          alt=""
+          aria-hidden="true"
+          className="audio-stage__backdrop"
+          onError={() => setFailedArtwork(resolvedArtwork)}
+        />
+      )}
       <canvas ref={canvasRef} style={{ display: "block", width: "100%", height: "100%" }} />
     </div>
   );

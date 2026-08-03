@@ -768,20 +768,61 @@ a:hover {
 }
 .audio-stage {
   --audio-stage-min-h: 160px;
-  --audio-stage-caption-h: 2.25rem;
+  /* Collapsed by default — grown back to its old fixed height only while
+     .audio-stage__status actually holds a message (see the :has() rule just
+     below). This one variable feeds the stage's own min-height, the
+     canvas's bottom inset, and the status strip's own collapse, so all
+     three stay in sync off a single source of truth instead of three rules
+     that could drift apart. */
+  --audio-stage-caption-h: 0rem;
   position: relative;
-  min-height: calc(var(--audio-stage-min-h, 160px) + var(--audio-stage-caption-h, 2.25rem));
+  min-height: calc(var(--audio-stage-min-h, 160px) + var(--audio-stage-caption-h, 0rem));
   border-radius: var(--r);
   background: var(--surface);
   border: 1px solid var(--line);
   overflow: hidden;
   text-align: center;
+  transition: min-height 0.3s var(--ease);
 }
-/* The dot-grid visualizer fills the card behind everything except the
-   caption strip reserved below it. */
+.audio-stage:has(.audio-stage__status:not(:empty)) {
+  --audio-stage-caption-h: 2.25rem;
+}
+/* The dot-grid visualizer (and its blurred album-art backdrop, see
+   .audio-stage__backdrop below) fills the card behind everything except the
+   caption strip reserved below it — reclaiming that band entirely while the
+   strip is empty. */
 .audio-stage__canvas {
   position: absolute;
-  inset: 0 0 var(--audio-stage-caption-h, 2.25rem) 0;
+  inset: 0 0 var(--audio-stage-caption-h, 0rem) 0;
+  transition: inset 0.3s var(--ease);
+}
+/* A large, heavily blurred and dimmed render of the current track's cover,
+   behind the canvas: the record sitting behind the music. A real <img> (not
+   a background-image) so the browser fetches it as an actual resource and a
+   failed load fires a genuine onError the component reacts to. Overscaled
+   so the blur's edge falloff lands outside the visible frame instead of
+   visibly softening right at the edge. Keyed by URL in pixel-visualizer.tsx,
+   so a track change mounts a fresh element and this fade-in animation plays
+   again — a simple crossfade-by-remount rather than a double-buffer. */
+.audio-stage__backdrop {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.15);
+  filter: blur(34px) brightness(0.45);
+  opacity: 0.85;
+  animation: audioBackdropIn 0.6s var(--ease) both;
+  pointer-events: none;
+}
+@keyframes audioBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.85;
+  }
 }
 .audio-stage__content {
   position: relative;
@@ -799,21 +840,37 @@ a:hover {
    above (so the tap button / empty-room copy keep centering against just
    that area), and this is pinned `--audio-stage-caption-h` past its bottom
    edge — i.e. flush with .audio-stage's own bottom edge, in the band the
-   canvas above deliberately stops short of. Renders conditionally already;
-   the reserved height above is constant either way, so there's no shift
-   when it's empty. */
+   canvas above deliberately stops short of. Always rendered now (see
+   player.tsx), possibly with no text, so :empty below can collapse it
+   instead of a fixed-height band sitting empty while music plays: max-height
+   and bottom read the same --audio-stage-caption-h variable the stage and
+   canvas above use, so it goes to zero automatically the moment the :has()
+   rule above stops matching, in step with the canvas reclaiming the space. */
 .audio-stage__status {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: calc(-1 * var(--audio-stage-caption-h, 2.25rem));
-  height: var(--audio-stage-caption-h, 2.25rem);
+  bottom: calc(-1 * var(--audio-stage-caption-h, 0rem));
+  max-height: var(--audio-stage-caption-h, 0rem);
   margin: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   border-top: 1px solid var(--line);
   font-size: 0.85rem;
+  padding: 0 1rem;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    opacity 0.3s var(--ease),
+    max-height 0.3s var(--ease),
+    padding 0.3s var(--ease),
+    bottom 0.3s var(--ease);
+}
+.audio-stage__status:empty {
+  opacity: 0;
+  padding: 0;
+  border-top-color: transparent;
 }
 .audio-stage__notice {
   margin: 0;
