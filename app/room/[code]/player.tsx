@@ -488,9 +488,7 @@ export function Player({
               <Play size={17} fill="currentColor" strokeWidth={0} />
               Play on this device
             </button>
-            <p className="audio-stage__notice">
-              You&rsquo;re following the jam here — the sound is playing on your other device.
-            </p>
+            <p className="audio-stage__notice">Sound is off on this device.</p>
           </>
         ) : !started ? (
           <>
@@ -499,9 +497,7 @@ export function Player({
               Tap to listen in
             </button>
             {autoplayBlocked && (
-              <p className="audio-stage__notice">
-                Your browser paused autoplay — tap again to join.
-              </p>
+              <p className="audio-stage__notice">Your browser paused autoplay. Tap again to join.</p>
             )}
           </>
         ) : (
