@@ -768,18 +768,91 @@ a:hover {
 }
 .audio-stage {
   --audio-stage-min-h: 160px;
+  /* Collapsed by default — grown back to its old fixed height only while
+     .audio-stage__status actually holds a message (see the :has() rule just
+     below). This one variable feeds the stage's own min-height, the
+     canvas's bottom inset, and the status strip's own collapse, so all
+     three stay in sync off a single source of truth instead of three rules
+     that could drift apart. */
+  --audio-stage-caption-h: 0rem;
   position: relative;
-  min-height: var(--audio-stage-min-h, 160px);
+  min-height: calc(var(--audio-stage-min-h, 160px) + var(--audio-stage-caption-h, 0rem));
   border-radius: var(--r);
   background: var(--surface);
   border: 1px solid var(--line);
   overflow: hidden;
   text-align: center;
+  transition: min-height 0.3s var(--ease);
 }
-/* The dot-grid visualizer fills the card behind everything else. */
+.audio-stage:has(.audio-stage__status:not(:empty)) {
+  --audio-stage-caption-h: 2.25rem;
+}
+/* The dot-grid visualizer (and its blurred album-art backdrop, see
+   .audio-stage__backdrop below) fills the card behind everything except the
+   caption strip reserved below it — reclaiming that band entirely while the
+   strip is empty. */
 .audio-stage__canvas {
   position: absolute;
+  inset: 0 0 var(--audio-stage-caption-h, 0rem) 0;
+  transition: inset 0.3s var(--ease);
+  /* Actually creates the shared stacking context the art/scrim/canvas
+     z-indexes below assume: position + z-index:auto alone does NOT open one,
+     so without this the canvas's z-index:2 escaped this box entirely and
+     out-ranked .audio-stage__content's z-index:1 in the *parent* stacking
+     context — sitting on top of and swallowing every click to the button
+     and status text. */
+  isolation: isolate;
+}
+/* A large, heavily blurred and dimmed render of the current track's cover,
+   behind the canvas: the record sitting behind the music. A real <img> (not
+   a background-image) so the browser fetches it as an actual resource and a
+   failed load fires a genuine onError the component reacts to. Overscaled
+   so the blur's edge falloff lands outside the visible frame instead of
+   visibly softening right at the edge. Keyed by URL in pixel-visualizer.tsx,
+   so a track change mounts a fresh element and this fade-in animation plays
+   again — a simple crossfade-by-remount rather than a double-buffer. */
+.audio-stage__backdrop {
+  position: absolute;
   inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.15);
+  /* Bright covers otherwise wash the card out and swallow the dots, so the
+     art is dimmed hard and desaturated a little; the scrim below then
+     guarantees contrast no matter how light the artwork is. */
+  filter: blur(34px) brightness(0.42) saturate(0.9);
+  opacity: 0.9;
+  animation: audioBackdropIn 0.6s var(--ease) both;
+  pointer-events: none;
+}
+/* Constant dark scrim between the art and the dots. Without it the dots'
+   legibility would depend on whichever album cover is playing, which is not
+   something the design can control. Explicit z-indexes because all three
+   layers (art, scrim, canvas) share one stacking context. */
+.audio-stage__backdrop {
+  z-index: 0;
+}
+.audio-stage__canvas:has(.audio-stage__backdrop)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  opacity: 0.42;
+  z-index: 1;
+  pointer-events: none;
+}
+.audio-stage__canvas > canvas {
+  position: relative;
+  z-index: 2;
+}
+@keyframes audioBackdropIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 0.9;
+  }
 }
 .audio-stage__content {
   position: relative;
@@ -792,11 +865,42 @@ a:hover {
   gap: 0.5rem;
   padding: 1.25rem;
 }
+/* A strip of its own beneath the animation, not a caption floating over it:
+   .audio-stage__content's own box stays exactly the animation-area size
+   above (so the tap button / empty-room copy keep centering against just
+   that area), and this is pinned `--audio-stage-caption-h` past its bottom
+   edge — i.e. flush with .audio-stage's own bottom edge, in the band the
+   canvas above deliberately stops short of. Always rendered now (see
+   player.tsx), possibly with no text, so :empty below can collapse it
+   instead of a fixed-height band sitting empty while music plays: max-height
+   and bottom read the same --audio-stage-caption-h variable the stage and
+   canvas above use, so it goes to zero automatically the moment the :has()
+   rule above stops matching, in step with the canvas reclaiming the space. */
 .audio-stage__status {
-  /* A caption riding the card's bottom edge once the visualizer is live —
-     margin-top: auto pushes it down within the centered flex column. */
-  margin: auto 0 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--audio-stage-caption-h, 0rem));
+  max-height: var(--audio-stage-caption-h, 0rem);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--line);
   font-size: 0.85rem;
+  padding: 0 1rem;
+  overflow: hidden;
+  opacity: 1;
+  transition:
+    opacity 0.3s var(--ease),
+    max-height 0.3s var(--ease),
+    padding 0.3s var(--ease),
+    bottom 0.3s var(--ease);
+}
+.audio-stage__status:empty {
+  opacity: 0;
+  padding: 0;
+  border-top-color: transparent;
 }
 .audio-stage__notice {
   margin: 0;
