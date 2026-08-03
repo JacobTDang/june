@@ -1079,23 +1079,20 @@ a:hover {
   flex-direction: column;
   min-width: 0;
 }
+/* A window of about seven messages, then it scrolls inside itself — the same
+   treatment the up-next list gets, so neither list can run the page away. The
+   cap holds at every width: on a tall screen the rail would otherwise stretch
+   the log to whatever height the screen happened to have. */
 .chat__log {
   flex: 1;
   min-height: 8rem;
-  max-height: 26rem;
+  max-height: 22rem;
   overflow: hidden auto;
   overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
   padding-right: 0.25rem;
-}
-@media (min-width: 981px) {
-  /* Stretched by the centre rail — the rail's height is the window, so the
-     log follows it rather than a fixed ceiling. */
-  .chat__log {
-    max-height: none;
-  }
 }
 .chat__empty {
   margin: 0;
