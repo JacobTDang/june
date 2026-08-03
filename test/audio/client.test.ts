@@ -117,7 +117,7 @@ describe("listDownloads", () => {
   it("gets the job list with the bearer token", async () => {
     const { fetch, calls } = stubFetch(() => ({
       body: [
-        { id: "j1", url: "https://www.youtube.com/watch?v=vid1", status: "running", progress: 40, created_at: 2 },
+        { id: "j1", url: "https://www.youtube.com/watch?v=vid1", status: "running", progress: 40, created_at: "2026-08-03T11:00:00" },
       ],
     }));
     const server = createAudioServer({
@@ -129,7 +129,7 @@ describe("listDownloads", () => {
     const jobs = await server.listDownloads();
 
     expect(jobs).toEqual([
-      { id: "j1", url: "https://www.youtube.com/watch?v=vid1", status: "running", progress: 40, created_at: 2 },
+      { id: "j1", url: "https://www.youtube.com/watch?v=vid1", status: "running", progress: 40, created_at: "2026-08-03T11:00:00" },
     ]);
     expect(calls[0]!.url.toString()).toBe("https://audio.test/downloads");
     expect(calls[0]!.init?.method).toBe("GET");

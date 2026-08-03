@@ -14,7 +14,10 @@ export const downloadJobSchema = z.object({
   url: z.string(),
   status: z.string(),
   progress: z.number(),
-  created_at: z.number(),
+  /** ISO 8601 timestamp — the server models this as a datetime, which
+   * serializes to a string, not the epoch number the sibling link response
+   * uses for `expires_at`. Verified against the running server. */
+  created_at: z.string(),
 });
 
 export const downloadsResponseSchema = z.array(downloadJobSchema);

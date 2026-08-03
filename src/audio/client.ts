@@ -9,7 +9,7 @@ export interface DownloadJob {
   url: string;
   status: string;
   progress: number;
-  created_at: number;
+  created_at: string;
 }
 
 /** The slice of mp3server the room player needs. */
