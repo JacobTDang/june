@@ -697,10 +697,17 @@ a:hover {
 }
 
 /* ---- Jam room: single editorial column ---- */
+/* The room owns the whole viewport: a column that runs top bar, then a main
+   section which takes every remaining pixel (see .room__main). Without this
+   the three rails sat at their natural height and left the bottom half of a
+   desktop screen as dead background. */
 .room {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1.5rem 6rem;
+  padding: 0 1.5rem 2.5rem;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 .room__bar {
   display: flex;
@@ -969,6 +976,10 @@ a:hover {
   grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(310px, 350px);
   gap: 1.75rem;
   align-items: start;
+  /* Claim the height the .room column leaves over, so the rails have real
+     room to distribute instead of hugging their content at the top. */
+  flex: 1;
+  align-content: start;
 }
 .room__queue {
   min-width: 0;
@@ -980,6 +991,52 @@ a:hover {
 .room__center .stage {
   position: sticky;
   top: 1.5rem;
+}
+
+/* Wide screens: the rails stretch to the section's full height and the stage
+   grows with the viewport, so the composition reaches the bottom of the
+   screen rather than floating in the top third. Kept above the stacking
+   breakpoints — once the layout collapses, natural height reads better. */
+@media (min-width: 981px) {
+  .room__main {
+    align-items: stretch;
+    align-content: stretch;
+  }
+  /* The hero spans the section's full height rather than sitting in it:
+     centring a short card only moves the empty band lower down the page. The
+     chain has to be unbroken — every link between .room__center and the card
+     grows, and each carries min-height:0 so a flex item can shrink below its
+     content instead of forcing the page taller. */
+  .room__center {
+    display: flex;
+    flex-direction: column;
+  }
+  .room__center .stage {
+    position: static;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+  }
+  .room__center .player-wrap {
+    display: flex;
+    flex: 1;
+    min-height: 0;
+  }
+  .room__center .audio-stage {
+    flex: 1;
+  }
+  /* The queue fills its rail and scrolls inside it, so a long queue uses the
+     height that's actually there instead of a fixed 22rem window. */
+  .room__queue {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .room__queue .queue {
+    flex: 1;
+    max-height: none;
+  }
 }
 .room__rail {
   min-width: 0;
