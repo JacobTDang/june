@@ -31,6 +31,9 @@ export interface YouTubeClient {
    * what makes a private playlist of your own work here too.
    */
   listPublicPlaylistVideoIds(playlistId: string): Promise<string[]>;
+  /** Summary of any public playlist, by id — the API key is enough. Null when
+   *  no playlist has that id (or it isn't public). */
+  getPublicPlaylist(playlistId: string): Promise<Playlist | null>;
 }
 
 /** The one bit of `fetch` we use - injectable so tests need no network. */
@@ -167,6 +170,15 @@ export function createYouTubeClient(config: YouTubeClientConfig): YouTubeClient 
 
     async listPublicPlaylistVideoIds(playlistId) {
       return playlistVideoIds(playlistId, false);
+    },
+
+    async getPublicPlaylist(playlistId) {
+      if (!playlistId) throw new Error("getPublicPlaylist: playlistId is required");
+      const { items } = parsePlaylistsResponse(
+        await get("playlists", { part: "snippet,contentDetails", id: playlistId }),
+      );
+      const first = items[0];
+      return first ? toPlaylist(first) : null;
     },
   };
 

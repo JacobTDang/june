@@ -195,6 +195,34 @@ describe("createYouTubeClient", () => {
       expect(calls[0]!.url.searchParams.get("playlistId")).toBe("PL1");
     });
 
+    it("reads a public playlist's summary with the key alone", async () => {
+      const { fetch, calls } = stubFetch(() => ({
+        body: {
+          items: [
+            {
+              id: "PL1",
+              snippet: { title: "Late night", thumbnails: {} },
+              contentDetails: { itemCount: 12 },
+            },
+          ],
+        },
+      }));
+      const client = createYouTubeClient({ apiKey: "K", fetch });
+
+      expect(await client.getPublicPlaylist("PL1")).toMatchObject({
+        id: "PL1",
+        title: "Late night",
+        itemCount: 12,
+      });
+      expect(calls[0]!.url.searchParams.get("id")).toBe("PL1");
+    });
+
+    it("returns null when no playlist has that id", async () => {
+      const { fetch } = stubFetch(() => ({ body: { items: [] } }));
+      const client = createYouTubeClient({ apiKey: "K", fetch });
+      expect(await client.getPublicPlaylist("PLmissing")).toBeNull();
+    });
+
     it("still sends a token when there is one, so your own private list works", async () => {
       const { fetch, calls } = stubFetch(() => ({ body: { items: [] } }));
       const client = createYouTubeClient({ apiKey: "K", accessToken: "T", fetch });
@@ -221,6 +249,7 @@ const fakeClient = (over: Partial<YouTubeClient>): YouTubeClient => ({
   listPlaylists: async () => [],
   listPlaylistVideoIds: async () => [],
   listPublicPlaylistVideoIds: async () => [],
+  getPublicPlaylist: async () => null,
   ...over,
 });
 
