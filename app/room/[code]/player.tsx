@@ -8,6 +8,7 @@ import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { shouldSkipPreparing } from "@/src/audio/preparing";
 import { createClient } from "@/src/lib/supabase/client";
+import { PixelVisualizer, type VisualizerMode } from "./pixel-visualizer";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
 const DRIFT_THRESHOLD_S = 1.2;
@@ -66,6 +67,19 @@ function statusText(status: Status): string {
   }
 }
 
+function visualizerMode(status: Status): VisualizerMode {
+  switch (status.kind) {
+    case "playing":
+      return "reactive";
+    case "loading":
+    case "preparing":
+    case "unreachable":
+      return "pulse";
+    default:
+      return "idle";
+  }
+}
+
 export function Player({
   roomId,
   nowPlaying,
@@ -88,6 +102,9 @@ export function Player({
   const [started, setStarted] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [reloadNonce, setReloadNonce] = useState(0);
+  // Set when the loader's NotAllowedError path re-offers the tap gate;
+  // cleared on the next start() so it doesn't linger past a fresh attempt.
+  const [autoplayBlocked, setAutoplayBlocked] = useState(false);
 
   offsetRef.current = offset;
   nowPlayingRef.current = nowPlaying;
@@ -178,6 +195,7 @@ export function Player({
             // than claiming to play.
             setStarted(false);
             setStatus({ kind: "idle" });
+            setAutoplayBlocked(true);
             return;
           }
           // Any other rejection is a source failure, which also fires the
@@ -298,6 +316,7 @@ export function Player({
   }
 
   function start() {
+    setAutoplayBlocked(false);
     const audio = audioRef.current;
     if (audio) {
       audio.src = SILENCE;
@@ -310,22 +329,33 @@ export function Player({
 
   return (
     <div className="audio-stage">
+      <PixelVisualizer audio={audioRef.current} mode={visualizerMode(status)} />
       <audio
         ref={audioRef}
+        crossOrigin="anonymous"
         playsInline
         onEnded={onEnded}
         onError={onError}
         onPlay={syncPlaybackState}
         onPause={syncPlaybackState}
       />
-      {!started ? (
-        <button onClick={start} className="btn btn--primary btn--lg">
-          <Play size={17} fill="currentColor" strokeWidth={0} />
-          Tap to listen in
-        </button>
-      ) : (
-        <p className="muted audio-stage__status">{statusText(status)}</p>
-      )}
+      <div className="audio-stage__content">
+        {!started ? (
+          <>
+            <button onClick={start} className="btn btn--primary btn--lg">
+              <Play size={17} fill="currentColor" strokeWidth={0} />
+              Tap to listen in
+            </button>
+            {autoplayBlocked && (
+              <p className="audio-stage__notice">
+                Your browser paused autoplay — tap again to join.
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="muted audio-stage__status">{statusText(status)}</p>
+        )}
+      </div>
     </div>
   );
 }
