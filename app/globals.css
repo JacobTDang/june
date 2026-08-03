@@ -909,11 +909,17 @@ a:hover {
   padding: 0;
   border-top-color: transparent;
 }
+/* Sits at the foot of the card rather than in the flow: in the flow it
+   pushes the button it explains off the card's centre, which reads as a
+   misaligned button rather than as a centred pair. */
 .audio-stage__notice {
+  position: absolute;
+  left: 1.25rem;
+  right: 1.25rem;
+  bottom: 1rem;
   margin: 0;
   font-size: 0.78rem;
   color: var(--muted);
-  max-width: 30ch;
 }
 
 .now {
