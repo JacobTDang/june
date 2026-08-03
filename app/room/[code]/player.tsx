@@ -381,7 +381,11 @@ export function Player({
 
   return (
     <div className="audio-stage">
-      <PixelVisualizer audio={audioRef.current} mode={visualizerMode(status)} />
+      <PixelVisualizer
+        audio={audioRef.current}
+        mode={visualizerMode(status)}
+        artworkUrl={nowPlaying?.thumbnailUrl ?? null}
+      />
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
@@ -413,10 +417,9 @@ export function Player({
             )}
           </>
         ) : (
-          nowPlaying !== null &&
-          statusText(status) && (
-            <p className="muted audio-stage__status">{statusText(status)}</p>
-          )
+          <p className="muted audio-stage__status">
+            {nowPlaying !== null ? statusText(status) : ""}
+          </p>
         )}
       </div>
     </div>
