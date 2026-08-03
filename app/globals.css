@@ -1025,6 +1025,18 @@ a:hover {
   }
   .room__center .audio-stage {
     flex: 1;
+    display: flex;
+    flex-direction: column;
+  }
+  /* Centre the copy and the tap button in the card that's actually on screen:
+     .audio-stage__content otherwise centres inside its own min-height and
+     leaves everything sitting near the top of a tall stage. The margin keeps
+     the caption band free — .audio-stage__status hangs just below this box,
+     the same offset .audio-stage__canvas reserves with its bottom inset. */
+  .room__center .audio-stage__content {
+    flex: 1;
+    margin-bottom: var(--audio-stage-caption-h, 0rem);
+    transition: margin-bottom 0.3s var(--ease);
   }
   /* The queue fills its rail and scrolls inside it, so a long queue uses the
      height that's actually there instead of a fixed 22rem window. */
