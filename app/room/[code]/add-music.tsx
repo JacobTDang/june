@@ -7,6 +7,7 @@ import type { VideoMeta } from "@/src/lib/video-cache";
 import {
   addByLink,
   addPlaylistByLink,
+  getPlaylistByLink,
   addCandidate,
   addVideoById,
   getArtistTopSongsAction,
@@ -63,6 +64,11 @@ export function AddMusic({ roomId }: { roomId: string }) {
   const [playlists, setPlaylists] = useState<Playlist[] | null>(null);
   const [openPlaylist, setOpenPlaylist] = useState<Playlist | null>(null);
   const [playlistTracks, setPlaylistTracks] = useState<VideoMeta[] | null>(null);
+  // Set when the open playlist came from a pasted link rather than the user's
+  // own playlists: it decides where "back" goes and which import "Add all"
+  // uses (the pasted one needs no YouTube account).
+  const [playlistLink, setPlaylistLink] = useState<string | null>(null);
+  const [playlistTruncated, setPlaylistTruncated] = useState(false);
 
   const trimmed = query.trim();
   const isLink = YT_LINK.test(trimmed);
@@ -140,18 +146,24 @@ export function AddMusic({ roomId }: { roomId: string }) {
     e.preventDefault();
     if (!trimmed) return;
     if (isPlaylistLink) {
-      // A playlist link adds the whole list. A link naming both a video and a
-      // playlist isn't one (parsePlaylistId returns null), so sharing a track
-      // from inside a playlist still adds that track.
-      void run(
-        async () => unwrap(await addPlaylistByLink(roomId, trimmed)),
-        (added) => {
-          clearSearch();
-          return added === 0
-            ? "Everything in that playlist is already in the room."
-            : `Added ${added} ${added === 1 ? "track" : "tracks"} from that playlist.`;
-        },
-      );
+      // A playlist link opens the list to pick from rather than emptying it
+      // into the room; "Add all" in that view is the whole-playlist path. A
+      // link naming both a video and a playlist isn't a playlist link (see
+      // parsePlaylistId), so sharing one track from a playlist still adds it.
+      const link = trimmed;
+      void run(async () => {
+        const view = unwrap(await getPlaylistByLink(link));
+        setOpenPlaylist({
+          id: view.playlist.id,
+          title: view.playlist.title,
+          itemCount: view.playlist.itemCount,
+          thumbnailUrl: view.playlist.thumbnailUrl ?? undefined,
+        });
+        setPlaylistLink(link);
+        setPlaylistTruncated(view.truncated);
+        setPlaylistTracks(view.tracks);
+        clearSearch();
+      });
     } else if (isLink) {
       // Paste-a-link, folded into the same field.
       void run(
@@ -233,7 +245,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
         ))}
       </div>
 
-      {tab === "search" && !artistView && (
+      {tab === "search" && !artistView && !openPlaylist && (
         <>
           <form className="add__search" onSubmit={submitSearch}>
             <input
@@ -316,7 +328,7 @@ export function AddMusic({ roomId }: { roomId: string }) {
         </>
       )}
 
-      {tab === "playlist" && openPlaylist && (
+      {openPlaylist && (
         <>
           <div className="add__plhead">
             <button
@@ -324,10 +336,12 @@ export function AddMusic({ roomId }: { roomId: string }) {
               onClick={() => {
                 setOpenPlaylist(null);
                 setPlaylistTracks(null);
+                setPlaylistLink(null);
+                setPlaylistTruncated(false);
               }}
             >
               <ArrowLeft size={15} />
-              Playlists
+              {playlistLink ? "Search" : "Playlists"}
             </button>
             <span className="add__pltitle">{openPlaylist.title}</span>
             <button
@@ -335,7 +349,10 @@ export function AddMusic({ roomId }: { roomId: string }) {
               disabled={busy}
               onClick={() =>
                 void run(
-                  async () => unwrap(await importPlaylistToRoom(roomId, openPlaylist.id)),
+                  async () =>
+                    playlistLink
+                      ? unwrap(await addPlaylistByLink(roomId, playlistLink))
+                      : unwrap(await importPlaylistToRoom(roomId, openPlaylist.id)),
                   (n) => `Added ${n} songs.`,
                 )
               }
@@ -343,6 +360,12 @@ export function AddMusic({ roomId }: { roomId: string }) {
               Add all
             </button>
           </div>
+          {playlistTruncated && (
+            <p className="add__hint">
+              Showing the first {playlistTracks?.length ?? 0} of {openPlaylist.itemCount}. “Add all”
+              takes the whole playlist.
+            </p>
+          )}
           {playlistTracks === null ? (
             <p className="muted">Loading songs…</p>
           ) : (

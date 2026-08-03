@@ -179,8 +179,62 @@ export async function importPlaylistToRoom(
   });
 }
 
+/** How many of a pasted playlist's tracks are listed for picking. A playlist
+ *  can hold thousands; the browse list is for choosing from, and "Add all"
+ *  still takes the whole thing. */
+const PLAYLIST_BROWSE_LIMIT = 100;
+
+export interface PublicPlaylistView {
+  playlist: { id: string; title: string; itemCount: number; thumbnailUrl: string | null };
+  tracks: VideoMeta[];
+  /** True when the playlist holds more than the listed tracks. */
+  truncated: boolean;
+}
+
 /**
- * Add a playlist someone pasted a link to. Read with the API key, so it works
+ * Open a pasted playlist for picking: its summary plus the first tracks, so
+ * the room can choose songs instead of swallowing the whole list. Read with
+ * the API key alone, like addPlaylistByLink below.
+ */
+export async function getPlaylistByLink(url: string): Promise<YouTubeResult<PublicPlaylistView>> {
+  return runYouTube(async () => {
+    const playlistId = requirePlaylistId(url);
+    const youtube = await youtubeClient();
+
+    const [summary, ids] = await Promise.all([
+      youtube.getPublicPlaylist(playlistId),
+      youtube.listPublicPlaylistVideoIds(playlistId),
+    ]);
+    if (summary === null && ids.length === 0) {
+      throw new Error("Couldn't open that playlist — it may be private or deleted.");
+    }
+
+    const shown = ids.slice(0, PLAYLIST_BROWSE_LIMIT);
+    return {
+      playlist: {
+        id: playlistId,
+        title: summary?.title ?? "Playlist",
+        itemCount: summary?.itemCount ?? ids.length,
+        thumbnailUrl: summary?.thumbnailUrl ?? null,
+      },
+      tracks: await getVideoMetas(shown, supabaseVideoCache(youtube)),
+      truncated: ids.length > shown.length,
+    };
+  });
+}
+
+/** Shared parse + refusal of the ids the API can't list. */
+function requirePlaylistId(url: string): string {
+  const playlistId = parsePlaylistId(url);
+  if (!playlistId) throw new Error("That doesn't look like a YouTube playlist link.");
+  if (isMixPlaylistId(playlistId)) {
+    throw new Error("YouTube mixes can't be imported — try a normal playlist.");
+  }
+  return playlistId;
+}
+
+/**
+ * Add every track from a pasted playlist. Read with the API key, so it works
  * for any public playlist without the pasting user connecting a YouTube
  * account; a token is still used when one exists, which covers your own
  * private lists.
@@ -190,12 +244,7 @@ export async function addPlaylistByLink(
   url: string,
 ): Promise<YouTubeResult<number>> {
   return runYouTube(async () => {
-    const playlistId = parsePlaylistId(url);
-    if (!playlistId) throw new Error("That doesn't look like a YouTube playlist link.");
-    if (isMixPlaylistId(playlistId)) {
-      throw new Error("YouTube mixes can't be imported — try a normal playlist.");
-    }
-
+    const playlistId = requirePlaylistId(url);
     const youtube = await youtubeClient();
     return importVideoIds(roomId, await youtube.listPublicPlaylistVideoIds(playlistId), youtube);
   });
