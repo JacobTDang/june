@@ -112,6 +112,29 @@ describe("spectrumColumns - validation", () => {
     expect(() => spectrumColumns(frame, null, { columns: 0, smoothing: 0 })).toThrow();
     expect(() => spectrumColumns(frame, null, { columns: -1, smoothing: 0 })).toThrow();
   });
+
+  it("throws when columns exceeds bins.length, naming both numbers", () => {
+    const frame = silentBins(4);
+    expect(() => spectrumColumns(frame, null, { columns: 8, smoothing: 0 })).toThrow(/8/);
+    expect(() => spectrumColumns(frame, null, { columns: 8, smoothing: 0 })).toThrow(/4/);
+  });
+
+  it("throws when smoothing is negative", () => {
+    const frame = silentBins(8);
+    expect(() => spectrumColumns(frame, null, { columns: 1, smoothing: -0.01 })).toThrow();
+  });
+
+  it("throws when smoothing is 1 or greater", () => {
+    const frame = silentBins(8);
+    expect(() => spectrumColumns(frame, null, { columns: 1, smoothing: 1 })).toThrow();
+    expect(() => spectrumColumns(frame, null, { columns: 1, smoothing: 1.5 })).toThrow();
+  });
+
+  it("accepts smoothing at the lower bound (0) and just under the upper bound", () => {
+    const frame = silentBins(8);
+    expect(() => spectrumColumns(frame, null, { columns: 1, smoothing: 0 })).not.toThrow();
+    expect(() => spectrumColumns(frame, null, { columns: 1, smoothing: 0.999 })).not.toThrow();
+  });
 });
 
 describe("isSilentFrame", () => {
@@ -123,5 +146,9 @@ describe("isSilentFrame", () => {
     const frame = silentBins(32);
     frame[17] = 1;
     expect(isSilentFrame(frame)).toBe(false);
+  });
+
+  it("throws on empty input", () => {
+    expect(() => isSilentFrame(new Uint8Array(0))).toThrow();
   });
 });

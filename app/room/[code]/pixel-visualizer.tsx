@@ -9,7 +9,8 @@ export type VisualizerMode = "reactive" | "pulse" | "idle";
  * Reactive dot-matrix visualizer for the room player card. Renders a canvas
  * grid of the same amber dots as june's background field (see
  * WavesBackground in app/character-wave.tsx), lit column-by-column from an
- * AnalyserNode tap on the shared <audio> element. Keeps the DOM layer thin:
+ * AnalyserNode fed by a captureStream copy of the shared <audio> element's
+ * output (never a reroute — see getAudioGraph below). Keeps the DOM layer thin:
  * all the actual spectrum math lives in src/audio/spectrum.ts and is
  * consumed verbatim here.
  */
@@ -56,35 +57,51 @@ interface Grid {
   height: number;
 }
 
-// createMediaElementSource throws if it is ever called a second time for the
-// same <audio> element (even from a different AudioContext). This map makes
-// graph creation idempotent per element for the page's lifetime, regardless
-// of how many times a PixelVisualizer mounts/remounts.
-const audioGraphs = new WeakMap<HTMLAudioElement, AudioGraph>();
+/** captureStream isn't in the standard lib DOM types for HTMLAudioElement
+ * yet, despite being implemented by every non-Safari engine — this is the
+ * narrowest way to feature-detect it without reaching for `any`. */
+type CaptureCapableAudio = HTMLAudioElement & { captureStream?: () => MediaStream };
 
+/**
+ * Build a read-only *copy* of the element's audio for the analyser, never a
+ * reroute. `captureStream` clones the element's output into a MediaStream;
+ * feeding that (not the element itself) into the AudioContext means the
+ * element keeps playing through its own native output path untouched. A
+ * suspended AudioContext (iOS backgrounding, tab throttling, etc.) can then
+ * only freeze the analyser's data — it can never silence audible playback,
+ * which `createMediaElementSource` risked because it reroutes the element's
+ * actual output through the (suspendable) context graph.
+ *
+ * Returns null when there is no usable tap: Safari has no captureStream on
+ * <audio> elements at all, and in either case the caller's shimmer fallback
+ * is the correct trade — it costs only the visualizer, never the audio,
+ * because playback must never depend on the visualizer working.
+ */
 function getAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
-  const existing = audioGraphs.get(audio);
-  if (existing) return existing;
+  const captureCapable = audio as CaptureCapableAudio;
+  if (typeof captureCapable.captureStream !== "function") {
+    return null;
+  }
   try {
+    const stream = captureCapable.captureStream();
     const context = new AudioContext();
     const analyser = context.createAnalyser();
     analyser.fftSize = FFT_SIZE;
-    const source = context.createMediaElementSource(audio);
+    const source = context.createMediaStreamSource(stream);
     source.connect(analyser);
-    analyser.connect(context.destination);
-    const graph: AudioGraph = {
+    // Deliberately never connected to context.destination — see the
+    // function doc: this graph is a tap, not a playback path.
+    return {
       context,
       analyser,
       bins: new Uint8Array(analyser.frequencyBinCount),
     };
-    audioGraphs.set(audio, graph);
-    return graph;
   } catch {
     // Deliberate best-effort path: AudioContext/tap construction can throw
     // outright in some environments (no Web Audio support, a restrictive
     // embed context). The caller falls back to the pulse shimmer for the
     // rest of the session — playback itself is unaffected, since nothing
-    // here touches the element's normal output path unless this succeeds.
+    // here ever touches the element's normal output path.
     return null;
   }
 }
@@ -123,6 +140,10 @@ function drawDots(ctx: CanvasRenderingContext2D, grid: Grid, intensities: readon
   const cellH = height / rows;
   const radius = Math.max(0.6, Math.min(cellW, cellH) * DOT_RADIUS_RATIO);
 
+  // Fill color never changes between dots — only opacity does — so set it
+  // once per frame and vary ctx.globalAlpha per dot instead of building a
+  // fresh rgba() template string per dot (this grid can be hundreds of dots).
+  ctx.fillStyle = `rgb(${ACCENT_RGB})`;
   for (let c = 0; c < cols; c++) {
     const litRows = (intensities[c] ?? 0) * rows;
     const cx = cellW * (c + 0.5);
@@ -135,12 +156,13 @@ function drawDots(ctx: CanvasRenderingContext2D, grid: Grid, intensities: readon
         alpha = DOT_BASE_ALPHA + (DOT_PEAK_ALPHA - DOT_BASE_ALPHA) * coverage * nearBase;
       }
       const cy = cellH * (r + 0.5);
+      ctx.globalAlpha = alpha;
       ctx.beginPath();
-      ctx.fillStyle = `rgba(${ACCENT_RGB}, ${alpha.toFixed(3)})`;
       ctx.arc(cx, cy, radius, 0, Math.PI * 2);
       ctx.fill();
     }
   }
+  ctx.globalAlpha = 1;
 }
 
 export function PixelVisualizer({
@@ -154,6 +176,18 @@ export function PixelVisualizer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const modeRef = useRef(mode);
   const gridRef = useRef<Grid>({ cols: MIN_COLUMNS, rows: MIN_ROWS, width: 0, height: 0 });
+  // Lazily built per mounted component (replaces a former module-level
+  // WeakMap): nothing about the tap depends on playback anymore, so there's
+  // no idempotency hazard to guard against — captureStream can be called
+  // again freely — and holding it in a ref lets the draw effect's cleanup
+  // close the context deterministically instead of leaking it.
+  const graphRef = useRef<AudioGraph | null>(null);
+  // Lets the [mode] effect below (and the reduce-motion listener) ask the
+  // still-running draw effect to reschedule its rAF loop after an idle
+  // draw-once has stopped it, without the draw effect itself depending on
+  // `mode` (which would force it to tear down and rebuild the audio graph
+  // on every mode change).
+  const kickLoopRef = useRef<() => void>(() => {});
 
   useEffect(() => {
     modeRef.current = mode;
@@ -189,7 +223,9 @@ export function PixelVisualizer({
   // audio element identity settles and lives for the component's lifetime —
   // `mode` and the grid size are read live via refs each frame, so this
   // effect never has to tear down and rebuild the audio graph on a mode
-  // change (which would also risk re-throwing on createMediaElementSource).
+  // change. Idle frames are static, so the loop draws once and stops
+  // scheduling itself; the [mode] effect below and the reduce-motion
+  // listener restart it via kickLoopRef when that might no longer hold.
   useEffect(() => {
     const canvas = canvasRef.current;
     const ctx2d = canvas?.getContext("2d");
@@ -200,81 +236,152 @@ export function PixelVisualizer({
 
     const reduceMotionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
     let reduceMotion = reduceMotionQuery.matches;
-    const onReduceMotionChange = (e: MediaQueryListEvent) => {
-      reduceMotion = e.matches;
-    };
-    reduceMotionQuery.addEventListener("change", onReduceMotionChange);
 
     let visible = document.visibilityState === "visible";
     let raf = 0;
-    const onVisibility = () => {
-      visible = document.visibilityState === "visible";
-      if (visible && raf === 0) raf = requestAnimationFrame(loop);
-    };
-    document.addEventListener("visibilitychange", onVisibility);
+    // Explicit guard (in addition to `raf`) so scheduleLoop is safe to call
+    // from every trigger — the loop's own tail call, onVisibility, the
+    // reduce-motion listener, and the [mode] effect — without ever
+    // double-scheduling a frame.
+    let running = false;
 
     let prevColumns: number[] | null = null;
     let silenceStartedAt: number | null = null;
-    // Set once, never cleared: a tainted tap or missing AudioContext support
-    // doesn't recover mid-session, so there's no point retrying it.
+    // Set once, never cleared *within this effect run* — it only resets
+    // when the audio element identity changes and this effect tears down
+    // and reruns. A tainted tap or missing captureStream support doesn't
+    // recover mid-session, so there's no point retrying it.
     let permanentFallback = false;
 
+    const scheduleLoop = () => {
+      if (running || !visible) return;
+      running = true;
+      raf = requestAnimationFrame(loop);
+    };
+
+    const onReduceMotionChange = (e: MediaQueryListEvent) => {
+      reduceMotion = e.matches;
+      // Toggling off reduced motion may need to resume a loop that an idle
+      // draw-once stopped; toggling on is a harmless no-op if already
+      // running (the running guard makes this safe either way).
+      scheduleLoop();
+    };
+    reduceMotionQuery.addEventListener("change", onReduceMotionChange);
+
+    const onVisibility = () => {
+      visible = document.visibilityState === "visible";
+      if (visible) {
+        // Stale timestamps accrued before the tab was hidden must not
+        // instantly trip the fallback the moment we're visible again.
+        silenceStartedAt = null;
+        scheduleLoop();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+
     function loop(now: number) {
+      running = false;
       raf = 0;
       if (!visible) return;
       const grid = gridRef.current;
 
+      // prefers-reduced-motion always wins: the idle grid, no exceptions.
+      let effective: VisualizerMode;
       if (reduceMotion) {
-        // prefers-reduced-motion always wins: the idle grid, no exceptions.
-        drawDots(ctx, grid, idleIntensities(grid.cols));
+        effective = "idle";
       } else {
         const requested = modeRef.current;
-        const effective = permanentFallback && requested === "reactive" ? "pulse" : requested;
+        effective = permanentFallback && requested === "reactive" ? "pulse" : requested;
+      }
 
-        if (effective === "reactive" && audio) {
-          const graph = getAudioGraph(audio);
-          if (!graph) {
-            permanentFallback = true;
-            drawDots(ctx, grid, pulseIntensities(grid.cols, now));
-          } else {
-            if (graph.context.state === "suspended") void graph.context.resume();
-            graph.analyser.getByteFrequencyData(graph.bins);
+      if (effective === "reactive" && audio) {
+        graphRef.current ??= getAudioGraph(audio);
+        const graph = graphRef.current;
+        if (!graph) {
+          permanentFallback = true;
+          drawDots(ctx, grid, pulseIntensities(grid.cols, now));
+        } else {
+          if (graph.context.state === "suspended") {
+            // A rejected resume only costs visualizer data — silence
+            // detection below then shows the shimmer fallback — because
+            // playback no longer depends on this context at all (the tap
+            // is a captureStream copy, not a reroute). Hoisted so this
+            // runs every reactive frame before the silence bookkeeping.
+            void graph.context.resume().catch(() => {});
+          }
+          graph.analyser.getByteFrequencyData(graph.bins);
 
-            if (!audio.paused && isSilentFrame(graph.bins)) {
+          // Only count a frame toward the silence window when it's a
+          // trustworthy read: actually playing, with enough buffered data
+          // to expect real analyser output, the tap context actually
+          // running (not still suspended from the resume above), and the
+          // tab visible. Anything else (paused, buffering, suspended,
+          // hidden) just leaves the window where it was — it neither
+          // advances nor resets it.
+          const trustworthy =
+            !audio.paused &&
+            audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
+            graph.context.state === "running" &&
+            visible;
+
+          if (trustworthy) {
+            if (isSilentFrame(graph.bins)) {
               silenceStartedAt ??= now;
               if (now - silenceStartedAt >= SILENCE_FALLBACK_MS) permanentFallback = true;
             } else {
               silenceStartedAt = null;
             }
-
-            if (permanentFallback) {
-              drawDots(ctx, grid, pulseIntensities(grid.cols, now));
-            } else {
-              const config: SpectrumConfig = { columns: grid.cols, smoothing: SPECTRUM_SMOOTHING };
-              prevColumns = spectrumColumns(graph.bins, prevColumns, config);
-              drawDots(ctx, grid, prevColumns);
-            }
           }
-        } else {
-          prevColumns = null;
-          silenceStartedAt = null;
-          const intensities =
-            effective === "pulse" ? pulseIntensities(grid.cols, now) : idleIntensities(grid.cols);
-          drawDots(ctx, grid, intensities);
+
+          if (permanentFallback) {
+            drawDots(ctx, grid, pulseIntensities(grid.cols, now));
+          } else {
+            const config: SpectrumConfig = { columns: grid.cols, smoothing: SPECTRUM_SMOOTHING };
+            prevColumns = spectrumColumns(graph.bins, prevColumns, config);
+            drawDots(ctx, grid, prevColumns);
+          }
         }
+      } else {
+        prevColumns = null;
+        silenceStartedAt = null;
+        const intensities =
+          effective === "pulse" ? pulseIntensities(grid.cols, now) : idleIntensities(grid.cols);
+        drawDots(ctx, grid, intensities);
       }
 
-      raf = requestAnimationFrame(loop);
+      if (effective === "idle") {
+        // Idle is a static frame — nothing to gain by repainting it at
+        // 60fps. Stop here; kickLoopRef (the [mode] effect, and the
+        // reduce-motion listener above) restarts the loop if that stops
+        // being true.
+        return;
+      }
+
+      scheduleLoop();
     }
 
-    raf = requestAnimationFrame(loop);
+    kickLoopRef.current = scheduleLoop;
+    scheduleLoop();
 
     return () => {
+      kickLoopRef.current = () => {};
       if (raf) cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisibility);
       reduceMotionQuery.removeEventListener("change", onReduceMotionChange);
+      // Nothing depends on this context for playback anymore, so close it
+      // properly instead of leaking it. A rejected close here is just a
+      // teardown race (e.g. already closed) and is benign.
+      graphRef.current?.context.close().catch(() => {});
+      graphRef.current = null;
     };
   }, [audio]);
+
+  // Idle frames stop the rAF loop (see above); when `mode` changes we may
+  // need to wake it back up. scheduleLoop's own `running` guard makes this a
+  // no-op when the loop is already going.
+  useEffect(() => {
+    kickLoopRef.current();
+  }, [mode]);
 
   return (
     <div ref={containerRef} className="audio-stage__canvas" aria-hidden="true">

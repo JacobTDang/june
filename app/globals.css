@@ -767,8 +767,9 @@ a:hover {
   justify-content: center;
 }
 .audio-stage {
+  --audio-stage-min-h: 160px;
   position: relative;
-  min-height: 160px;
+  min-height: var(--audio-stage-min-h);
   border-radius: var(--r);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -783,7 +784,7 @@ a:hover {
 .audio-stage__content {
   position: relative;
   z-index: 1;
-  min-height: 160px;
+  min-height: var(--audio-stage-min-h);
   display: flex;
   flex-direction: column;
   align-items: center;
