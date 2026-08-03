@@ -112,3 +112,62 @@ describe("ensureDownload", () => {
     );
   });
 });
+
+describe("listDownloads", () => {
+  it("gets the job list with the bearer token", async () => {
+    const { fetch, calls } = stubFetch(() => ({
+      body: [
+        { id: "j1", url: "https://www.youtube.com/watch?v=vid1", status: "running", progress: 40, created_at: "2026-08-03T11:00:00" },
+      ],
+    }));
+    const server = createAudioServer({
+      baseUrl: "https://audio.test",
+      getAccessToken: token,
+      fetch,
+    });
+
+    const jobs = await server.listDownloads();
+
+    expect(jobs).toEqual([
+      { id: "j1", url: "https://www.youtube.com/watch?v=vid1", status: "running", progress: 40, created_at: "2026-08-03T11:00:00" },
+    ]);
+    expect(calls[0]!.url.toString()).toBe("https://audio.test/downloads");
+    expect(calls[0]!.init?.method).toBe("GET");
+    expect((calls[0]!.init?.headers as Record<string, string>).Authorization).toBe("Bearer tok");
+  });
+
+  it("passes the limit as a query param", async () => {
+    const { fetch, calls } = stubFetch(() => ({ body: [] }));
+    const server = createAudioServer({
+      baseUrl: "https://audio.test",
+      getAccessToken: token,
+      fetch,
+    });
+
+    await server.listDownloads(5);
+
+    expect(calls[0]!.url.toString()).toBe("https://audio.test/downloads?limit=5");
+  });
+
+  it("throws on any other error status", async () => {
+    const { fetch } = stubFetch(() => ({ status: 503, body: { detail: "unavailable" } }));
+    const server = createAudioServer({
+      baseUrl: "https://audio.test",
+      getAccessToken: token,
+      fetch,
+    });
+
+    await expect(server.listDownloads()).rejects.toThrow("audio server 503: unavailable");
+  });
+
+  it("throws when there is no session", async () => {
+    const { fetch } = stubFetch(() => ({ body: [] }));
+    const server = createAudioServer({
+      baseUrl: "https://audio.test",
+      getAccessToken: async () => null,
+      fetch,
+    });
+
+    await expect(server.listDownloads()).rejects.toThrow("not signed in");
+  });
+});

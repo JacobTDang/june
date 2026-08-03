@@ -1,7 +1,16 @@
-import { linkResponseSchema } from "./schema";
+import { downloadsResponseSchema, linkResponseSchema } from "./schema";
 
 /** The one bit of `fetch` we use - injectable so tests need no network. */
 type FetchLike = (input: URL, init?: RequestInit) => Promise<Response>;
+
+/** One mp3server download job, narrowed to the fields callers use. */
+export interface DownloadJob {
+  id: string;
+  url: string;
+  status: string;
+  progress: number;
+  created_at: string;
+}
 
 /** The slice of mp3server the room player needs. */
 export interface AudioServer {
@@ -13,6 +22,8 @@ export interface AudioServer {
    * cap; the caller's play-time polling covers the track regardless.
    */
   ensureDownload(videoId: string): Promise<"queued" | "throttled">;
+  /** This user's download jobs, newest first. */
+  listDownloads(limit?: number): Promise<DownloadJob[]>;
 }
 
 export interface AudioServerConfig {
@@ -49,6 +60,13 @@ export function createAudioServer(config: AudioServerConfig): AudioServer {
     return doFetch(new URL(`${baseUrl}${path}`), init);
   }
 
+  async function get(path: string): Promise<Response> {
+    const accessToken = await config.getAccessToken();
+    if (accessToken === null) throw new Error("audio server: not signed in");
+    const headers: Record<string, string> = { Authorization: `Bearer ${accessToken}` };
+    return doFetch(new URL(`${baseUrl}${path}`), { method: "GET", headers });
+  }
+
   return {
     async mintStreamUrl(videoId) {
       const response = await post(`/files/by-video/${encodeURIComponent(videoId)}/link`);
@@ -69,6 +87,15 @@ export function createAudioServer(config: AudioServerConfig): AudioServer {
         throw new Error(`audio server ${response.status}: ${await errorDetail(response)}`);
       }
       return "queued";
+    },
+
+    async listDownloads(limit) {
+      const query = limit !== undefined ? `?limit=${limit}` : "";
+      const response = await get(`/downloads${query}`);
+      if (!response.ok) {
+        throw new Error(`audio server ${response.status}: ${await errorDetail(response)}`);
+      }
+      return downloadsResponseSchema.parse(await response.json());
     },
   };
 }

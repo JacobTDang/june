@@ -1023,6 +1023,7 @@ a:hover {
 }
 
 .track {
+  position: relative;
   display: grid;
   grid-template-columns: auto 36px 1fr auto;
   align-items: center;
@@ -1101,6 +1102,37 @@ a:hover {
   .track__remove {
     opacity: 1;
   }
+}
+
+/* Download progress: a hairline bar overlaid on a queue row's bottom inner
+   edge while its track is still downloading on the audio server. It's
+   absolutely positioned (against .track's position: relative above) so it
+   never adds to the row's flow height — appearing or fading away never
+   shifts the rows around it. Width transitions smoothly to the reported
+   percent; on completion the fill holds at 100% and the whole bar fades out.
+   prefers-reduced-motion is handled by the global transition killswitch
+   further down this file, so no separate override is needed here. */
+.track__progress {
+  position: absolute;
+  left: 0.5rem;
+  right: 0.5rem;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 2px;
+  background: rgba(242, 181, 82, 0.18);
+  overflow: hidden;
+  opacity: 1;
+  transition: opacity 0.6s var(--ease);
+  pointer-events: none;
+}
+.track__progress--done {
+  opacity: 0;
+}
+.track__progress__fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: inherit;
+  transition: width 0.3s var(--ease);
 }
 
 /* Incoming friend-request toasts (bottom-right of the room). */
