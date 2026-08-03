@@ -22,6 +22,10 @@ const POLL_MS = 10_000;
  *  than yanking the reader down mid-sentence. */
 const FOLLOW_THRESHOLD_PX = 80;
 
+/** About five lines. Past that the composer scrolls internally rather than
+ *  eating the log it sits under. */
+const MAX_INPUT_HEIGHT_PX = 116;
+
 function timeLabel(createdAt: number): string {
   return new Date(createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
@@ -32,6 +36,7 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const logRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLTextAreaElement>(null);
   const followRef = useRef(true);
 
   const load = useCallback(async () => {
@@ -94,6 +99,17 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
       log.scrollHeight - log.scrollTop - log.clientHeight <= FOLLOW_THRESHOLD_PX;
   }
 
+  // Grow the composer with its content instead of scrolling the text
+  // sideways: reset to auto first so it shrinks back when lines are removed,
+  // then cap it so a long message scrolls inside the box rather than pushing
+  // the log off the screen.
+  useEffect(() => {
+    const box = inputRef.current;
+    if (!box) return;
+    box.style.height = "auto";
+    box.style.height = `${Math.min(box.scrollHeight, MAX_INPUT_HEIGHT_PX)}px`;
+  }, [draft]);
+
   async function submit(event: React.FormEvent) {
     event.preventDefault();
     if (sending) return;
@@ -154,10 +170,20 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
       {error && <p className="chat__error">{error}</p>}
 
       <form className="chat__form" onSubmit={submit}>
-        <input
-          className="input"
+        <textarea
+          ref={inputRef}
+          className="input chat__input"
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
+          // Enter sends, because that's what a chat box does; Shift+Enter is
+          // how you get the second line the box just made room for.
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              void submit(e);
+            }
+          }}
+          rows={1}
           placeholder="Message the room"
           aria-label="Message the room"
           maxLength={MAX_MESSAGE_LENGTH + 1}
