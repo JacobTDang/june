@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Play } from "lucide-react";
-import { advanceTrack } from "@/src/lib/room/actions";
+import { advanceTrack, markTrackReady } from "@/src/lib/room/actions";
 import { playbackCorrection } from "@/src/lib/room/sync";
 import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
@@ -33,7 +33,12 @@ type Status =
   | { kind: "preparing" }
   | { kind: "playing" }
   | { kind: "unreachable" }
+  | { kind: "config-error" }
   | { kind: "skipped"; title: string };
+
+/** The exact message `audioServer()` throws when the env var is missing - a
+ *  config error must not masquerade as a network blip (see statusText). */
+const MISSING_CONFIG_MESSAGE = "NEXT_PUBLIC_MP3SERVER_URL is not configured.";
 
 let cachedServer: AudioServer | null = null;
 function audioServer(): AudioServer {
@@ -53,15 +58,17 @@ function audioServer(): AudioServer {
 function statusText(status: Status): string {
   switch (status.kind) {
     case "idle":
-      return "Nothing playing.";
+    case "playing":
+      // Idle's "Nothing playing." is replaced by the empty-state copy
+      // (Feature B); playing shows no caption at all.
+      return "";
     case "loading":
-      return "Tuning in…";
     case "preparing":
       return "Preparing this track…";
-    case "playing":
-      return "Listening in sync.";
     case "unreachable":
       return "Can’t reach the audio server — retrying…";
+    case "config-error":
+      return "Audio server isn’t configured.";
     case "skipped":
       return `Couldn’t prepare “${status.title}” — skipping.`;
   }
@@ -110,8 +117,12 @@ export function Player({
   nowPlayingRef.current = nowPlaying;
 
   // Primitive key so realtime refreshes (new object, same track) don't
-  // cancel and restart an in-flight load.
-  const trackKey = nowPlaying ? `${nowPlaying.videoId}:${reloadNonce}` : null;
+  // cancel and restart an in-flight load. Folds in the pending/started state
+  // so the effect re-runs the moment the shared clock starts (startedAt
+  // flips from null to a number).
+  const trackKey = nowPlaying
+    ? `${nowPlaying.videoId}:${reloadNonce}:${nowPlaying.startedAt ?? "pending"}`
+    : null;
 
   // Load the shared track: mint a stream link, or trigger the download and
   // poll until it exists. Cancelled (and restarted) when the track changes.
@@ -146,8 +157,14 @@ export function Player({
               ensured.current.add(np!.videoId);
             }
           }
-        } catch {
+        } catch (err) {
           if (cancelled) return;
+          if (err instanceof Error && err.message === MISSING_CONFIG_MESSAGE) {
+            // A config error can't self-heal by retrying - don't masquerade
+            // it as a network blip, and don't loop forever re-throwing it.
+            setStatus({ kind: "config-error" });
+            return;
+          }
           setStatus({ kind: "unreachable" });
           await sleep(UNREACHABLE_RETRY_MS);
           continue;
@@ -168,6 +185,17 @@ export function Player({
           continue;
         }
 
+        if (np!.startedAt === null) {
+          // Downloadable, but the room's clock hasn't started yet. Mark it
+          // ready (idempotent via CAS - fine if another listener already
+          // did) and wait: the realtime update flips startedAt, trackKey
+          // changes, and this effect re-runs to mint again (server-cached,
+          // cheap) and actually play. Do not set src/play yet.
+          void markTrackReady(roomId, np!.videoId);
+          setStatus({ kind: "preparing" });
+          return;
+        }
+
         const el = audioRef.current;
         if (!el || cancelled) return;
         el.src = url;
@@ -178,7 +206,9 @@ export function Player({
           "loadedmetadata",
           () => {
             const current = nowPlayingRef.current;
-            if (!current || current.videoId !== np!.videoId) return;
+            if (!current || current.videoId !== np!.videoId || current.startedAt === null) {
+              return;
+            }
             el.currentTime = Math.max(
               0,
               (Date.now() + offsetRef.current - current.startedAt) / 1000,
@@ -218,7 +248,8 @@ export function Player({
     const id = setInterval(() => {
       const audio = audioRef.current;
       const np = nowPlayingRef.current;
-      if (!audio || !np || currentVideo.current !== np.videoId || !audio.src) return;
+      if (!audio || !np || np.startedAt === null) return;
+      if (currentVideo.current !== np.videoId || !audio.src) return;
       // Respect a local pause (e.g. from the lock screen); the next tick
       // after resuming re-seeks to the shared clock.
       if (audio.paused) return;
@@ -254,6 +285,10 @@ export function Player({
     });
     navigator.mediaSession.setActionHandler("play", () => void audioRef.current?.play());
     navigator.mediaSession.setActionHandler("pause", () => audioRef.current?.pause());
+    // Re-sync from the element's actual state: otherwise the previous
+    // cleanup's "none" sticks across a realtime refresh (new nowPlaying
+    // object, same track) until the next play/pause event fires.
+    syncPlaybackState();
     return () => {
       navigator.mediaSession.metadata = null;
       navigator.mediaSession.setActionHandler("play", null);
@@ -340,6 +375,14 @@ export function Player({
         onPause={syncPlaybackState}
       />
       <div className="audio-stage__content">
+        {nowPlaying === null && (
+          <div className="empty">
+            <div className="empty__title">Your room is ready.</div>
+            <p className="muted" style={{ marginTop: "0.5rem" }}>
+              Add the first song. It starts playing for everyone at once.
+            </p>
+          </div>
+        )}
         {!started ? (
           <>
             <button onClick={start} className="btn btn--primary btn--lg">
@@ -353,7 +396,10 @@ export function Player({
             )}
           </>
         ) : (
-          <p className="muted audio-stage__status">{statusText(status)}</p>
+          nowPlaying !== null &&
+          statusText(status) && (
+            <p className="muted audio-stage__status">{statusText(status)}</p>
+          )
         )}
       </div>
     </div>
