@@ -1,6 +1,9 @@
 export type PlaybackClip = {
-  /** Server-clock milliseconds when playback started. */
-  startedAt: number;
+  /**
+   * Server-clock milliseconds when playback started, or null while the
+   * track is pending (clock not started yet).
+   */
+  startedAt: number | null;
   durationMs: number;
 };
 
@@ -27,6 +30,7 @@ export function playbackProgress(
   offset: number,
   clip: PlaybackClip,
 ): Progress {
+  if (clip.startedAt === null) return { position: 0, pct: 0 };
   const serverNow = now === null ? clip.startedAt - offset : now;
   const position = Math.min(
     Math.max(0, serverNow + offset - clip.startedAt),

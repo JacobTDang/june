@@ -37,7 +37,7 @@ async function requireUser() {
 const NOW_PLAYING_COLS =
   "id, now_playing_video_id, now_playing_title, now_playing_artist, now_playing_duration_ms, now_playing_thumbnail_url, now_playing_started_at, now_playing_added_by_name";
 
-const npFields = (t: AddTrackInput, startedAt: number, addedByName?: string | null) => ({
+const npFields = (t: AddTrackInput, startedAt: number | null, addedByName?: string | null) => ({
   now_playing_video_id: t.videoId,
   now_playing_title: t.title,
   now_playing_artist: t.artist ?? null,
@@ -125,9 +125,11 @@ export async function enqueueTrack(roomId: string, rawTrack: AddTrackInput): Pro
     .maybeSingle();
   const addedByName = (participant as { name: string | null } | null)?.name ?? null;
 
+  // started_at starts NULL (pending): the shared clock begins only once a
+  // listener's loader confirms the track is downloadable, via markTrackReady.
   const { data: started } = await supabase
     .from("rooms")
-    .update(npFields(track, Date.now(), addedByName))
+    .update(npFields(track, null, addedByName))
     .eq("id", roomId)
     .is("now_playing_video_id", null)
     .select("id");
@@ -147,6 +149,22 @@ export async function enqueueTrack(roomId: string, rawTrack: AddTrackInput): Pro
   if (error) throw new Error(`enqueueTrack failed: ${error.message}`);
 }
 
+/**
+ * Start the shared clock for a pending track once a listener confirms it's
+ * downloadable. Compare-and-set on (roomId, videoId, started_at IS NULL) so
+ * N racing clients calling this for the same track start it exactly once.
+ */
+export async function markTrackReady(roomId: string, videoId: string): Promise<void> {
+  const { supabase } = await requireUser();
+  const { error } = await supabase
+    .from("rooms")
+    .update({ now_playing_started_at: Date.now() })
+    .eq("id", roomId)
+    .eq("now_playing_video_id", videoId)
+    .is("now_playing_started_at", null);
+  if (error) throw new Error(`markTrackReady failed: ${error.message}`);
+}
+
 async function popOldest(
   supabase: Awaited<ReturnType<typeof createClient>>,
   roomId: string,
@@ -161,7 +179,10 @@ async function popOldest(
   return (data as QueueItemRow | null) ?? null;
 }
 
-function nextFields(next: QueueItemRow, startedAt: number) {
+// The promoted track always starts pending (started_at null) - same reasoning
+// as enqueueTrack's start-if-idle path: the clock begins only once a listener
+// confirms it's downloadable.
+function nextFields(next: QueueItemRow) {
   return npFields(
     {
       videoId: next.video_id,
@@ -170,7 +191,7 @@ function nextFields(next: QueueItemRow, startedAt: number) {
       durationMs: next.duration_ms,
       thumbnailUrl: next.thumbnail_url ?? undefined,
     },
-    startedAt,
+    null,
     next.added_by_name ?? null,
   );
 }
@@ -185,42 +206,56 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
 
   const { data: roomData } = await supabase
     .from("rooms")
-    .select("now_playing_video_id, now_playing_started_at, now_playing_duration_ms")
+    .select("now_playing_video_id, now_playing_started_at")
     .eq("id", roomId)
     .maybeSingle();
   const room = roomData as Pick<
     RoomRow,
-    "now_playing_video_id" | "now_playing_started_at" | "now_playing_duration_ms"
+    "now_playing_video_id" | "now_playing_started_at"
   > | null;
   if (!room || room.now_playing_video_id !== endedVideoId) return; // already advanced
 
   const next = await popOldest(supabase, roomId);
 
-  // Start the next track now (like skipTrack). Deriving it from the ended
-  // track's metadata duration schedules it in the future whenever the real
-  // video is shorter than its metadata, which stalls/loops playback.
-  const update = next ? nextFields(next, Date.now()) : NP_CLEARED;
-  const { data: applied } = await supabase
+  // Promote the next track pending (like the enqueue start-if-idle path) -
+  // its clock starts once a listener confirms it's downloadable.
+  const update = next ? nextFields(next) : NP_CLEARED;
+  let query = supabase
     .from("rooms")
     .update(update)
     .eq("id", roomId)
-    .eq("now_playing_video_id", endedVideoId)
-    // Guard on the exact track instance we read, not just its video id - with
-    // duplicate videos the id is unchanged after advancing, so concurrent
-    // "ended" events would otherwise double-advance.
-    .eq("now_playing_started_at", room.now_playing_started_at)
-    .select("id");
+    .eq("now_playing_video_id", endedVideoId);
+  // Instance guard: the running branch (started_at != null) compares
+  // started_at equality, so concurrent "ended" events for the same instance
+  // can't double-advance. The pending branch (preparing-timeout skip,
+  // started_at NULL) can't use equality - Postgres NULL is never `=` to
+  // anything, including itself - so it falls back to `.is()`, which cannot
+  // distinguish two duplicate pending instances of the same videoId (every
+  // column is identical). That means duplicate pending instances of the same
+  // video could double-advance here. Accepted for now - a failing duplicate
+  // would fail again on its own next attempt - and tracked as a follow-up
+  // needing a `now_playing_instance` discriminator (a schema migration, out
+  // of scope this round).
+  query =
+    room.now_playing_started_at === null
+      ? query.is("now_playing_started_at", null)
+      : query.eq("now_playing_started_at", room.now_playing_started_at);
+  const { data: applied } = await query.select("id");
 
   if (next && applied && applied.length > 0) {
     await supabase.from("queue_items").delete().eq("id", next.id);
   }
 }
 
-/** Skip the current track immediately (any member). Next starts now. */
+/**
+ * Skip the current track immediately (any member). The next track is
+ * promoted pending, same as advanceTrack - its clock starts once a listener
+ * confirms it's downloadable, so a skip can't drop listeners mid-song either.
+ */
 export async function skipTrack(roomId: string): Promise<void> {
   const { supabase } = await requireUser();
   const next = await popOldest(supabase, roomId);
-  const update = next ? nextFields(next, Date.now()) : NP_CLEARED;
+  const update = next ? nextFields(next) : NP_CLEARED;
   await supabase.from("rooms").update(update).eq("id", roomId);
   if (next) await supabase.from("queue_items").delete().eq("id", next.id);
 }

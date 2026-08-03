@@ -36,4 +36,17 @@ describe("playbackProgress", () => {
       pct: 0,
     });
   });
+
+  it("returns a zero position/pct when the clock hasn't started (startedAt null)", () => {
+    // A pending track (on deck, download not yet confirmed) has no clock to
+    // read a position from - must not throw or produce NaN.
+    expect(playbackProgress(6000, 0, { startedAt: null, durationMs: 10000 })).toEqual({
+      position: 0,
+      pct: 0,
+    });
+    expect(playbackProgress(null, 0, { startedAt: null, durationMs: 10000 })).toEqual({
+      position: 0,
+      pct: 0,
+    });
+  });
 });
