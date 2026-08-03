@@ -562,8 +562,14 @@ export function PixelVisualizer({
           // where it was — it neither advances nor resets it. (`visible` is
           // not part of this check: the loop already returned above when
           // hidden, so this line never runs while hidden.)
+          // A turned-down element genuinely outputs silence, and captureStream
+          // taps that output — so without the volume check here, listening
+          // quietly for three seconds would look exactly like a broken tap
+          // and drop the visualizer into its fallback for the whole session.
           const trustworthy =
             !audio.paused &&
+            !audio.muted &&
+            audio.volume > 0 &&
             audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
             graph.context.state === "running";
 
