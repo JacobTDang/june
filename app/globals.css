@@ -768,18 +768,20 @@ a:hover {
 }
 .audio-stage {
   --audio-stage-min-h: 160px;
+  --audio-stage-caption-h: 2.25rem;
   position: relative;
-  min-height: var(--audio-stage-min-h, 160px);
+  min-height: calc(var(--audio-stage-min-h, 160px) + var(--audio-stage-caption-h, 2.25rem));
   border-radius: var(--r);
   background: var(--surface);
   border: 1px solid var(--line);
   overflow: hidden;
   text-align: center;
 }
-/* The dot-grid visualizer fills the card behind everything else. */
+/* The dot-grid visualizer fills the card behind everything except the
+   caption strip reserved below it. */
 .audio-stage__canvas {
   position: absolute;
-  inset: 0;
+  inset: 0 0 var(--audio-stage-caption-h, 2.25rem) 0;
 }
 .audio-stage__content {
   position: relative;
@@ -792,10 +794,25 @@ a:hover {
   gap: 0.5rem;
   padding: 1.25rem;
 }
+/* A strip of its own beneath the animation, not a caption floating over it:
+   .audio-stage__content's own box stays exactly the animation-area size
+   above (so the tap button / empty-room copy keep centering against just
+   that area), and this is pinned `--audio-stage-caption-h` past its bottom
+   edge — i.e. flush with .audio-stage's own bottom edge, in the band the
+   canvas above deliberately stops short of. Renders conditionally already;
+   the reserved height above is constant either way, so there's no shift
+   when it's empty. */
 .audio-stage__status {
-  /* A caption riding the card's bottom edge once the visualizer is live —
-     margin-top: auto pushes it down within the centered flex column. */
-  margin: auto 0 0;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(-1 * var(--audio-stage-caption-h, 2.25rem));
+  height: var(--audio-stage-caption-h, 2.25rem);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-top: 1px solid var(--line);
   font-size: 0.85rem;
 }
 .audio-stage__notice {
