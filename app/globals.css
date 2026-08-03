@@ -1605,13 +1605,13 @@ a:hover {
   color: var(--muted);
   font-size: 0.85rem;
 }
-/* Sound: its own quiet row between the card and the track meta. Right-aligned
-   with the slider ahead of the button, so revealing it grows leftwards into
-   empty space and the button never moves out from under the cursor. */
+/* Sound: its own quiet row between the card and the track meta, aligned left
+   under the cover. The button comes first and the slider opens rightwards
+   into empty space, so the button never moves out from under the cursor. */
 .sound {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: flex-start;
   gap: 0.4rem;
   margin-top: 0.55rem;
 }
