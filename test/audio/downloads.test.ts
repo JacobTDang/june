@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { activeDownloadProgress, type DownloadJob } from "../../src/audio/downloads";
+import {
+  EMPTY_POLL_LIMIT,
+  activeDownloadProgress,
+  shouldPollAgain,
+  type DownloadJob,
+} from "../../src/audio/downloads";
 
 function job(overrides: Partial<DownloadJob>): DownloadJob {
   return {
@@ -71,5 +76,24 @@ describe("activeDownloadProgress", () => {
 
   it("returns an empty map for no jobs", () => {
     expect(activeDownloadProgress([])).toEqual(new Map());
+  });
+});
+
+describe("shouldPollAgain", () => {
+  it("keeps polling through the empty polls right after a queue change", () => {
+    // The download job for a freshly queued track is created a beat after the
+    // queue changes, so the first polls legitimately find nothing.
+    expect(shouldPollAgain(0)).toBe(true);
+    expect(shouldPollAgain(1)).toBe(true);
+    expect(shouldPollAgain(EMPTY_POLL_LIMIT - 1)).toBe(true);
+  });
+
+  it("stops once the empty polls run out, so an idle room isn't polled forever", () => {
+    expect(shouldPollAgain(EMPTY_POLL_LIMIT)).toBe(false);
+    expect(shouldPollAgain(EMPTY_POLL_LIMIT + 1)).toBe(false);
+  });
+
+  it("allows enough time for a download to be registered", () => {
+    expect(EMPTY_POLL_LIMIT).toBeGreaterThanOrEqual(4);
   });
 });

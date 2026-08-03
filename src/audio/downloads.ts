@@ -11,6 +11,22 @@ export interface DownloadJob {
  *  canceled/anything future) is terminal — see ALL_STATUSES server-side. */
 const ACTIVE_STATUSES = new Set(["queued", "running"]);
 
+/** Consecutive polls finding no active download that are tolerated before the
+ *  loop goes idle. A queued track's download job is registered a beat after
+ *  the queue itself changes — the client mints a stream URL first and only
+ *  requests a download if that misses — so stopping on the first empty poll
+ *  would miss every download. */
+export const EMPTY_POLL_LIMIT = 6;
+
+/**
+ * Whether the download poll should run again, given how many polls in a row
+ * have found nothing to show. Bounded so an idle room stops polling instead of
+ * asking the audio server about a queue that is fully downloaded forever.
+ */
+export function shouldPollAgain(consecutiveEmptyPolls: number): boolean {
+  return consecutiveEmptyPolls < EMPTY_POLL_LIMIT;
+}
+
 /**
  * Percent-complete per videoId for downloads still in flight. Terminal jobs
  * (completed/failed/canceled) are omitted entirely — a finished download must

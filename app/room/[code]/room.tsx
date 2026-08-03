@@ -22,7 +22,7 @@ import {
 import { visibleParticipants } from "@/src/lib/room/presence";
 import type { RoomState } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
-import { activeDownloadProgress } from "@/src/audio/downloads";
+import { activeDownloadProgress, shouldPollAgain } from "@/src/audio/downloads";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
@@ -185,10 +185,11 @@ export function Room({
   const queueVideoIds = queue.map((t) => t.videoId).join(",");
 
   // Poll download progress only while it can matter: there's something
-  // queued, and the poll is actually finding an active job for one of those
-  // tracks. A poll that comes back irrelevant stops the loop rather than
-  // hammering an idle room forever; a queue change (queueVideoIds) restarts
-  // it, since a freshly added track may itself start downloading.
+  // queued, and the poll is still finding — or could still find — an active
+  // job for one of those tracks. Empty polls are tolerated up to
+  // EMPTY_POLL_LIMIT so a job registered just after the queue changed is not
+  // missed, then the loop goes idle rather than hammering the server; a queue
+  // change (queueVideoIds) restarts it.
   useEffect(() => {
     if (queueVideoIds === "") {
       setDownloadProgress(new Map());
@@ -198,6 +199,7 @@ export function Room({
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
     let failures = 0;
+    let emptyPolls = 0;
 
     async function poll() {
       let jobs;
@@ -224,7 +226,8 @@ export function Room({
         [...activeDownloadProgress(jobs)].filter(([videoId]) => relevantIds.has(videoId)),
       );
       setDownloadProgress(relevant);
-      if (relevant.size === 0) return; // nothing left to watch until the queue changes
+      emptyPolls = relevant.size === 0 ? emptyPolls + 1 : 0;
+      if (!shouldPollAgain(emptyPolls)) return; // idle until the queue changes
       timer = setTimeout(() => void poll(), DOWNLOAD_POLL_MS);
     }
 
@@ -233,10 +236,12 @@ export function Room({
     if (document.visibilityState !== "hidden") void poll();
 
     function onVisibility() {
-      if (document.visibilityState === "hidden") {
-        if (timer) clearTimeout(timer);
-        timer = null;
-      } else {
+      if (timer) clearTimeout(timer);
+      timer = null;
+      if (document.visibilityState !== "hidden") {
+        // A fresh window on return: whatever went idle while the tab was in
+        // the background deserves one more look.
+        emptyPolls = 0;
         void poll();
       }
     }
