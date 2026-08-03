@@ -140,10 +140,7 @@ export function Player({
 
     if (currentVideo.current !== np.videoId) reminted.current = false;
     currentVideo.current = np.videoId;
-    // Starts now so the download wait and the not-yet-started-clock wait
-    // below share one 90s liveness bound from the moment this track becomes
-    // current - no room state (downloading or pending) is left unbounded.
-    const preparingSince = Date.now();
+    let preparingSince: number | null = null;
     let cancelled = false;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -175,6 +172,9 @@ export function Player({
         if (cancelled) return;
 
         if (url === null) {
+          // Start the preparing clock at the first confirmed "not stored
+          // yet" — server outage time must not eat the 90s budget.
+          preparingSince ??= Date.now();
           if (shouldSkipPreparing(preparingSince, Date.now())) {
             setStatus({ kind: "skipped", title: np!.title });
             void advanceTrack(roomId, np!.videoId);
@@ -186,8 +186,11 @@ export function Player({
         }
 
         if (np!.startedAt === null) {
-          // Downloadable, but the room's clock hasn't started yet. Bounded
-          // by the same 90s liveness clock as the download wait above.
+          // Downloadable, but the room's clock hasn't started yet. Bounded by
+          // the same 90s liveness clock as the download wait above - stamped
+          // lazily (not at effect entry) so unreachable-server retry time
+          // doesn't eat the budget before a wait state is actually observed.
+          preparingSince ??= Date.now();
           if (shouldSkipPreparing(preparingSince, Date.now())) {
             setStatus({ kind: "skipped", title: np!.title });
             void advanceTrack(roomId, np!.videoId);
