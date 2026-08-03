@@ -181,10 +181,10 @@ export function AddMusic({ roomId }: { roomId: string }) {
           onClick={() =>
             void run(
               async () => unwrap(await addCandidate(roomId, c)),
-              () => {
-                clearSearch();
-                return `Added “${c.title}”`;
-              },
+              // The results stay put: queueing one song from a search is
+              // usually the first of several, and clearing the list made you
+              // type the query again to add the next one.
+              () => `Added “${c.title}”`,
             )
           }
         >

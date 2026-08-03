@@ -11,6 +11,7 @@ import {
   sendFriendRequest,
 } from "@/src/lib/friends/actions";
 import type { FriendState } from "@/src/lib/friends/state";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/src/lib/supabase/client";
 import {
   getRoomState,
@@ -278,45 +279,68 @@ export function Room({
       void refresh();
     };
 
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session) supabase.realtime.setAuth(data.session.access_token);
-    });
+    let cancelled = false;
+    let channel: RealtimeChannel | null = null;
 
-    const channel = supabase
-      .channel(`room:${initial.id}`, { config: { presence: { key: me.userId } } })
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "rooms", filter: `id=eq.${initial.id}` },
-        onChange,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "queue_items", filter: `room_id=eq.${initial.id}` },
-        onChange,
-      )
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "room_participants", filter: `room_id=eq.${initial.id}` },
-        onChange,
-      )
-      .on("presence", { event: "sync" }, () => {
-        setOnline(new Set(Object.keys(channel.presenceState())));
-      })
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          void channel.track({ online_at: Date.now() });
-        } else {
-          // Channel dropped or errored: presence is unknown, so fall back to
-          // showing full membership instead of an empty room.
-          setOnline(null);
-        }
-      });
+    // Authorize the socket before subscribing: subscribing first can open the
+    // channel as anonymous, and RLS then hides the very rows it's watching.
+    // The 3s poll below papers over it here, which is exactly why it went
+    // unnoticed until chat (with a slower poll) made it visible.
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (data.session) supabase.realtime.setAuth(data.session.access_token);
+
+      const room = supabase
+        .channel(`room:${initial.id}`, { config: { presence: { key: me.userId } } })
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "rooms", filter: `id=eq.${initial.id}` },
+          onChange,
+        )
+        .on(
+          "postgres_changes",
+          { event: "*", schema: "public", table: "queue_items", filter: `room_id=eq.${initial.id}` },
+          onChange,
+        )
+        .on(
+          "postgres_changes",
+          {
+            event: "*",
+            schema: "public",
+            table: "room_participants",
+            filter: `room_id=eq.${initial.id}`,
+          },
+          onChange,
+        )
+        .on("presence", { event: "sync" }, () => {
+          setOnline(new Set(Object.keys(room.presenceState())));
+        })
+        .subscribe((status) => {
+          if (status === "SUBSCRIBED") {
+            void room.track({ online_at: Date.now() });
+          } else {
+            // Channel dropped or errored: presence is unknown, so fall back to
+            // showing full membership instead of an empty room.
+            setOnline(null);
+          }
+        });
+      channel = room;
+    })();
+
+    // Rooms outlive access tokens; hand the socket each refreshed one so
+    // deliveries don't quietly stop after an hour.
+    const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) supabase.realtime.setAuth(session.access_token);
+    });
 
     const poll = setInterval(onChange, 3000);
 
     return () => {
+      cancelled = true;
       clearInterval(poll);
-      void supabase.removeChannel(channel);
+      auth.subscription.unsubscribe();
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [initial.id, refresh, me.userId]);
 

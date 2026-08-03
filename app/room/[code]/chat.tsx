@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { SendHorizontal } from "lucide-react";
+import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/src/lib/supabase/client";
 import { fetchMessages, sendMessage } from "@/src/lib/room/chat";
 import {
@@ -56,33 +57,50 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
     void load().catch(report);
 
     const supabase = createClient();
-    void supabase.auth.getSession().then(({ data }) => {
-      if (data.session) supabase.realtime.setAuth(data.session.access_token);
-    });
+    let channel: RealtimeChannel | null = null;
 
-    const channel = supabase
-      .channel(`room-chat:${roomId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "room_messages",
-          filter: `room_id=eq.${roomId}`,
-        },
-        // The row carries a user_id, not a display name; reloading the tail
-        // keeps name resolution in one place instead of duplicating the
-        // profile lookup here.
-        () => void load().catch(report),
-      )
-      .subscribe();
+    // Authorize the socket *before* subscribing. Subscribing first is a race:
+    // the channel can open as anonymous, and since room_messages is
+    // RLS-scoped to participants, an anonymous subscriber matches no rows and
+    // silently receives nothing — the poll below then does all the work,
+    // which is what "chat only updates if I refresh" actually looks like.
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      if (cancelled) return;
+      if (data.session) supabase.realtime.setAuth(data.session.access_token);
+
+      channel = supabase
+        .channel(`room-chat:${roomId}`)
+        .on(
+          "postgres_changes",
+          {
+            event: "INSERT",
+            schema: "public",
+            table: "room_messages",
+            filter: `room_id=eq.${roomId}`,
+          },
+          // The row carries a user_id, not a display name; reloading the tail
+          // keeps name resolution in one place instead of duplicating the
+          // profile lookup here.
+          () => void load().catch(report),
+        )
+        .subscribe();
+    })();
+
+    // A room stays open for hours and the access token doesn't. Without this
+    // the socket keeps an expired token, deliveries stop, and the only cure
+    // is a reload.
+    const { data: auth } = supabase.auth.onAuthStateChange((_event, session) => {
+      if (session) supabase.realtime.setAuth(session.access_token);
+    });
 
     const timer = setInterval(() => void load().catch(report), POLL_MS);
 
     return () => {
       cancelled = true;
       clearInterval(timer);
-      void supabase.removeChannel(channel);
+      auth.subscription.unsubscribe();
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [roomId, load]);
 
