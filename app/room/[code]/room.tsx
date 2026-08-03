@@ -21,6 +21,8 @@ import {
 } from "@/src/lib/room/actions";
 import { visibleParticipants } from "@/src/lib/room/presence";
 import type { RoomState } from "@/src/lib/room/types";
+import { createAudioServer, type AudioServer } from "@/src/audio/client";
+import { activeDownloadProgress } from "@/src/audio/downloads";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
@@ -29,22 +31,75 @@ import { sampleClockOffset } from "./clock-client";
 
 type QueueItem = RoomState["queue"][number];
 
+/** How often to poll download progress while it can matter. */
+const DOWNLOAD_POLL_MS = 2500;
+/** Consecutive poll failures tolerated before giving up — a decorative bar
+ *  must never take the room down or spam mp3server that's already struggling. */
+const DOWNLOAD_POLL_MAX_FAILURES = 3;
+/** How long a just-finished bar stays visible while it fades and collapses. */
+const DOWNLOAD_FADE_MS = 600;
+
+// Separate cached instance from player.tsx's — that module owns its own and
+// isn't touched here (another worktree is editing it concurrently).
+let cachedAudioServer: AudioServer | null = null;
+function audioServer(): AudioServer {
+  if (!cachedAudioServer) {
+    const baseUrl = process.env.NEXT_PUBLIC_MP3SERVER_URL;
+    if (!baseUrl) throw new Error("NEXT_PUBLIC_MP3SERVER_URL is not configured.");
+    const supabase = createClient();
+    cachedAudioServer = createAudioServer({
+      baseUrl,
+      getAccessToken: async () =>
+        (await supabase.auth.getSession()).data.session?.access_token ?? null,
+    });
+  }
+  return cachedAudioServer;
+}
+
+/** Holds a just-finished download's bar at 100% long enough to fade: the job
+ *  disappearing from the poll (percent going from a number to undefined) is
+ *  the completion signal, since a terminal job is dropped from the map. */
+function useDownloadBar(percent: number | undefined): { percent: number; fading: boolean } | null {
+  const [bar, setBar] = useState<{ percent: number; fading: boolean } | null>(null);
+  const hadJob = useRef(false);
+
+  useEffect(() => {
+    if (percent !== undefined) {
+      hadJob.current = true;
+      setBar({ percent, fading: false });
+      return;
+    }
+    if (!hadJob.current) return;
+    hadJob.current = false;
+    setBar({ percent: 100, fading: true });
+    const timer = setTimeout(() => setBar(null), DOWNLOAD_FADE_MS);
+    return () => clearTimeout(timer);
+  }, [percent]);
+
+  return bar;
+}
+
 /** One draggable queue row. Drag starts from the handle, so the window still
  *  scrolls and rows stay tappable on touch. */
 function QueueRow({
   track,
   reduce,
+  downloadPercent,
   onRemove,
   onDragStart,
   onCommit,
 }: {
   track: QueueItem;
   reduce: boolean;
+  /** Active download percent for this track's videoId, or undefined when
+   *  there's no download in flight for it. */
+  downloadPercent: number | undefined;
   onRemove: () => void;
   onDragStart: () => void;
   onCommit: () => void;
 }) {
   const controls = useDragControls();
+  const bar = useDownloadBar(downloadPercent);
   return (
     <Reorder.Item
       value={track}
@@ -79,6 +134,14 @@ function QueueRow({
       <button className="btn btn--sm track__remove" onClick={onRemove} aria-label="Remove">
         <X size={14} />
       </button>
+      {bar && (
+        <div
+          className={`track__progress${bar.fading ? " track__progress--done" : ""}`}
+          aria-hidden="true"
+        >
+          <div className="track__progress__fill" style={{ width: `${bar.percent}%` }} />
+        </div>
+      )}
     </Reorder.Item>
   );
 }
@@ -113,6 +176,78 @@ export function Room({
   useEffect(() => {
     if (!reorderPending.current) setQueue(state.queue);
   }, [state.queue]);
+
+  // Per-videoId download percent for queue rows currently downloading.
+  const [downloadProgress, setDownloadProgress] = useState<Map<string, number>>(new Map());
+  // Keyed on the queue's videoIds (not the QueueItem objects) so a reorder
+  // alone doesn't restart polling, only an actual change to which tracks are
+  // queued does.
+  const queueVideoIds = queue.map((t) => t.videoId).join(",");
+
+  // Poll download progress only while it can matter: there's something
+  // queued, and the poll is actually finding an active job for one of those
+  // tracks. A poll that comes back irrelevant stops the loop rather than
+  // hammering an idle room forever; a queue change (queueVideoIds) restarts
+  // it, since a freshly added track may itself start downloading.
+  useEffect(() => {
+    if (queueVideoIds === "") {
+      setDownloadProgress(new Map());
+      return;
+    }
+    const relevantIds = new Set(queueVideoIds.split(","));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    let failures = 0;
+
+    async function poll() {
+      let jobs;
+      try {
+        jobs = await audioServer().listDownloads();
+      } catch {
+        // Fail loud would mean surfacing this, but a decorative progress bar
+        // is not worth breaking the room over. Retry on the same cadence,
+        // and after a few misses in a row assume the server (or its config)
+        // is down and stop rather than polling forever.
+        if (cancelled) return;
+        failures += 1;
+        if (failures >= DOWNLOAD_POLL_MAX_FAILURES) {
+          setDownloadProgress(new Map());
+          return;
+        }
+        timer = setTimeout(() => void poll(), DOWNLOAD_POLL_MS);
+        return;
+      }
+      if (cancelled) return;
+      failures = 0;
+
+      const relevant = new Map(
+        [...activeDownloadProgress(jobs)].filter(([videoId]) => relevantIds.has(videoId)),
+      );
+      setDownloadProgress(relevant);
+      if (relevant.size === 0) return; // nothing left to watch until the queue changes
+      timer = setTimeout(() => void poll(), DOWNLOAD_POLL_MS);
+    }
+
+    // No background polling: skip the kickoff while hidden, and stop/resume
+    // as visibility changes.
+    if (document.visibilityState !== "hidden") void poll();
+
+    function onVisibility() {
+      if (document.visibilityState === "hidden") {
+        if (timer) clearTimeout(timer);
+        timer = null;
+      } else {
+        void poll();
+      }
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [queueVideoIds]);
 
   function commitReorder() {
     reorderPending.current = true;
@@ -300,6 +435,7 @@ export function Room({
                   key={t.id}
                   track={t}
                   reduce={reduce}
+                  downloadPercent={downloadProgress.get(t.videoId)}
                   onRemove={() => void removeQueueItem(t.id)}
                   onDragStart={() => {
                     reorderPending.current = true;
