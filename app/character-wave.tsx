@@ -13,7 +13,7 @@ import type { CSSProperties } from "react";
 
 type Direction = "left" | "right" | "top" | "bottom";
 
-export interface CharacterWaveProps {
+interface CharacterWaveProps {
   characters?: string;
   elementSize?: number;
   color?: string;
@@ -30,7 +30,7 @@ export interface CharacterWaveProps {
   style?: CSSProperties;
 }
 
-export function CharacterWave({
+function CharacterWave({
   characters = " °•◦○◉●",
   elementSize = 16,
   color = "#ffffff",

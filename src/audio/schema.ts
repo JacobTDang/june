@@ -21,3 +21,8 @@ export const downloadJobSchema = z.object({
 });
 
 export const downloadsResponseSchema = z.array(downloadJobSchema);
+
+/** One download job as the server actually sends it. Derived from the schema
+ *  so the wire format has a single definition — every consumer narrows from
+ *  this rather than re-declaring the shape. */
+export type DownloadJob = z.infer<typeof downloadJobSchema>;

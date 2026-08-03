@@ -3,16 +3,16 @@ import {
   EMPTY_POLL_LIMIT,
   activeDownloadProgress,
   shouldPollAgain,
-  type DownloadJob,
+  type DownloadProgressJob,
 } from "../../src/audio/downloads";
 
-function job(overrides: Partial<DownloadJob>): DownloadJob {
+function job(overrides: Partial<DownloadProgressJob> & { id?: string }): DownloadProgressJob {
+  const { id: _id, ...rest } = overrides;
   return {
-    id: "j1",
     url: "https://www.youtube.com/watch?v=aaaaaaaaaaa",
     status: "running",
     progress: 0,
-    ...overrides,
+    ...rest,
   };
 }
 

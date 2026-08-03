@@ -1,11 +1,10 @@
 import { parseVideoId } from "../youtube/url";
+import type { DownloadJob } from "./schema";
 
-export interface DownloadJob {
-  id: string;
-  url: string;
-  status: string;
-  progress: number;
-}
+/** Only the fields this mapping reads. Narrowing here (rather than
+ *  re-declaring the job shape) keeps one definition of the wire format while
+ *  still stating exactly what this function depends on. */
+export type DownloadProgressJob = Pick<DownloadJob, "url" | "status" | "progress">;
 
 /** mp3server's non-terminal job states; everything else (completed/failed/
  *  canceled/anything future) is terminal — see ALL_STATUSES server-side. */
@@ -34,7 +33,9 @@ export function shouldPollAgain(consecutiveEmptyPolls: number): boolean {
  * wins (the list arrives newest-first): its status alone decides whether that
  * video has a bar, even if an older job for the same video is still active.
  */
-export function activeDownloadProgress(jobs: readonly DownloadJob[]): Map<string, number> {
+export function activeDownloadProgress(
+  jobs: readonly DownloadProgressJob[],
+): Map<string, number> {
   const progress = new Map<string, number>();
   const decided = new Set<string>();
 
