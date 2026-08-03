@@ -29,6 +29,15 @@ const MAX_ROWS = 10;
 const FFT_SIZE = 128;
 const SPECTRUM_SMOOTHING = 0.65;
 
+// spectrumColumns throws if columns > bins.length (bins.length is
+// FFT_SIZE / 2), but that check only fires per-frame inside the rAF loop —
+// catch a bad constant at module load instead of a live playback session.
+if (MAX_COLUMNS > FFT_SIZE / 2) {
+  throw new Error(
+    `MAX_COLUMNS (${MAX_COLUMNS}) must not exceed FFT_SIZE / 2 (${FFT_SIZE / 2})`,
+  );
+}
+
 /** How long a "reactive" tap must read as continuous silence while the
  * element is actually playing before we give up on it — a tainted
  * (cross-origin) tap reads as permanent silence, not a quiet song. Audible
@@ -58,9 +67,14 @@ interface Grid {
 }
 
 /** captureStream isn't in the standard lib DOM types for HTMLAudioElement
- * yet, despite being implemented by every non-Safari engine — this is the
- * narrowest way to feature-detect it without reaching for `any`. */
-type CaptureCapableAudio = HTMLAudioElement & { captureStream?: () => MediaStream };
+ * yet. Firefox only ever shipped it under the legacy-prefixed
+ * mozCaptureStream name rather than the unprefixed method other non-Safari
+ * engines use, so both must be feature-detected; this is the narrowest way
+ * to do that without reaching for `any`. */
+type CaptureCapableAudio = HTMLAudioElement & {
+  captureStream?: () => MediaStream;
+  mozCaptureStream?: () => MediaStream;
+};
 
 /**
  * Build a read-only *copy* of the element's audio for the analyser, never a
@@ -72,18 +86,21 @@ type CaptureCapableAudio = HTMLAudioElement & { captureStream?: () => MediaStrea
  * which `createMediaElementSource` risked because it reroutes the element's
  * actual output through the (suspendable) context graph.
  *
- * Returns null when there is no usable tap: Safari has no captureStream on
- * <audio> elements at all, and in either case the caller's shimmer fallback
- * is the correct trade — it costs only the visualizer, never the audio,
- * because playback must never depend on the visualizer working.
+ * Returns null when there is no usable tap: Safari implements neither
+ * captureStream nor the Firefox-prefixed mozCaptureStream on <audio>
+ * elements, so it's the one engine that gets the shimmer fallback — which
+ * is the correct trade either way, since it costs only the visualizer,
+ * never the audio, because playback must never depend on the visualizer
+ * working.
  */
 function getAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
   const captureCapable = audio as CaptureCapableAudio;
-  if (typeof captureCapable.captureStream !== "function") {
+  const captureStream = captureCapable.captureStream ?? captureCapable.mozCaptureStream;
+  if (typeof captureStream !== "function") {
     return null;
   }
   try {
-    const stream = captureCapable.captureStream();
+    const stream = captureStream.call(captureCapable);
     const context = new AudioContext();
     const analyser = context.createAnalyser();
     analyser.fftSize = FFT_SIZE;
@@ -208,6 +225,14 @@ export function PixelVisualizer({
       canvas.height = Math.floor(height * dpr);
       canvas.getContext("2d")?.setTransform(dpr, 0, 0, dpr, 0, 0);
       gridRef.current = { cols, rows, width, height };
+      // Idle draws once and stops (see the draw effect below), so without
+      // this kick a mount or resize that lands on/after that draw-once
+      // would leave the grid blank until `mode` next changes. kickLoopRef
+      // defaults to a no-op until the draw effect below assigns
+      // scheduleLoop to it, so this is safe to call before that effect has
+      // run; scheduleLoop's own running/visible guards make a redundant
+      // kick harmless either way.
+      kickLoopRef.current?.();
     };
 
     const ro = new ResizeObserver((entries) => {
@@ -253,6 +278,24 @@ export function PixelVisualizer({
     // recover mid-session, so there's no point retrying it.
     let permanentFallback = false;
 
+    // The captureStream MediaStream's audio track ends whenever the
+    // element loads a new resource (e.g. skipping to the next track) —
+    // it's tied to that one resource, not the element's lifetime. Left
+    // alone, the analyser silently reads zeros forever, which the silence
+    // window above then (mis)reads as 3s of real silence and permanently
+    // downgrades to the shimmer, even though the new track is playing
+    // fine. "emptied" fires on every such resource swap, so tear the graph
+    // down here and let the next reactive frame lazily rebuild it
+    // (`graphRef.current ??= getAudioGraph(audio)` below) against the new
+    // stream.
+    const onEmptied = () => {
+      graphRef.current?.context.close().catch(() => {});
+      graphRef.current = null;
+      permanentFallback = false;
+      silenceStartedAt = null;
+    };
+    audio?.addEventListener("emptied", onEmptied);
+
     const scheduleLoop = () => {
       if (running || !visible) return;
       running = true;
@@ -275,6 +318,14 @@ export function PixelVisualizer({
         // instantly trip the fallback the moment we're visible again.
         silenceStartedAt = null;
         scheduleLoop();
+      } else {
+        // A frame already queued via requestAnimationFrame can be dropped
+        // outright by bfcache/page-freeze instead of firing — which would
+        // otherwise leave `running` stuck true forever and wedge
+        // scheduleLoop from ever rescheduling once visible again.
+        if (raf) cancelAnimationFrame(raf);
+        raf = 0;
+        running = false;
       }
     };
     document.addEventListener("visibilitychange", onVisibility);
@@ -313,16 +364,16 @@ export function PixelVisualizer({
 
           // Only count a frame toward the silence window when it's a
           // trustworthy read: actually playing, with enough buffered data
-          // to expect real analyser output, the tap context actually
-          // running (not still suspended from the resume above), and the
-          // tab visible. Anything else (paused, buffering, suspended,
-          // hidden) just leaves the window where it was — it neither
-          // advances nor resets it.
+          // to expect real analyser output, and the tap context actually
+          // running (not still suspended from the resume above). Anything
+          // else (paused, buffering, suspended) just leaves the window
+          // where it was — it neither advances nor resets it. (`visible` is
+          // not part of this check: the loop already returned above when
+          // hidden, so this line never runs while hidden.)
           const trustworthy =
             !audio.paused &&
             audio.readyState >= HTMLMediaElement.HAVE_FUTURE_DATA &&
-            graph.context.state === "running" &&
-            visible;
+            graph.context.state === "running";
 
           if (trustworthy) {
             if (isSilentFrame(graph.bins)) {
@@ -368,6 +419,7 @@ export function PixelVisualizer({
       if (raf) cancelAnimationFrame(raf);
       document.removeEventListener("visibilitychange", onVisibility);
       reduceMotionQuery.removeEventListener("change", onReduceMotionChange);
+      audio?.removeEventListener("emptied", onEmptied);
       // Nothing depends on this context for playback anymore, so close it
       // properly instead of leaking it. A rejected close here is just a
       // teardown race (e.g. already closed) and is benign.

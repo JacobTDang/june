@@ -101,6 +101,20 @@ describe("spectrumColumns - smoothing", () => {
   });
 });
 
+describe("spectrumColumns - boundary: columns equals bins.length", () => {
+  it("does not throw when columns === bins.length (the largest legal value) and returns bins.length columns", () => {
+    const totalBins = 8;
+    const config: SpectrumConfig = { columns: totalBins, smoothing: 0 };
+    const frame = bins(0, 32, 64, 96, 128, 160, 192, 224);
+
+    let result: number[] = [];
+    expect(() => {
+      result = spectrumColumns(frame, null, config);
+    }).not.toThrow();
+    expect(result).toHaveLength(totalBins);
+  });
+});
+
 describe("spectrumColumns - validation", () => {
   it("throws on zero-length bins", () => {
     const config: SpectrumConfig = { columns: 4, smoothing: 0 };
