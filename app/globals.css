@@ -811,17 +811,40 @@ a:hover {
   height: 100%;
   object-fit: cover;
   transform: scale(1.15);
-  filter: blur(34px) brightness(0.45);
-  opacity: 0.85;
+  /* Bright covers otherwise wash the card out and swallow the dots, so the
+     art is dimmed hard and desaturated a little; the scrim below then
+     guarantees contrast no matter how light the artwork is. */
+  filter: blur(34px) brightness(0.42) saturate(0.9);
+  opacity: 0.9;
   animation: audioBackdropIn 0.6s var(--ease) both;
   pointer-events: none;
+}
+/* Constant dark scrim between the art and the dots. Without it the dots'
+   legibility would depend on whichever album cover is playing, which is not
+   something the design can control. Explicit z-indexes because all three
+   layers (art, scrim, canvas) share one stacking context. */
+.audio-stage__backdrop {
+  z-index: 0;
+}
+.audio-stage__canvas:has(.audio-stage__backdrop)::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: var(--surface);
+  opacity: 0.42;
+  z-index: 1;
+  pointer-events: none;
+}
+.audio-stage__canvas > canvas {
+  position: relative;
+  z-index: 2;
 }
 @keyframes audioBackdropIn {
   from {
     opacity: 0;
   }
   to {
-    opacity: 0.85;
+    opacity: 0.9;
   }
 }
 .audio-stage__content {
