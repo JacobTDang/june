@@ -3,14 +3,8 @@ import { downloadsResponseSchema, linkResponseSchema } from "./schema";
 /** The one bit of `fetch` we use - injectable so tests need no network. */
 type FetchLike = (input: URL, init?: RequestInit) => Promise<Response>;
 
-/** One mp3server download job, narrowed to the fields callers use. */
-export interface DownloadJob {
-  id: string;
-  url: string;
-  status: string;
-  progress: number;
-  created_at: string;
-}
+export type { DownloadJob } from "./schema";
+import type { DownloadJob } from "./schema";
 
 /** The slice of mp3server the room player needs. */
 export interface AudioServer {
