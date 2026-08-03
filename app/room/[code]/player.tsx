@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Volume2, VolumeX } from "lucide-react";
+import { Play, Volume1, Volume2, VolumeX } from "lucide-react";
 import { advanceTrack, markTrackReady } from "@/src/lib/room/actions";
 import {
   PLAYBACK_MODE_STORAGE_KEY,
@@ -10,6 +10,7 @@ import {
   type PlaybackMode,
 } from "@/src/lib/room/playback-mode";
 import { playbackCorrection } from "@/src/lib/room/sync";
+import { VOLUME_STORAGE_KEY, readVolume, volumeLevel } from "@/src/lib/room/volume";
 import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { shouldSkipPreparing } from "@/src/audio/preparing";
@@ -117,13 +118,23 @@ export function Player({
   // sound. Read from storage after mount: the server can't know this device's
   // choice, and rendering it during SSR would mismatch on hydration.
   const [mode, setMode] = useState<PlaybackMode>("play");
+  // Also per device, and read in the same pass.
+  const [volume, setVolume] = useState(1);
   useEffect(() => {
     try {
       setMode(readPlaybackMode(window.localStorage.getItem(PLAYBACK_MODE_STORAGE_KEY)));
+      setVolume(readVolume(window.localStorage.getItem(VOLUME_STORAGE_KEY)));
     } catch {
-      // Storage unavailable — stay on the default and play.
+      // Storage unavailable — stay on the defaults: play, full volume.
     }
   }, []);
+
+  // The element carries its own volume across source changes, so this only
+  // has to apply a change: the level restored from storage after mount, or a
+  // drag of the slider.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = volume;
+  }, [volume]);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [reloadNonce, setReloadNonce] = useState(0);
   // Set when the loader's NotAllowedError path re-offers the tap gate;
@@ -430,6 +441,15 @@ export function Player({
     setStarted(true);
   }
 
+  function changeVolume(next: number) {
+    setVolume(next);
+    try {
+      window.localStorage.setItem(VOLUME_STORAGE_KEY, String(next));
+    } catch {
+      // Storage unavailable: the level still applies to this session.
+    }
+  }
+
   /** Flip this device between making sound and following along silently.
    *  Switching to "play" is itself the user gesture browsers require, so it
    *  can unlock and start in one step rather than re-showing the tap gate. */
@@ -446,6 +466,7 @@ export function Player({
   }
 
   const silent = mode === "silent";
+  const level = volumeLevel(volume);
 
   return (
     <div className="audio-stage">
@@ -455,15 +476,36 @@ export function Player({
         mode={silent ? "idle" : visualizerMode(status)}
         artworkUrl={nowPlaying?.thumbnailUrl ?? null}
       />
-      <button
-        className="audio-stage__device"
-        onClick={togglePlayback}
-        title={silent ? "Play the jam on this device" : "Follow the jam without sound here"}
-        aria-label={silent ? "Play on this device" : "Stop playing on this device"}
-        aria-pressed={!silent}
-      >
-        {silent ? <VolumeX size={15} /> : <Volume2 size={15} />}
-      </button>
+      <div className="audio-stage__sound">
+        <button
+          className="audio-stage__device"
+          onClick={togglePlayback}
+          title={silent ? "Play the jam on this device" : "Follow the jam without sound here"}
+          aria-label={silent ? "Play on this device" : "Stop playing on this device"}
+          aria-pressed={!silent}
+        >
+          {silent || level === "off" ? (
+            <VolumeX size={15} />
+          ) : level === "low" ? (
+            <Volume1 size={15} />
+          ) : (
+            <Volume2 size={15} />
+          )}
+        </button>
+        <input
+          className="audio-stage__volume"
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={volume}
+          onChange={(e) => changeVolume(Number(e.target.value))}
+          // Nothing to turn up on a device that isn't playing; the button
+          // beside it is how you start.
+          disabled={silent}
+          aria-label="Volume"
+        />
+      </div>
       <audio
         ref={audioRef}
         crossOrigin="anonymous"

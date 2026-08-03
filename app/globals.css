@@ -1535,11 +1535,52 @@ a:hover {
 /* The per-device sound toggle, tucked into the card's corner: present but
    never competing with the tap gate or the track title. Above the canvas
    (z-index 2 inside .audio-stage__canvas) so it stays clickable. */
-.audio-stage__device {
+/* Sound controls, tucked into the card's corner: the play-here toggle and the
+   volume slider read as one control. Above the canvas (z-index 2 inside
+   .audio-stage__canvas) so both stay clickable. */
+.audio-stage__sound {
   position: absolute;
   top: 0.6rem;
   right: 0.6rem;
   z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.audio-stage__volume {
+  width: 74px;
+  height: 3px;
+  appearance: none;
+  background: var(--line-2);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.audio-stage__volume::-webkit-slider-thumb {
+  appearance: none;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 0;
+  cursor: pointer;
+}
+.audio-stage__volume::-moz-range-thumb {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 0;
+  cursor: pointer;
+}
+.audio-stage__volume:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.audio-stage__volume:disabled::-webkit-slider-thumb {
+  cursor: default;
+}
+
+.audio-stage__device {
   display: inline-flex;
   align-items: center;
   justify-content: center;
