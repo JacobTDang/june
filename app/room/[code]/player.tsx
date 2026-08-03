@@ -44,7 +44,7 @@ let cachedServer: AudioServer | null = null;
 function audioServer(): AudioServer {
   if (!cachedServer) {
     const baseUrl = process.env.NEXT_PUBLIC_MP3SERVER_URL;
-    if (!baseUrl) throw new Error("NEXT_PUBLIC_MP3SERVER_URL is not configured.");
+    if (!baseUrl) throw new Error(MISSING_CONFIG_MESSAGE);
     const supabase = createClient();
     cachedServer = createAudioServer({
       baseUrl,
@@ -140,7 +140,10 @@ export function Player({
 
     if (currentVideo.current !== np.videoId) reminted.current = false;
     currentVideo.current = np.videoId;
-    let preparingSince: number | null = null;
+    // Starts now so the download wait and the not-yet-started-clock wait
+    // below share one 90s liveness bound from the moment this track becomes
+    // current - no room state (downloading or pending) is left unbounded.
+    const preparingSince = Date.now();
     let cancelled = false;
     const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
 
@@ -172,9 +175,6 @@ export function Player({
         if (cancelled) return;
 
         if (url === null) {
-          // Start the preparing clock at the first confirmed "not stored
-          // yet" — server outage time must not eat the 90s budget.
-          preparingSince ??= Date.now();
           if (shouldSkipPreparing(preparingSince, Date.now())) {
             setStatus({ kind: "skipped", title: np!.title });
             void advanceTrack(roomId, np!.videoId);
@@ -186,12 +186,26 @@ export function Player({
         }
 
         if (np!.startedAt === null) {
-          // Downloadable, but the room's clock hasn't started yet. Mark it
-          // ready (idempotent via CAS - fine if another listener already
-          // did) and wait: the realtime update flips startedAt, trackKey
-          // changes, and this effect re-runs to mint again (server-cached,
-          // cheap) and actually play. Do not set src/play yet.
-          void markTrackReady(roomId, np!.videoId);
+          // Downloadable, but the room's clock hasn't started yet. Bounded
+          // by the same 90s liveness clock as the download wait above.
+          if (shouldSkipPreparing(preparingSince, Date.now())) {
+            setStatus({ kind: "skipped", title: np!.title });
+            void advanceTrack(roomId, np!.videoId);
+            return;
+          }
+          try {
+            // Idempotent via CAS - fine if another listener already did.
+            await markTrackReady(roomId, np!.videoId);
+          } catch {
+            if (cancelled) return;
+            setStatus({ kind: "unreachable" });
+            await sleep(UNREACHABLE_RETRY_MS);
+            continue;
+          }
+          if (cancelled) return;
+          // The realtime update flips startedAt, trackKey changes, and this
+          // effect re-runs to mint again (server-cached, cheap) and actually
+          // play. Do not set src/play yet.
           setStatus({ kind: "preparing" });
           return;
         }

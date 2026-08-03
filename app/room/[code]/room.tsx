@@ -296,7 +296,7 @@ export function Room({
         <div className="room__center">
           <section className="stage">
             <div className="section__head">
-              <span className="eyebrow">Now playing</span>
+              {nowPlaying && <span className="eyebrow">Now playing</span>}
             </div>
             <div className="player-wrap">
               {offset !== null ? (

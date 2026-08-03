@@ -206,12 +206,12 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
 
   const { data: roomData } = await supabase
     .from("rooms")
-    .select("now_playing_video_id, now_playing_started_at, now_playing_duration_ms")
+    .select("now_playing_video_id, now_playing_started_at")
     .eq("id", roomId)
     .maybeSingle();
   const room = roomData as Pick<
     RoomRow,
-    "now_playing_video_id" | "now_playing_started_at" | "now_playing_duration_ms"
+    "now_playing_video_id" | "now_playing_started_at"
   > | null;
   if (!room || room.now_playing_video_id !== endedVideoId) return; // already advanced
 
@@ -225,12 +225,17 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
     .update(update)
     .eq("id", roomId)
     .eq("now_playing_video_id", endedVideoId);
-  // Guard on the exact track instance we read, not just its video id - with
-  // duplicate videos the id is unchanged after advancing, so concurrent
-  // "ended" events would otherwise double-advance. A pending track (the
-  // preparing-timeout path advances a track whose clock never started) has
-  // started_at NULL - Postgres NULL is never `=` to anything, including
-  // itself, so that case needs `.is()` rather than `.eq()`.
+  // Instance guard: the running branch (started_at != null) compares
+  // started_at equality, so concurrent "ended" events for the same instance
+  // can't double-advance. The pending branch (preparing-timeout skip,
+  // started_at NULL) can't use equality - Postgres NULL is never `=` to
+  // anything, including itself - so it falls back to `.is()`, which cannot
+  // distinguish two duplicate pending instances of the same videoId (every
+  // column is identical). That means duplicate pending instances of the same
+  // video could double-advance here. Accepted for now - a failing duplicate
+  // would fail again on its own next attempt - and tracked as a follow-up
+  // needing a `now_playing_instance` discriminator (a schema migration, out
+  // of scope this round).
   query =
     room.now_playing_started_at === null
       ? query.is("now_playing_started_at", null)
