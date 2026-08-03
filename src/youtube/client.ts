@@ -24,6 +24,13 @@ export interface YouTubeClient {
   listPlaylists(): Promise<Playlist[]>;
   /** Every video id in a playlist, in playlist order (requires an OAuth access token). */
   listPlaylistVideoIds(playlistId: string): Promise<string[]>;
+  /**
+   * The same, for a playlist that's public: playlistItems.list is readable
+   * with the API key alone, so a pasted link doesn't oblige anyone to connect
+   * their YouTube account. A token is still sent when there is one, which is
+   * what makes a private playlist of your own work here too.
+   */
+  listPublicPlaylistVideoIds(playlistId: string): Promise<string[]>;
 }
 
 /** The one bit of `fetch` we use - injectable so tests need no network. */
@@ -155,19 +162,27 @@ export function createYouTubeClient(config: YouTubeClientConfig): YouTubeClient 
     },
 
     async listPlaylistVideoIds(playlistId) {
-      if (!playlistId) throw new Error("listPlaylistVideoIds: playlistId is required");
-      const items = await paginate(async (pageToken) => {
-        const params: Record<string, string> = {
-          part: "contentDetails",
-          playlistId,
-          maxResults: String(MAX_PAGE_SIZE),
-        };
-        if (pageToken !== undefined) params.pageToken = pageToken;
-        return parsePlaylistItemsResponse(await get("playlistItems", params, true));
-      });
-      return items.map((item) => item.contentDetails.videoId);
+      return playlistVideoIds(playlistId, true);
+    },
+
+    async listPublicPlaylistVideoIds(playlistId) {
+      return playlistVideoIds(playlistId, false);
     },
   };
+
+  async function playlistVideoIds(playlistId: string, requireAuth: boolean): Promise<string[]> {
+    if (!playlistId) throw new Error("listPlaylistVideoIds: playlistId is required");
+    const items = await paginate(async (pageToken) => {
+      const params: Record<string, string> = {
+        part: "contentDetails",
+        playlistId,
+        maxResults: String(MAX_PAGE_SIZE),
+      };
+      if (pageToken !== undefined) params.pageToken = pageToken;
+      return parsePlaylistItemsResponse(await get("playlistItems", params, requireAuth));
+    });
+    return items.map((item) => item.contentDetails.videoId);
+  }
 }
 
 /**
