@@ -795,6 +795,13 @@ a:hover {
   position: absolute;
   inset: 0 0 var(--audio-stage-caption-h, 0rem) 0;
   transition: inset 0.3s var(--ease);
+  /* Actually creates the shared stacking context the art/scrim/canvas
+     z-indexes below assume: position + z-index:auto alone does NOT open one,
+     so without this the canvas's z-index:2 escaped this box entirely and
+     out-ranked .audio-stage__content's z-index:1 in the *parent* stacking
+     context — sitting on top of and swallowing every click to the button
+     and status text. */
+  isolation: isolate;
 }
 /* A large, heavily blurred and dimmed render of the current track's cover,
    behind the canvas: the record sitting behind the music. A real <img> (not
