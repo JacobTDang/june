@@ -993,50 +993,26 @@ a:hover {
   top: 1.5rem;
 }
 
-/* Wide screens: the rails stretch to the section's full height and the stage
-   grows with the viewport, so the composition reaches the bottom of the
-   screen rather than floating in the top third. Kept above the stacking
-   breakpoints — once the layout collapses, natural height reads better. */
+/* Wide screens: the rails stretch to the section's full height, so what sits
+   under the player card can take the space instead of leaving it as dead
+   background. The card itself stays the wide rectangle it has always been —
+   an earlier pass grew it to fill the column and it read as a mural. Kept
+   above the stacking breakpoints; once the layout collapses, natural height
+   reads better. */
 @media (min-width: 981px) {
   .room__main {
     align-items: stretch;
     align-content: stretch;
   }
-  /* The hero spans the section's full height rather than sitting in it:
-     centring a short card only moves the empty band lower down the page. The
-     chain has to be unbroken — every link between .room__center and the card
-     grows, and each carries min-height:0 so a flex item can shrink below its
-     content instead of forcing the page taller. */
   .room__center {
     display: flex;
     flex-direction: column;
+    min-height: 0;
   }
+  /* No sticky here: the centre rail is a column with the card on top and
+     whatever fills the rest below it, so there's nothing to float alongside. */
   .room__center .stage {
     position: static;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    min-height: 0;
-  }
-  .room__center .player-wrap {
-    display: flex;
-    flex: 1;
-    min-height: 0;
-  }
-  .room__center .audio-stage {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-  }
-  /* Centre the copy and the tap button in the card that's actually on screen:
-     .audio-stage__content otherwise centres inside its own min-height and
-     leaves everything sitting near the top of a tall stage. The margin keeps
-     the caption band free — .audio-stage__status hangs just below this box,
-     the same offset .audio-stage__canvas reserves with its bottom inset. */
-  .room__center .audio-stage__content {
-    flex: 1;
-    margin-bottom: var(--audio-stage-caption-h, 0rem);
-    transition: margin-bottom 0.3s var(--ease);
   }
   /* The queue fills its rail and scrolls inside it, so a long queue uses the
      height that's actually there instead of a fixed 22rem window. */
