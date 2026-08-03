@@ -50,15 +50,27 @@ const SILENCE_FALLBACK_MS = 3000;
 /** rgb() triple for --accent (#f2b552, see app/globals.css) — reused as-is
  * rather than introducing a new hue for the visualizer. */
 const ACCENT_RGB = "242, 181, 82";
-const DOT_BASE_ALPHA = 0.14;
+const DOT_BASE_ALPHA = 0.12;
 const DOT_PEAK_ALPHA = 0.95;
+/** Music keeps most bands loud most of the time, so raw band levels light
+ * every dot at once and the field reads as a solid wall. Gamma pushes the
+ * mid-range down so only genuinely strong bands bloom, which is what gives
+ * the grid its dynamics. */
+const BLOOM_GAMMA = 1.7;
+/** How much of a dot's bloom is lost by the rim. Without this the radial
+ * mapping is invisible on loud passages — every ring lights equally — so the
+ * centre keeps its full range and the outer rings are attenuated. */
+const RADIAL_FALLOFF = 0.35;
+/** Distance→band curve. >1 pushes the loud low bands outward so they bloom
+ * across several rings instead of only the centre dot. */
+const BAND_CURVE = 1.6;
 /** Unlit baseline radius (as a fraction of the cell pitch) — the same static
  * dot size idle/quiet dots have always had. */
-const DOT_RADIUS_RATIO = 0.16;
+const DOT_RADIUS_RATIO = 0.13;
 /** Fully-bloomed radius at intensity 1. Chosen so a dot at peak size (with
  * the cell pitch this grid targets) still leaves a visible gap to its
  * neighbours rather than merging into a blob — see drawRadial. */
-const DOT_RADIUS_RATIO_PEAK = 0.38;
+const DOT_RADIUS_RATIO_PEAK = 0.32;
 
 /** Per-band attack/decay factors for the reactive envelope: rise fast toward
  * a new peak, fall slowly back down, so the bloom breathes instead of
@@ -252,7 +264,11 @@ function stepBandState(state: BandState, target: readonly number[]): void {
  * than banding visibly at this grid's fairly coarse band count. */
 function sampleBloom(distance: number, state: BandState): number {
   const { bandCount, history, historyPos } = state;
-  const bandPos = distance * (bandCount - 1);
+  // Music's energy is concentrated in the lowest bands, so mapping distance
+  // to band index linearly lights only the innermost ring and leaves the rest
+  // of the field dead. Curving it gives the loud low bands several rings of
+  // radius to bloom across, and compresses the sparse treble into the rim.
+  const bandPos = Math.pow(distance, BAND_CURVE) * (bandCount - 1);
   const lowBand = Math.min(bandCount - 1, Math.floor(bandPos));
   const highBand = Math.min(bandCount - 1, lowBand + 1);
   const frac = bandPos - lowBand;
@@ -317,7 +333,11 @@ function drawRadial(
       const distance = distances[i] ?? 0;
       let intensity = 0;
       if (mode === "reactive" && bandState) {
-        intensity = sampleBloom(distance, bandState);
+        // Shape before drawing: gamma for dynamics, falloff so the bloom
+        // actually reads as radial rather than a uniformly lit field.
+        intensity =
+          Math.pow(sampleBloom(distance, bandState), BLOOM_GAMMA) *
+          (1 - RADIAL_FALLOFF * distance);
       } else if (mode === "pulse") {
         intensity = pulseIntensity(distance, now);
       }
