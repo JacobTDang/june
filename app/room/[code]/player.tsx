@@ -431,6 +431,16 @@ export function Player({
 
   function start() {
     setAutoplayBlocked(false);
+    // Tapping in is a request for sound: a device that was left muted would
+    // otherwise take the tap and then sit there silent.
+    if (mode === "silent") {
+      setMode("play");
+      try {
+        window.localStorage.setItem(PLAYBACK_MODE_STORAGE_KEY, "play");
+      } catch {
+        // Storage unavailable; the choice still applies to this session.
+      }
+    }
     const audio = audioRef.current;
     if (audio) {
       audio.src = SILENCE;
@@ -448,11 +458,17 @@ export function Player({
     } catch {
       // Storage unavailable: the level still applies to this session.
     }
+    // Turning the slider up on a muted device means "let me hear it" — the
+    // drag is itself the gesture browsers need, so unmute rather than making
+    // them find the button too.
+    if (next > 0 && mode === "silent") togglePlayback();
   }
 
-  /** Flip this device between making sound and following along silently.
-   *  Switching to "play" is itself the user gesture browsers require, so it
-   *  can unlock and start in one step rather than re-showing the tap gate. */
+  /** Mute or unmute this device. Muting drops the source entirely rather than
+   *  playing to nobody: the room stays in sync from the shared clock, so
+   *  unmuting seeks straight back to where everyone else is. Unmuting is
+   *  itself the user gesture browsers require, so it can unlock and start in
+   *  one step rather than re-showing the tap gate. */
   function togglePlayback() {
     const next: PlaybackMode = mode === "play" ? "silent" : "play";
     setMode(next);
@@ -480,9 +496,9 @@ export function Player({
         <button
           className="audio-stage__device"
           onClick={togglePlayback}
-          title={silent ? "Play the jam on this device" : "Follow the jam without sound here"}
-          aria-label={silent ? "Play on this device" : "Stop playing on this device"}
-          aria-pressed={!silent}
+          title={silent ? "Unmute this device" : "Mute this device"}
+          aria-label={silent ? "Unmute this device" : "Mute this device"}
+          aria-pressed={silent}
         >
           {silent || level === "off" ? (
             <VolumeX size={15} />
@@ -500,9 +516,6 @@ export function Player({
           step={0.01}
           value={volume}
           onChange={(e) => changeVolume(Number(e.target.value))}
-          // Nothing to turn up on a device that isn't playing; the button
-          // beside it is how you start.
-          disabled={silent}
           aria-label="Volume"
         />
       </div>
@@ -524,15 +537,7 @@ export function Player({
             </p>
           </div>
         )}
-        {silent ? (
-          <>
-            <button onClick={togglePlayback} className="btn btn--primary btn--lg">
-              <Play size={17} fill="currentColor" strokeWidth={0} />
-              Play on this device
-            </button>
-            <p className="audio-stage__notice">Sound is off on this device.</p>
-          </>
-        ) : !started ? (
+        {!started ? (
           <>
             <button onClick={start} className="btn btn--primary btn--lg">
               <Play size={17} fill="currentColor" strokeWidth={0} />

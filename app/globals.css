@@ -1130,6 +1130,9 @@ a:hover {
   margin: 0;
   font-size: 0.92rem;
   line-height: 1.45;
+  /* Messages can carry their own line breaks now that the composer accepts
+     them, and they should read back the way they were typed. */
+  white-space: pre-wrap;
   /* A pasted link or a long unbroken string wraps instead of widening the
      rail and squeezing the player card. */
   overflow-wrap: anywhere;
@@ -1141,13 +1144,23 @@ a:hover {
 }
 .chat__form {
   display: flex;
-  align-items: center;
+  /* End-aligned so the send button stays on the last line as the box grows. */
+  align-items: flex-end;
   gap: 0.5rem;
   margin-top: 0.85rem;
 }
 .chat__form .input {
   flex: 1;
   min-width: 0;
+}
+/* A textarea, not a text input: a long message wraps onto new lines and the
+   box grows down (height is set from content in chat.tsx) instead of the text
+   scrolling away sideways. */
+.chat__input {
+  resize: none;
+  overflow-y: auto;
+  line-height: 1.4;
+  font-family: inherit;
 }
 
 .section__head {
@@ -1547,13 +1560,26 @@ a:hover {
   align-items: center;
   gap: 0.4rem;
 }
+/* Out of the way until wanted: the speaker button is the resting state, and
+   the slider grows out of it on hover or keyboard focus. Width and opacity
+   (rather than display:none) so it stays in the tab order and can be reached
+   without a pointer — focus-within then reveals what you're adjusting. */
 .audio-stage__volume {
-  width: 74px;
+  width: 0;
+  opacity: 0;
   height: 3px;
   appearance: none;
   background: var(--line-2);
   border-radius: 999px;
   cursor: pointer;
+  transition:
+    width 0.18s var(--ease),
+    opacity 0.18s var(--ease);
+}
+.audio-stage__sound:hover .audio-stage__volume,
+.audio-stage__sound:focus-within .audio-stage__volume {
+  width: 74px;
+  opacity: 1;
 }
 .audio-stage__volume::-webkit-slider-thumb {
   appearance: none;
@@ -1572,12 +1598,13 @@ a:hover {
   border: 0;
   cursor: pointer;
 }
-.audio-stage__volume:disabled {
-  opacity: 0.35;
-  cursor: default;
-}
-.audio-stage__volume:disabled::-webkit-slider-thumb {
-  cursor: default;
+/* No hover on touch: the slider has no way to be revealed, so it just sits
+   open next to the button. */
+@media (hover: none) {
+  .audio-stage__volume {
+    width: 74px;
+    opacity: 1;
+  }
 }
 
 .audio-stage__device {
