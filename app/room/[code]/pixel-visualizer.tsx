@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { isSilentFrame, spectrumColumns, type SpectrumConfig } from "@/src/audio/spectrum";
+import { MAX_COLUMNS, computeGrid } from "@/src/audio/grid";
 import { highResArtwork } from "@/src/audio/artwork";
 
 export type VisualizerMode = "reactive" | "pulse" | "idle";
@@ -17,20 +18,8 @@ export type VisualizerMode = "reactive" | "pulse" | "idle";
  * verbatim here; this file only maps that data onto the dot field.
  */
 
-/** Dot pitch this grid targets, in CSS px. Originally matched the bg wave's
- * spacing (elementSize=22 in WavesBackground); deliberately tighter here so
- * the card reads as a dense constellation over the album-art backdrop
- * rather than a sparse grid — roughly double the dots per axis versus that
- * 22px pitch. Columns/rows are then derived from the card's actual size, not
- * hardcoded. */
-const TARGET_CELL_PX = 13;
-const MIN_COLUMNS = 12;
-const MAX_COLUMNS = 70;
-const MIN_ROWS = 4;
-const MAX_ROWS = 20;
-
-/** Raised from 128 (64 bins) so the wider MAX_COLUMNS above has headroom —
- * see the module-load assertion just below. */
+/** Raised from 128 (64 bins) so the wider MAX_COLUMNS (see src/audio/grid.ts)
+ * has headroom — see the module-load assertion just below. */
 const FFT_SIZE = 256;
 const SPECTRUM_SMOOTHING = 0.65;
 
@@ -178,12 +167,6 @@ function getAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
     // here ever touches the element's normal output path.
     return null;
   }
-}
-
-function computeGrid(width: number, height: number): { cols: number; rows: number } {
-  const cols = Math.min(MAX_COLUMNS, Math.max(MIN_COLUMNS, Math.round(width / TARGET_CELL_PX)));
-  const rows = Math.min(MAX_ROWS, Math.max(MIN_ROWS, Math.round(height / TARGET_CELL_PX)));
-  return { cols, rows };
 }
 
 /** Distance field for the radial mapping: each dot's normalized distance
@@ -380,12 +363,15 @@ export function PixelVisualizer({
   // than leaving that to chance.
   const resolvedArtwork = highResArtwork(artworkUrl);
   const [failedArtwork, setFailedArtwork] = useState<string | null>(null);
+  // Placeholder until the first measure: computeGrid's own floor for a
+  // zero-sized box, so the smallest grid it can hand out is also the one this
+  // starts with.
+  const initialGrid = computeGrid(0, 0);
   const gridRef = useRef<Grid>({
-    cols: MIN_COLUMNS,
-    rows: MIN_ROWS,
+    ...initialGrid,
     width: 0,
     height: 0,
-    distances: computeDistanceField(MIN_COLUMNS, MIN_ROWS, 0, 0),
+    distances: computeDistanceField(initialGrid.cols, initialGrid.rows, 0, 0),
   });
   // Lazily built per mounted component (replaces a former module-level
   // WeakMap): nothing about the tap depends on playback anymore, so there's

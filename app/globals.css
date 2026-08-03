@@ -697,10 +697,17 @@ a:hover {
 }
 
 /* ---- Jam room: single editorial column ---- */
+/* The room owns the whole viewport: a column that runs top bar, then a main
+   section which takes every remaining pixel (see .room__main). Without this
+   the three rails sat at their natural height and left the bottom half of a
+   desktop screen as dead background. */
 .room {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 1.5rem 6rem;
+  padding: 0 1.5rem 2.5rem;
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
 }
 .room__bar {
   display: flex;
@@ -969,6 +976,10 @@ a:hover {
   grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(310px, 350px);
   gap: 1.75rem;
   align-items: start;
+  /* Claim the height the .room column leaves over, so the rails have real
+     room to distribute instead of hugging their content at the top. */
+  flex: 1;
+  align-content: start;
 }
 .room__queue {
   min-width: 0;
@@ -980,6 +991,48 @@ a:hover {
 .room__center .stage {
   position: sticky;
   top: 1.5rem;
+}
+
+/* Wide screens: the rails stretch to the section's full height, so what sits
+   under the player card can take the space instead of leaving it as dead
+   background. The card itself stays the wide rectangle it has always been —
+   an earlier pass grew it to fill the column and it read as a mural. Kept
+   above the stacking breakpoints; once the layout collapses, natural height
+   reads better. */
+@media (min-width: 981px) {
+  .room__main {
+    align-items: stretch;
+    align-content: stretch;
+  }
+  .room__center {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    gap: 1.75rem;
+  }
+  /* No sticky here: the centre rail is a column with the card on top and the
+     chat filling the rest, so there's nothing to float alongside. */
+  .room__center .stage {
+    position: static;
+  }
+  /* The chat takes the height the card leaves and scrolls inside it, which is
+     what fills the lower half of the room. min-height:0 so the log can shrink
+     below its content instead of pushing the page taller. */
+  .room__center .chat {
+    flex: 1;
+    min-height: 0;
+  }
+  /* The queue fills its rail and scrolls inside it, so a long queue uses the
+     height that's actually there instead of a fixed 22rem window. */
+  .room__queue {
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  .room__queue .queue {
+    flex: 1;
+    max-height: none;
+  }
 }
 .room__rail {
   min-width: 0;
@@ -1009,6 +1062,86 @@ a:hover {
   max-height: 22rem;
   overflow: hidden auto;
   overscroll-behavior: contain;
+}
+
+/* ---- Room chat ---- */
+/* A column: header, the log that takes the slack and scrolls, then the
+   composer pinned under it. On narrow layouts it isn't stretched by a rail,
+   so the log carries its own height instead. */
+.chat {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.chat__log {
+  flex: 1;
+  min-height: 8rem;
+  max-height: 26rem;
+  overflow: hidden auto;
+  overscroll-behavior: contain;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+  padding-right: 0.25rem;
+}
+@media (min-width: 981px) {
+  /* Stretched by the centre rail — the rail's height is the window, so the
+     log follows it rather than a fixed ceiling. */
+  .chat__log {
+    max-height: none;
+  }
+}
+.chat__empty {
+  margin: 0;
+  font-size: 0.9rem;
+}
+.chat__group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+.chat__meta {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+.chat__name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+/* Your own name carries the accent — the only colour in the log, so you can
+   find yourself without reading names. */
+.chat__group--me .chat__name {
+  color: var(--accent);
+}
+.chat__time {
+  font-size: 0.68rem;
+  color: var(--faint);
+}
+.chat__body {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.45;
+  /* A pasted link or a long unbroken string wraps instead of widening the
+     rail and squeezing the player card. */
+  overflow-wrap: anywhere;
+}
+.chat__error {
+  margin: 0.5rem 0 0;
+  font-size: 0.82rem;
+  color: var(--danger);
+}
+.chat__form {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.85rem;
+}
+.chat__form .input {
+  flex: 1;
+  min-width: 0;
 }
 
 .section__head {
@@ -1416,6 +1549,48 @@ a:hover {
   margin-top: 0.85rem;
   color: var(--muted);
   font-size: 0.85rem;
+}
+/* The per-device sound toggle, tucked into the card's corner: present but
+   never competing with the tap gate or the track title. Above the canvas
+   (z-index 2 inside .audio-stage__canvas) so it stays clickable. */
+.audio-stage__device {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  z-index: 3;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border-radius: var(--r-sm);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--faint);
+  cursor: pointer;
+  transition:
+    color 0.15s var(--ease),
+    background 0.15s var(--ease),
+    border-color 0.15s var(--ease);
+}
+.audio-stage__device:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+  border-color: var(--line);
+}
+/* Muted here: the icon carries a little more weight, so a silent device is
+   readable at a glance rather than looking like a dead control. */
+.audio-stage__device[aria-pressed="false"] {
+  color: var(--muted);
+  border-color: var(--line);
+}
+
+/* Typeahead's "Searching…", shown only before the first results land. */
+.add__hint {
+  margin: 0.75rem 0 0;
+  color: var(--faint);
+  font-size: 0.82rem;
 }
 
 /* ---- Playlists (in-room): search + a sideways rail of Spotify-style cards ---- */

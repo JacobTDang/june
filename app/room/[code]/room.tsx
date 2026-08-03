@@ -26,6 +26,7 @@ import { activeDownloadProgress, shouldPollAgain } from "@/src/audio/downloads";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
+import { Chat } from "./chat";
 import { FriendToasts } from "./friend-toasts";
 import { sampleClockOffset } from "./clock-client";
 
@@ -479,6 +480,7 @@ export function Room({
               />
             )}
           </section>
+          <Chat roomId={initial.id} meId={me.userId} />
         </div>
 
         <aside className="room__rail">
