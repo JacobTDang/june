@@ -485,40 +485,14 @@ export function Player({
   const level = volumeLevel(volume);
 
   return (
-    <div className="audio-stage">
+    <>
+      <div className="audio-stage">
       <PixelVisualizer
         audio={audioRef.current}
         // Nothing to react to when this device isn't the one playing.
         mode={silent ? "idle" : visualizerMode(status)}
         artworkUrl={nowPlaying?.thumbnailUrl ?? null}
       />
-      <div className="audio-stage__sound">
-        <button
-          className="audio-stage__device"
-          onClick={togglePlayback}
-          title={silent ? "Unmute this device" : "Mute this device"}
-          aria-label={silent ? "Unmute this device" : "Mute this device"}
-          aria-pressed={silent}
-        >
-          {silent || level === "off" ? (
-            <VolumeX size={15} />
-          ) : level === "low" ? (
-            <Volume1 size={15} />
-          ) : (
-            <Volume2 size={15} />
-          )}
-        </button>
-        <input
-          className="audio-stage__volume"
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={volume}
-          onChange={(e) => changeVolume(Number(e.target.value))}
-          aria-label="Volume"
-        />
-      </div>
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
@@ -553,6 +527,38 @@ export function Player({
           </p>
         )}
       </div>
-    </div>
+      </div>
+
+      {/* Under the card, ahead of the track meta and the chat. The slider is
+          left of the button and grows leftwards on hover, so the button it
+          grows out of stays exactly where the cursor found it. */}
+      <div className="sound">
+        <input
+          className="sound__slider"
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={volume}
+          onChange={(e) => changeVolume(Number(e.target.value))}
+          aria-label="Volume"
+        />
+        <button
+          className="sound__btn"
+          onClick={togglePlayback}
+          title={silent ? "Unmute this device" : "Mute this device"}
+          aria-label={silent ? "Unmute this device" : "Mute this device"}
+          aria-pressed={silent}
+        >
+          {silent || level === "off" ? (
+            <VolumeX size={15} />
+          ) : level === "low" ? (
+            <Volume1 size={15} />
+          ) : (
+            <Volume2 size={15} />
+          )}
+        </button>
+      </div>
+    </>
   );
 }

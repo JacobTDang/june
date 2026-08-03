@@ -1142,16 +1142,39 @@ a:hover {
   font-size: 0.82rem;
   color: var(--danger);
 }
+/* Same single-bar treatment as .add__search: the composer and its send button
+   share one outline. End-aligned so the button stays on the last line as the
+   box grows down. */
 .chat__form {
   display: flex;
-  /* End-aligned so the send button stays on the last line as the box grows. */
   align-items: flex-end;
-  gap: 0.5rem;
   margin-top: 0.85rem;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--r);
+  transition: border-color 0.15s var(--ease);
+}
+.chat__form:focus-within {
+  border-color: var(--line-2);
 }
 .chat__form .input {
   flex: 1;
   min-width: 0;
+  border: 0;
+  background: transparent;
+}
+.chat__form .btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.6rem 0.75rem;
+}
+.chat__form .btn:hover:not(:disabled) {
+  color: var(--accent);
+}
+.chat__form .btn:disabled {
+  color: var(--faint);
+  cursor: default;
 }
 /* A textarea, not a text input: a long message wraps onto new lines and the
    box grows down (height is set from content in chat.tsx) instead of the text
@@ -1404,12 +1427,49 @@ a:hover {
   height: 2px;
   background: var(--accent);
 }
+/* One bar, not a field beside a button: the wrapper carries the field's
+   chrome and the action sits inside it, so the pair reads as a single
+   control. Focus moves to the wrapper via :focus-within, since the input
+   itself no longer has a border to light up. */
 .add__search {
   display: flex;
-  gap: 0.6rem;
+  align-items: center;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: var(--r);
+  transition: border-color 0.15s var(--ease);
+}
+.add__search:focus-within {
+  border-color: var(--line-2);
 }
 .add__search .input {
   flex: 1;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+}
+/* Inside the bar the action is a text button: its own border and fill would
+   put a second box inside the first. The primary state keeps the accent, just
+   as ink rather than a filled pill. */
+.add__search .btn {
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  padding: 0.6rem 0.85rem;
+  white-space: nowrap;
+}
+.add__search .btn:hover {
+  color: var(--ink);
+}
+.add__search .btn--primary {
+  color: var(--accent);
+  font-weight: 600;
+}
+.add__search .btn--primary:hover {
+  color: var(--accent-hi);
+}
+.add__search .btn:disabled {
+  color: var(--faint);
 }
 .add__list {
   list-style: none;
@@ -1545,26 +1605,21 @@ a:hover {
   color: var(--muted);
   font-size: 0.85rem;
 }
-/* The per-device sound toggle, tucked into the card's corner: present but
-   never competing with the tap gate or the track title. Above the canvas
-   (z-index 2 inside .audio-stage__canvas) so it stays clickable. */
-/* Sound controls, tucked into the card's corner: the play-here toggle and the
-   volume slider read as one control. Above the canvas (z-index 2 inside
-   .audio-stage__canvas) so both stay clickable. */
-.audio-stage__sound {
-  position: absolute;
-  top: 0.6rem;
-  right: 0.6rem;
-  z-index: 3;
+/* Sound: its own quiet row between the card and the track meta. Right-aligned
+   with the slider ahead of the button, so revealing it grows leftwards into
+   empty space and the button never moves out from under the cursor. */
+.sound {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: 0.4rem;
+  margin-top: 0.55rem;
 }
-/* Out of the way until wanted: the speaker button is the resting state, and
+/* Out of the way until wanted: the speaker button is the resting state and
    the slider grows out of it on hover or keyboard focus. Width and opacity
-   (rather than display:none) so it stays in the tab order and can be reached
-   without a pointer — focus-within then reveals what you're adjusting. */
-.audio-stage__volume {
+   (rather than display:none) so it keeps its place in the tab order and can
+   be reached without a pointer.  */
+.sound__slider {
   width: 0;
   opacity: 0;
   height: 3px;
@@ -1576,12 +1631,12 @@ a:hover {
     width 0.18s var(--ease),
     opacity 0.18s var(--ease);
 }
-.audio-stage__sound:hover .audio-stage__volume,
-.audio-stage__sound:focus-within .audio-stage__volume {
+.sound:hover .sound__slider,
+.sound:focus-within .sound__slider {
   width: 74px;
   opacity: 1;
 }
-.audio-stage__volume::-webkit-slider-thumb {
+.sound__slider::-webkit-slider-thumb {
   appearance: none;
   width: 11px;
   height: 11px;
@@ -1590,7 +1645,7 @@ a:hover {
   border: 0;
   cursor: pointer;
 }
-.audio-stage__volume::-moz-range-thumb {
+.sound__slider::-moz-range-thumb {
   width: 11px;
   height: 11px;
   border-radius: 50%;
@@ -1598,21 +1653,20 @@ a:hover {
   border: 0;
   cursor: pointer;
 }
-/* No hover on touch: the slider has no way to be revealed, so it just sits
-   open next to the button. */
+/* No hover on touch: nothing would ever reveal the slider, so it sits open. */
 @media (hover: none) {
-  .audio-stage__volume {
+  .sound__slider {
     width: 74px;
     opacity: 1;
   }
 }
 
-.audio-stage__device {
+.sound__btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   padding: 0;
   border-radius: var(--r-sm);
   border: 1px solid transparent;
@@ -1624,14 +1678,14 @@ a:hover {
     background 0.15s var(--ease),
     border-color 0.15s var(--ease);
 }
-.audio-stage__device:hover {
+.sound__btn:hover {
   color: var(--ink);
   background: var(--surface-2);
   border-color: var(--line);
 }
-/* Muted here: the icon carries a little more weight, so a silent device is
-   readable at a glance rather than looking like a dead control. */
-.audio-stage__device[aria-pressed="false"] {
+/* Muted: the icon carries a little more weight, so a silent device reads at a
+   glance rather than looking like a dead control. */
+.sound__btn[aria-pressed="true"] {
   color: var(--muted);
   border-color: var(--line);
 }
