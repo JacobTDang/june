@@ -43,6 +43,32 @@ describe("rowToNowPlaying", () => {
       startedAt: 5000,
     });
   });
+
+  it("maps a pending row (clock not started yet) with startedAt: null", () => {
+    // A track becomes now-playing before its clock starts - started_at is
+    // NULL until the first listener confirms it's downloadable. The row must
+    // still map to a nowPlaying object (not null) so the player can show it.
+    expect(
+      rowToNowPlaying({
+        id: "r",
+        now_playing_video_id: "v",
+        now_playing_title: "T",
+        now_playing_artist: "A",
+        now_playing_duration_ms: 1000,
+        now_playing_thumbnail_url: "th",
+        now_playing_started_at: null,
+        now_playing_added_by_name: "Bob",
+      }),
+    ).toEqual({
+      videoId: "v",
+      title: "T",
+      artist: "A",
+      durationMs: 1000,
+      thumbnailUrl: "th",
+      addedByName: "Bob",
+      startedAt: null,
+    });
+  });
 });
 
 describe("rowToQueueTrack", () => {

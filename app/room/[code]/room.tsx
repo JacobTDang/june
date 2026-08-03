@@ -295,33 +295,29 @@ export function Room({
 
         <div className="room__center">
           <section className="stage">
-            {nowPlaying ? (
-              <>
-                <div className="section__head">
-                  <span className="eyebrow">Now playing</span>
-                </div>
-                <div className="player-wrap">
-                  {offset !== null ? (
-                    <Player roomId={initial.id} nowPlaying={nowPlaying} offset={offset} />
-                  ) : (
-                    <div className="player-skeleton">
-                      <span className="muted">Syncing…</span>
-                    </div>
-                  )}
-                </div>
-                <NowPlaying
+            <div className="section__head">
+              {nowPlaying && <span className="eyebrow">Now playing</span>}
+            </div>
+            <div className="player-wrap">
+              {offset !== null ? (
+                <Player
+                  roomId={initial.id}
                   nowPlaying={nowPlaying}
-                  offset={offset ?? 0}
-                  onSkip={() => void skipTrack(initial.id)}
+                  offset={offset}
+                  upNext={queue.slice(0, 2)}
                 />
-              </>
-            ) : (
-              <div className="empty">
-                <div className="empty__title">Your room is ready.</div>
-                <p className="muted" style={{ marginTop: "0.5rem" }}>
-                  Add the first song. It starts playing for everyone at once.
-                </p>
-              </div>
+              ) : (
+                <div className="player-skeleton">
+                  <span className="muted">Syncing…</span>
+                </div>
+              )}
+            </div>
+            {nowPlaying && (
+              <NowPlaying
+                nowPlaying={nowPlaying}
+                offset={offset ?? 0}
+                onSkip={() => void skipTrack(initial.id)}
+              />
             )}
           </section>
         </div>

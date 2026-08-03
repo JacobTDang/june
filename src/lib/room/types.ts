@@ -29,8 +29,12 @@ export interface RoomNowPlaying {
   durationMs: number;
   thumbnailUrl?: string;
   addedByName?: string;
-  /** Epoch ms on the server clock when this track began. */
-  startedAt: number;
+  /**
+   * Epoch ms on the server clock when this track began, or null while it's
+   * pending: on deck but the shared clock hasn't started (no listener has
+   * confirmed the track is downloadable yet).
+   */
+  startedAt: number | null;
 }
 
 export interface RoomParticipant {
@@ -73,11 +77,9 @@ export interface ParticipantRow {
 }
 
 export function rowToNowPlaying(row: RoomRow): RoomNowPlaying | null {
-  if (
-    row.now_playing_video_id === null ||
-    row.now_playing_duration_ms === null ||
-    row.now_playing_started_at === null
-  ) {
+  // started_at is intentionally excluded from this guard: NULL there means
+  // "pending" (on deck, clock not started), not "nothing playing".
+  if (row.now_playing_video_id === null || row.now_playing_duration_ms === null) {
     return null;
   }
   return {

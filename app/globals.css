@@ -758,7 +758,7 @@ a:hover {
   position: relative;
 }
 .player-skeleton {
-  aspect-ratio: 16 / 9;
+  min-height: 120px;
   border-radius: var(--r);
   background: var(--surface);
   border: 1px solid var(--line);
@@ -766,30 +766,43 @@ a:hover {
   align-items: center;
   justify-content: center;
 }
-/* Shown when the YouTube embed can't load (usually an ad blocker). */
-.player-blocked {
+.audio-stage {
+  --audio-stage-min-h: 160px;
+  position: relative;
+  min-height: var(--audio-stage-min-h, 160px);
+  border-radius: var(--r);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  overflow: hidden;
+  text-align: center;
+}
+/* The dot-grid visualizer fills the card behind everything else. */
+.audio-stage__canvas {
   position: absolute;
   inset: 0;
+}
+.audio-stage__content {
+  position: relative;
+  z-index: 1;
+  min-height: var(--audio-stage-min-h, 160px);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
-  text-align: center;
-  padding: 1.5rem;
+  gap: 0.5rem;
+  padding: 1.25rem;
 }
-.player-blocked__title {
-  font-family: var(--font-display);
-  font-size: 1.15rem;
-  color: var(--ink);
-  margin: 0;
-}
-.player-blocked__body {
-  margin: 0;
-  max-width: 34ch;
+.audio-stage__status {
+  /* A caption riding the card's bottom edge once the visualizer is live —
+     margin-top: auto pushes it down within the centered flex column. */
+  margin: auto 0 0;
   font-size: 0.85rem;
-  line-height: 1.5;
+}
+.audio-stage__notice {
+  margin: 0;
+  font-size: 0.78rem;
   color: var(--muted);
+  max-width: 30ch;
 }
 
 .now {
