@@ -529,20 +529,10 @@ export function Player({
       </div>
       </div>
 
-      {/* Under the card, ahead of the track meta and the chat. The slider is
-          left of the button and grows leftwards on hover, so the button it
-          grows out of stays exactly where the cursor found it. */}
+      {/* Under the card, ahead of the track meta and the chat. Button first,
+          slider after: the row is left-aligned, so the slider opens rightwards
+          into empty space and the button stays where the cursor found it. */}
       <div className="sound">
-        <input
-          className="sound__slider"
-          type="range"
-          min={0}
-          max={1}
-          step={0.01}
-          value={volume}
-          onChange={(e) => changeVolume(Number(e.target.value))}
-          aria-label="Volume"
-        />
         <button
           className="sound__btn"
           onClick={togglePlayback}
@@ -558,6 +548,16 @@ export function Player({
             <Volume2 size={15} />
           )}
         </button>
+        <input
+          className="sound__slider"
+          type="range"
+          min={0}
+          max={1}
+          step={0.01}
+          value={volume}
+          onChange={(e) => changeVolume(Number(e.target.value))}
+          aria-label="Volume"
+        />
       </div>
     </>
   );
