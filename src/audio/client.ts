@@ -1,4 +1,5 @@
-import { downloadsResponseSchema, linkResponseSchema } from "./schema";
+import { captionsResponseSchema, downloadsResponseSchema, linkResponseSchema } from "./schema";
+import type { Cue } from "@/src/lyrics/captions";
 
 /** The one bit of `fetch` we use - injectable so tests need no network. */
 type FetchLike = (input: URL, init?: RequestInit) => Promise<Response>;
@@ -18,6 +19,10 @@ export interface AudioServer {
   ensureDownload(videoId: string): Promise<"queued" | "throttled">;
   /** This user's download jobs, newest first. */
   listDownloads(limit?: number): Promise<DownloadJob[]>;
+  /** A video's own timed caption cues, or [] when it carries none. Timed
+   *  against the exact upload we stream, which is what makes them worth
+   *  preferring over a lyrics database. */
+  fetchCaptions(videoId: string): Promise<Cue[]>;
 }
 
 export interface AudioServerConfig {
@@ -81,6 +86,17 @@ export function createAudioServer(config: AudioServerConfig): AudioServer {
         throw new Error(`audio server ${response.status}: ${await errorDetail(response)}`);
       }
       return "queued";
+    },
+
+    async fetchCaptions(videoId) {
+      const response = await get(`/captions/${encodeURIComponent(videoId)}`);
+      if (!response.ok) {
+        throw new Error(`audio server ${response.status}: ${await errorDetail(response)}`);
+      }
+      return captionsResponseSchema.parse(await response.json()).cues.map((cue) => ({
+        startMs: cue.start_ms,
+        text: cue.text,
+      }));
     },
 
     async listDownloads(limit) {
