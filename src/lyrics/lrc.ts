@@ -67,4 +67,23 @@ export function activeLineIndex(lines: readonly LyricLine[], positionMs: number)
   return index;
 }
 
+/**
+ * How far through the current line the track is, 0–1. The line's span runs to
+ * the next line's timestamp, or to the end of the track for the last line.
+ */
+export function lineProgress(
+  lines: readonly LyricLine[],
+  index: number,
+  positionMs: number,
+  trackDurationMs: number,
+): number {
+  const line = lines[index];
+  if (!line) return 0;
+
+  const start = line.timeMs;
+  const end = lines[index + 1]?.timeMs ?? Math.max(trackDurationMs, start + 1);
+  if (end <= start) return 1;
+
+  return Math.min(1, Math.max(0, (positionMs - start) / (end - start)));
+}
 
