@@ -1683,6 +1683,19 @@ a:hover {
   color: var(--ink);
   border-color: var(--line);
 }
+/* Says what it is: the words are right, their timing within a line is an
+   approximation. Quiet enough not to compete with the label it qualifies. */
+.sound__beta {
+  padding: 0.05rem 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+.sound__lyrics[aria-pressed="true"] .sound__beta {
+  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+}
 .sound__lyrics[aria-pressed="true"] {
   color: var(--accent);
   border-color: var(--line);

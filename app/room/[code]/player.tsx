@@ -573,6 +573,7 @@ export function Player({
         >
           <Mic2 size={14} />
           Lyrics
+          <span className="sound__beta">beta</span>
         </button>
       </div>
     </>
