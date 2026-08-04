@@ -504,7 +504,7 @@ export function Room({
               />
             )}
           </section>
-          <Chat roomId={initial.id} meId={me.userId} />
+          <AddMusic roomId={initial.id} />
         </div>
 
         <aside className="room__rail">
@@ -528,7 +528,7 @@ export function Room({
 
           <div className="rule" />
 
-          <AddMusic roomId={initial.id} />
+          <Chat roomId={initial.id} meId={me.userId} />
         </aside>
       </div>
     </main>

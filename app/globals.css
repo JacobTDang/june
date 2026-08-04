@@ -1021,10 +1021,10 @@ a:hover {
   .room__center .stage {
     position: static;
   }
-  /* The chat takes the height the card leaves and scrolls inside it, which is
-     what fills the lower half of the room. min-height:0 so the log can shrink
-     below its content instead of pushing the page taller. */
-  .room__center .chat {
+  /* The chat sits in the rail and takes the height the people list leaves.
+     min-height:0 so the log can shrink below its content rather than pushing
+     the page taller. */
+  .room__rail .chat {
     flex: 1;
     min-height: 0;
   }
@@ -1078,6 +1078,47 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+/* The whole header is the control, so the icon, the label and the chevron all
+   toggle rather than only one of them being a target. */
+.chat__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s var(--ease);
+}
+.chat__toggle:hover {
+  color: var(--ink);
+}
+.chat__label {
+  margin: 0;
+}
+.chat__count {
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+.chat__chevron {
+  margin-left: auto;
+  transition: transform 0.2s var(--ease);
+}
+.chat--closed .chat__chevron {
+  transform: rotate(-90deg);
+}
+/* Collapsed: the log and composer go, the header stays. */
+.chat--closed .chat__log,
+.chat--closed .chat__form,
+.chat--closed .chat__error {
+  display: none;
+}
+.chat--closed {
+  flex: 0 0 auto;
 }
 /* A window of about seven messages, then it scrolls inside itself — the same
    treatment the up-next list gets, so neither list can run the page away. The
