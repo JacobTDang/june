@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Play, Volume1, Volume2, VolumeX } from "lucide-react";
+import { Mic2, Play, Volume1, Volume2, VolumeX } from "lucide-react";
 import { advanceTrack, markTrackReady } from "@/src/lib/room/actions";
 import {
   PLAYBACK_MODE_STORAGE_KEY,
@@ -15,6 +15,7 @@ import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { shouldSkipPreparing } from "@/src/audio/preparing";
 import { createClient } from "@/src/lib/supabase/client";
+import { Lyrics } from "./lyrics";
 import { PixelVisualizer, type VisualizerMode } from "./pixel-visualizer";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
@@ -135,6 +136,7 @@ export function Player({
   useEffect(() => {
     if (audioRef.current) audioRef.current.volume = volume;
   }, [volume]);
+  const [showLyrics, setShowLyrics] = useState(false);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [reloadNonce, setReloadNonce] = useState(0);
   // Set when the loader's NotAllowedError path re-offers the tap gate;
@@ -511,6 +513,9 @@ export function Player({
             </p>
           </div>
         )}
+        {showLyrics && nowPlaying !== null && (
+          <Lyrics nowPlaying={nowPlaying} offset={offset} />
+        )}
         {!started ? (
           <>
             <button onClick={start} className="btn btn--primary btn--lg">
@@ -558,6 +563,17 @@ export function Player({
           onChange={(e) => changeVolume(Number(e.target.value))}
           aria-label="Volume"
         />
+        {/* Pinned to the right of the row (margin-left: auto), so the slider
+            opening beside the speaker doesn't shift it. */}
+        <button
+          className="sound__lyrics"
+          onClick={() => setShowLyrics((on) => !on)}
+          aria-pressed={showLyrics}
+          title={showLyrics ? "Hide lyrics" : "Show lyrics"}
+        >
+          <Mic2 size={14} />
+          Lyrics
+        </button>
       </div>
     </>
   );

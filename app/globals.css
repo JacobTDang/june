@@ -1658,6 +1658,80 @@ a:hover {
   }
 }
 
+/* Pinned to the row's right edge, so the slider opening next to the speaker
+   eats the free space between them instead of pushing this along. */
+.sound__lyrics {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--faint);
+  font-family: var(--font-sans);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition:
+    color 0.15s var(--ease),
+    border-color 0.15s var(--ease);
+}
+.sound__lyrics:hover {
+  color: var(--ink);
+  border-color: var(--line);
+}
+.sound__lyrics[aria-pressed="true"] {
+  color: var(--accent);
+  border-color: var(--line);
+}
+
+/* One line at a time, centred in the card over the album backdrop. Sized off
+   the card's width so a long line still fits on one row where it can. */
+.lyrics {
+  margin: 0;
+  max-width: 34ch;
+  font-family: var(--font-display);
+  font-size: clamp(1.05rem, 2.6vw, 1.5rem);
+  line-height: 1.35;
+  text-align: center;
+  text-wrap: balance;
+  /* Unsung words sit back; the sweep below brings each one forward. */
+  color: var(--muted);
+  animation: lyricIn 0.35s var(--ease);
+}
+.lyrics--quiet {
+  font-family: var(--font-sans);
+  font-size: 0.85rem;
+  color: var(--faint);
+  /* Holds the line's height while empty, so the card doesn't jump between
+     an instrumental gap and the next line. */
+  min-height: 1.4em;
+}
+.lyrics--plain {
+  font-size: 1rem;
+  color: var(--muted);
+}
+.lyrics__word {
+  transition: color 0.12s linear;
+}
+.lyrics__word--sung {
+  color: var(--ink);
+  opacity: 1;
+}
+@keyframes lyricIn {
+  from {
+    opacity: 0;
+    transform: translateY(0.25rem);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 .sound__btn {
   display: inline-flex;
   align-items: center;
