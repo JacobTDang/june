@@ -236,27 +236,43 @@ export interface FriendInJam {
   displayName: string;
   avatarUrl: string | null;
   roomId: string;
+  /** What their room is playing right now — null between tracks. The RPC
+   *  scopes this to accepted friends, same as the room itself. */
+  nowPlayingTitle: string | null;
+  nowPlayingArtist: string | null;
+  nowPlayingThumbnailUrl: string | null;
 }
 
 /** Friends who are in a jam right now, with names/avatars and the room to join. */
+interface ActiveRoomRow {
+  friend: string;
+  room_id: string;
+  now_playing_title: string | null;
+  now_playing_artist: string | null;
+  now_playing_thumbnail_url: string | null;
+}
+
 export async function getFriendsInJams(): Promise<FriendInJam[]> {
   const { supabase } = await requireUser();
   const { data, error } = await supabase.rpc("friends_active_rooms");
   if (error) throw new Error(`Couldn't load friend activity: ${error.message}`);
 
-  const roomByFriend = new Map<string, string>();
-  for (const r of (data as { friend: string; room_id: string }[] | null) ?? []) {
-    if (!roomByFriend.has(r.friend)) roomByFriend.set(r.friend, r.room_id);
+  const byFriend = new Map<string, ActiveRoomRow>();
+  for (const r of (data as ActiveRoomRow[] | null) ?? []) {
+    if (!byFriend.has(r.friend)) byFriend.set(r.friend, r);
   }
 
-  const profiles = await profilesByIds(supabase, [...roomByFriend.keys()]);
-  return [...roomByFriend.entries()].map(([id, roomId]) => {
+  const profiles = await profilesByIds(supabase, [...byFriend.keys()]);
+  return [...byFriend.entries()].map(([id, row]) => {
     const p = profiles.get(id);
     return {
       userId: id,
       displayName: p ? cardName(p) : "Guest",
       avatarUrl: p?.avatar_url ?? null,
-      roomId,
+      roomId: row.room_id,
+      nowPlayingTitle: row.now_playing_title ?? null,
+      nowPlayingArtist: row.now_playing_artist ?? null,
+      nowPlayingThumbnailUrl: row.now_playing_thumbnail_url ?? null,
     };
   });
 }

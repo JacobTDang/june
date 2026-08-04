@@ -387,8 +387,98 @@ a:hover {
 .home-jam__name {
   font-weight: 500;
 }
-.home-jam .friend__live {
-  margin-left: auto;
+/* Name over track, so a long title can't shove the Join button around. */
+.home-jam__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  margin-right: auto;
+}
+.home-jam__track {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Home: your listening history ---- */
+.home-history {
+  margin-top: 2.5rem;
+  width: 100%;
+  max-width: 30rem;
+  text-align: left;
+}
+.home-history__head {
+  margin-top: 1.75rem;
+}
+.home-history__list,
+.home-history__jams {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.home-play {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.home-play__art {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.home-play__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.home-play__title,
+.home-play__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-play__sub {
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.home-jamrow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.home-jamrow__when {
+  min-width: 6.5rem;
+  color: var(--faint);
+}
+.home-jamrow__who {
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-jamrow__count {
+  color: var(--faint);
+}
+.home-history__more {
+  display: inline-block;
+  margin-top: 1.25rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.home-history__more:hover {
+  color: var(--ink);
 }
 
 /* ---- Avatars: flat, rounded-square (not gradient circles) ---- */

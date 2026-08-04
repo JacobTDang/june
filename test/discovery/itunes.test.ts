@@ -52,6 +52,28 @@ describe("searchMusic", () => {
     expect(url.searchParams.get("limit")).toBe("5");
   });
 
+  it("keeps the genre and artist id iTunes sends", async () => {
+    // Both arrive on every song search and were being stripped at the mapper,
+    // throwing away the only content features available anywhere in the app.
+    const { fetch } = stubFetch(() => ({
+      body: {
+        resultCount: 1,
+        results: [track({ primaryGenreName: "Trip Hop", artistId: 909253 })],
+      },
+    }));
+
+    const [result] = await searchMusic("portishead", { fetch });
+
+    expect(result).toMatchObject({ genre: "Trip Hop", artistId: "909253" });
+  });
+
+  it("leaves them off when iTunes omits them, rather than inventing empties", async () => {
+    const { fetch } = stubFetch(() => ({ body: { resultCount: 1, results: [track()] } }));
+    const [result] = await searchMusic("x", { fetch });
+    expect(result).not.toHaveProperty("genre");
+    expect(result).not.toHaveProperty("artistId");
+  });
+
   it("defaults the limit to 15", async () => {
     const { fetch, calls } = stubFetch(() => ({ body: { resultCount: 0, results: [] } }));
     await searchMusic("x", { fetch });
