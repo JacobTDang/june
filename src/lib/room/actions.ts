@@ -4,6 +4,8 @@ import { createClient } from "../supabase/server";
 import { resolveDisplayName } from "../profile/display-name";
 import { safeThumbnailUrl } from "./thumbnail";
 import { clampText } from "./track-text";
+import type { PlayedTrack } from "./play-event";
+import { recordPlay } from "./plays";
 import {
   rowToNowPlaying,
   rowToQueueTrack,
@@ -37,7 +39,12 @@ async function requireUser() {
 const NOW_PLAYING_COLS =
   "id, now_playing_video_id, now_playing_title, now_playing_artist, now_playing_duration_ms, now_playing_thumbnail_url, now_playing_started_at, now_playing_added_by_name";
 
-const npFields = (t: AddTrackInput, startedAt: number | null, addedByName?: string | null) => ({
+const npFields = (
+  t: AddTrackInput,
+  startedAt: number | null,
+  addedByName?: string | null,
+  addedBy?: string | null,
+) => ({
   now_playing_video_id: t.videoId,
   now_playing_title: t.title,
   now_playing_artist: t.artist ?? null,
@@ -45,6 +52,7 @@ const npFields = (t: AddTrackInput, startedAt: number | null, addedByName?: stri
   now_playing_thumbnail_url: t.thumbnailUrl ?? null,
   now_playing_started_at: startedAt,
   now_playing_added_by_name: addedByName ?? null,
+  now_playing_added_by: addedBy ?? null,
 });
 
 const NP_CLEARED = {
@@ -55,6 +63,7 @@ const NP_CLEARED = {
   now_playing_thumbnail_url: null,
   now_playing_started_at: null,
   now_playing_added_by_name: null,
+  now_playing_added_by: null,
 };
 
 /** Create a room, add the creator as a participant, and return the room code. */
@@ -129,7 +138,7 @@ export async function enqueueTrack(roomId: string, rawTrack: AddTrackInput): Pro
   // listener's loader confirms the track is downloadable, via markTrackReady.
   const { data: started } = await supabase
     .from("rooms")
-    .update(npFields(track, null, addedByName))
+    .update(npFields(track, null, addedByName, user.id))
     .eq("id", roomId)
     .is("now_playing_video_id", null)
     .select("id");
@@ -171,7 +180,7 @@ async function popOldest(
 ): Promise<QueueItemRow | null> {
   const { data } = await supabase
     .from("queue_items")
-    .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
+    .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name, added_by")
     .eq("room_id", roomId)
     .order("position", { ascending: true })
     .limit(1)
@@ -193,6 +202,7 @@ function nextFields(next: QueueItemRow) {
     },
     null,
     next.added_by_name ?? null,
+    next.added_by ?? null,
   );
 }
 
@@ -206,13 +216,10 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
 
   const { data: roomData } = await supabase
     .from("rooms")
-    .select("now_playing_video_id, now_playing_started_at")
+    .select(NOW_PLAYING_COLS)
     .eq("id", roomId)
     .maybeSingle();
-  const room = roomData as Pick<
-    RoomRow,
-    "now_playing_video_id" | "now_playing_started_at"
-  > | null;
+  const room = roomData as RoomRow | null;
   if (!room || room.now_playing_video_id !== endedVideoId) return; // already advanced
 
   const next = await popOldest(supabase, roomId);
@@ -242,9 +249,35 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
       : query.eq("now_playing_started_at", room.now_playing_started_at);
   const { data: applied } = await query.select("id");
 
-  if (next && applied && applied.length > 0) {
+  const advanced = applied !== null && applied.length > 0;
+  if (next && advanced) {
     await supabase.from("queue_items").delete().eq("id", next.id);
   }
+
+  // Remember it only if this call is the one that actually moved the room on:
+  // the instance guard above means concurrent "ended" events for the same
+  // track all land here, and only one of them advanced anything.
+  if (advanced) {
+    await recordPlay({
+      roomId,
+      track: outgoingTrack(room),
+      endedAt: Date.now(),
+      skipped: false,
+    });
+  }
+}
+
+/** The track being replaced, as the play recorder wants it. */
+function outgoingTrack(room: RoomRow): PlayedTrack {
+  return {
+    videoId: room.now_playing_video_id ?? "",
+    title: room.now_playing_title ?? "",
+    artist: room.now_playing_artist,
+    thumbnailUrl: room.now_playing_thumbnail_url,
+    durationMs: room.now_playing_duration_ms ?? 0,
+    startedAt: room.now_playing_started_at,
+    addedBy: room.now_playing_added_by,
+  };
 }
 
 /**
@@ -254,10 +287,27 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
  */
 export async function skipTrack(roomId: string): Promise<void> {
   const { supabase } = await requireUser();
+
+  const { data: roomData } = await supabase
+    .from("rooms")
+    .select(NOW_PLAYING_COLS)
+    .eq("id", roomId)
+    .maybeSingle();
+  const room = roomData as RoomRow | null;
+
   const next = await popOldest(supabase, roomId);
   const update = next ? nextFields(next) : NP_CLEARED;
   await supabase.from("rooms").update(update).eq("id", roomId);
   if (next) await supabase.from("queue_items").delete().eq("id", next.id);
+
+  if (room?.now_playing_video_id) {
+    await recordPlay({
+      roomId,
+      track: outgoingTrack(room),
+      endedAt: Date.now(),
+      skipped: true,
+    });
+  }
 }
 
 /** Remove a not-yet-played track from the queue. */
@@ -292,7 +342,7 @@ export async function getRoomState(roomId: string): Promise<RoomState | null> {
   const [{ data: queueData }, { data: participantData }] = await Promise.all([
     supabase
       .from("queue_items")
-      .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
+      .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name, added_by")
       .eq("room_id", roomId)
       .order("position", { ascending: true }),
     supabase.from("room_participants").select("user_id, name").eq("room_id", roomId),
@@ -373,7 +423,7 @@ export async function enterRoom(code: string): Promise<EnterRoomResult> {
       .upsert({ room_id: code, user_id: user.id, name }, { onConflict: "user_id" }),
     supabase
       .from("queue_items")
-      .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name")
+      .select("id, video_id, title, artist, duration_ms, thumbnail_url, added_by_name, added_by")
       .eq("room_id", code)
       .order("position", { ascending: true }),
     supabase.from("room_participants").select("user_id, name").eq("room_id", code),

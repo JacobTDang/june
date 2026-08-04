@@ -387,8 +387,211 @@ a:hover {
 .home-jam__name {
   font-weight: 500;
 }
-.home-jam .friend__live {
+/* Name over track, so a long title can't shove the Join button around. */
+.home-jam__meta {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+  margin-right: auto;
+}
+.home-jam__track {
+  font-size: 0.8rem;
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---- Up next: suggestions when the queue is empty ---- */
+.suggest__lead {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.suggest__list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.suggest__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.suggest__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+.suggest__title,
+.suggest__artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suggest__title {
+  font-size: 0.9rem;
+}
+.suggest__artist {
+  font-size: 0.76rem;
+  color: var(--faint);
+}
+
+/* ---- Public profile: bio and taste ---- */
+.u__bio {
+  margin: 0.5rem 0 0;
+  max-width: 42ch;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.u__taste {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin-top: 2.25rem;
+  text-align: left;
+  width: 100%;
+  max-width: 30rem;
+}
+.u__artists,
+.u__plays {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.u__artist {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.u__artist-name {
+  font-weight: 500;
+}
+.u__artist-plays {
   margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.u__play {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.u__play-art {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.u__play-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.u__play-title,
+.u__play-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.u__play-artist {
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.profile__bio {
+  resize: none;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
+/* ---- Home: your listening history ---- */
+.home-history {
+  margin-top: 2.5rem;
+  width: 100%;
+  max-width: 30rem;
+  text-align: left;
+}
+.home-history__head {
+  margin-top: 1.75rem;
+}
+.home-history__list,
+.home-history__jams {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.home-play {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.home-play__art {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.home-play__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.home-play__title,
+.home-play__sub {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-play__sub {
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.home-jamrow {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+.home-jamrow__when {
+  min-width: 6.5rem;
+  color: var(--faint);
+}
+.home-jamrow__who {
+  margin-right: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.home-jamrow__count {
+  color: var(--faint);
+}
+.home-history__more {
+  display: inline-block;
+  margin-top: 1.25rem;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+.home-history__more:hover {
+  color: var(--ink);
 }
 
 /* ---- Avatars: flat, rounded-square (not gradient circles) ---- */

@@ -3,6 +3,7 @@
 import sharp from "sharp";
 import { createClient } from "../supabase/server";
 import { normalizeDisplayName, resolveDisplayName } from "./display-name";
+import { normalizeBio } from "./bio";
 import { normalizeUsername } from "./username";
 import {
   AVATAR_SIZE,
@@ -22,7 +23,12 @@ async function requireUser() {
   return { supabase, user };
 }
 
-export type MyProfile = { displayName: string; avatarUrl: string | null; username: string | null };
+export type MyProfile = {
+  displayName: string;
+  avatarUrl: string | null;
+  username: string | null;
+  bio: string | null;
+};
 
 /** The signed-in user's profile, seeding a row from their Google identity on first access. */
 export async function getMyProfile(): Promise<MyProfile> {
@@ -30,7 +36,7 @@ export async function getMyProfile(): Promise<MyProfile> {
 
   const { data: row } = await supabase
     .from("profiles")
-    .select("display_name, avatar_url, username")
+    .select("display_name, avatar_url, username, bio")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -40,14 +46,20 @@ export async function getMyProfile(): Promise<MyProfile> {
     await supabase
       .from("profiles")
       .upsert({ id: user.id, display_name: seeded }, { onConflict: "id", ignoreDuplicates: true });
-    return { displayName: seeded, avatarUrl: null, username: null };
+    return { displayName: seeded, avatarUrl: null, username: null, bio: null };
   }
 
-  const r = row as { display_name: string | null; avatar_url: string | null; username: string | null };
+  const r = row as {
+    display_name: string | null;
+    avatar_url: string | null;
+    username: string | null;
+    bio: string | null;
+  };
   return {
     displayName: resolveDisplayName(r.display_name, user),
     avatarUrl: r.avatar_url,
     username: r.username,
+    bio: r.bio,
   };
 }
 
@@ -76,6 +88,7 @@ export async function checkUsernameAvailable(input: string): Promise<UsernameAva
 export async function updateProfile(input: {
   displayName: string;
   username?: string | null;
+  bio?: string | null;
 }): Promise<void> {
   const { supabase, user } = await requireUser();
 
@@ -84,6 +97,10 @@ export async function updateProfile(input: {
     display_name: normalizeDisplayName(input.displayName),
     updated_at: new Date().toISOString(),
   };
+
+  if (input.bio !== undefined) {
+    patch.bio = normalizeBio(input.bio ?? "");
+  }
 
   if (input.username !== undefined) {
     const raw = (input.username ?? "").trim();

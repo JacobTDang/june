@@ -28,6 +28,7 @@ import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
 import { Chat } from "./chat";
+import { QueueSuggestions } from "./queue-suggestions";
 import { FriendToasts } from "./friend-toasts";
 import { sampleClockOffset } from "./clock-client";
 
@@ -457,7 +458,7 @@ export function Room({
             <span className="eyebrow">Up next</span>
           </div>
           {queue.length === 0 ? (
-            <p className="muted">Nothing queued yet.</p>
+            <QueueSuggestions roomId={initial.id} />
           ) : (
             <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
               {queue.map((t) => (

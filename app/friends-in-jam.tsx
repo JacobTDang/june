@@ -36,11 +36,22 @@ export function FriendsInJam() {
         {friends.map((f) => (
           <li key={f.userId} className="home-jam">
             <Avatar name={f.displayName} url={f.avatarUrl} size={32} />
-            <span className="home-jam__name">{f.displayName}</span>
-            <span className="friend__live">
-              <span className="live__dot" />
-              In a jam
-            </span>
+            <div className="home-jam__meta">
+              <span className="home-jam__name">{f.displayName}</span>
+              {/* Between tracks there is nothing playing, so it falls back to
+                  presence rather than showing a stale title. */}
+              {f.nowPlayingTitle ? (
+                <span className="home-jam__track">
+                  {f.nowPlayingTitle}
+                  {f.nowPlayingArtist ? ` · ${f.nowPlayingArtist}` : ""}
+                </span>
+              ) : (
+                <span className="friend__live">
+                  <span className="live__dot" />
+                  In a jam
+                </span>
+              )}
+            </div>
             <button
               className="btn btn--sm btn--primary"
               onClick={() => router.push(`/room/${encodeURIComponent(f.roomId)}`)}

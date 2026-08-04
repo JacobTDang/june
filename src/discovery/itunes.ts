@@ -18,6 +18,10 @@ export interface MusicCandidate {
   durationMs?: number;
   source: "itunes";
   sourceId: string;
+  /** iTunes sends both on every song search; they were being dropped here.
+   *  Content features for later — nothing reads them yet. */
+  genre?: string;
+  artistId?: string;
 }
 
 /**
@@ -54,6 +58,8 @@ function toMusicCandidate(row: ItunesTrack): MusicCandidate | null {
   };
   if (row.artworkUrl100 !== undefined) candidate.artworkUrl = row.artworkUrl100;
   if (row.trackTimeMillis !== undefined) candidate.durationMs = row.trackTimeMillis;
+  if (row.primaryGenreName !== undefined) candidate.genre = row.primaryGenreName;
+  if (row.artistId !== undefined) candidate.artistId = String(row.artistId);
   return candidate;
 }
 

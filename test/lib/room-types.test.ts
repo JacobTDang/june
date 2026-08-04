@@ -17,6 +17,7 @@ describe("rowToNowPlaying", () => {
         now_playing_thumbnail_url: null,
         now_playing_started_at: null,
         now_playing_added_by_name: null,
+    now_playing_added_by: null,
       }),
     ).toBeNull();
   });
@@ -32,6 +33,7 @@ describe("rowToNowPlaying", () => {
         now_playing_thumbnail_url: "th",
         now_playing_started_at: 5000,
         now_playing_added_by_name: "Bob",
+    now_playing_added_by: null,
       }),
     ).toEqual({
       videoId: "v",
@@ -58,6 +60,7 @@ describe("rowToNowPlaying", () => {
         now_playing_thumbnail_url: "th",
         now_playing_started_at: null,
         now_playing_added_by_name: "Bob",
+    now_playing_added_by: null,
       }),
     ).toEqual({
       videoId: "v",
@@ -82,6 +85,7 @@ describe("rowToQueueTrack", () => {
         duration_ms: 2000,
         thumbnail_url: null,
         added_by_name: "Bob",
+      added_by: null,
       }),
     ).toEqual({ id: "q", videoId: "v", title: "T", durationMs: 2000, addedByName: "Bob" });
   });

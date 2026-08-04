@@ -2,6 +2,7 @@ import { ArrowLeft } from "lucide-react";
 import { getPublicProfile } from "@/src/lib/friends/actions";
 import { Avatar } from "../../avatar";
 import { UProfileAction } from "./u-action";
+import { UserTaste } from "./user-taste";
 
 export default async function UserPage({
   params,
@@ -37,9 +38,14 @@ export default async function UserPage({
           <div>
             <h1 className="u__name">{profile.displayName}</h1>
             {profile.username && <div className="u__handle">@{profile.username}</div>}
+            {profile.bio && <p className="u__bio">{profile.bio}</p>}
           </div>
         </div>
         <UProfileAction profile={profile} />
+        {/* Taste is gated by the plays policy, not by this page: someone who
+            never shared a room simply gets nothing back, so the section is
+            absent rather than empty. */}
+        <UserTaste userId={profile.userId} />
       </div>
     </main>
   );
