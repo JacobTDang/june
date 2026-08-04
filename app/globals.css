@@ -403,6 +403,80 @@ a:hover {
   white-space: nowrap;
 }
 
+/* ---- Public profile: bio and taste ---- */
+.u__bio {
+  margin: 0.5rem 0 0;
+  max-width: 42ch;
+  color: var(--muted);
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+.u__taste {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin-top: 2.25rem;
+  text-align: left;
+  width: 100%;
+  max-width: 30rem;
+}
+.u__artists,
+.u__plays {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+.u__artist {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+}
+.u__artist-name {
+  font-weight: 500;
+}
+.u__artist-plays {
+  margin-left: auto;
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.u__play {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+}
+.u__play-art {
+  width: 34px;
+  height: 34px;
+  border-radius: var(--r-sm);
+  object-fit: cover;
+  background: var(--surface-2);
+  flex-shrink: 0;
+}
+.u__play-meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.u__play-title,
+.u__play-artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.u__play-artist {
+  font-size: 0.78rem;
+  color: var(--faint);
+}
+.profile__bio {
+  resize: none;
+  font-family: inherit;
+  line-height: 1.4;
+}
+
 /* ---- Home: your listening history ---- */
 .home-history {
   margin-top: 2.5rem;

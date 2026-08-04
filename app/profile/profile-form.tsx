@@ -7,6 +7,7 @@ import {
   uploadAvatar,
   type MyProfile,
 } from "@/src/lib/profile/actions";
+import { MAX_BIO } from "@/src/lib/profile/bio";
 import { Avatar } from "../avatar";
 
 type Availability = { status: "idle" | "checking" | "ok" | "error"; message?: string };
@@ -14,6 +15,7 @@ type Availability = { status: "idle" | "checking" | "ok" | "error"; message?: st
 export function ProfileForm({ initial }: { initial: MyProfile }) {
   const [name, setName] = useState(initial.displayName);
   const [username, setUsername] = useState(initial.username ?? "");
+  const [bio, setBio] = useState(initial.bio ?? "");
   const [avatarUrl, setAvatarUrl] = useState(initial.avatarUrl);
   const [availability, setAvailability] = useState<Availability>({ status: "idle" });
   const [saving, setSaving] = useState(false);
@@ -48,7 +50,7 @@ export function ProfileForm({ initial }: { initial: MyProfile }) {
     setSaving(true);
     setMessage(null);
     try {
-      await updateProfile({ displayName: name, username });
+      await updateProfile({ displayName: name, username, bio });
       setMessage({ kind: "ok", text: "Saved." });
       setAvailability({ status: "idle" });
     } catch (err) {
@@ -129,6 +131,24 @@ export function ProfileForm({ initial }: { initial: MyProfile }) {
           )}
           <span className="profile__label" style={{ marginTop: "0.4rem" }}>
             Lets friends find you and share your link.
+          </span>
+        </div>
+
+        <div>
+          <label className="profile__label" htmlFor="bio">
+            Bio
+          </label>
+          <textarea
+            id="bio"
+            className="input profile__bio"
+            value={bio}
+            onChange={(e) => setBio(e.target.value)}
+            maxLength={MAX_BIO}
+            rows={2}
+            placeholder="A line about you"
+          />
+          <span className="profile__label" style={{ marginTop: "0.4rem" }}>
+            Shown on your public page. {MAX_BIO - bio.trim().length} left.
           </span>
         </div>
 

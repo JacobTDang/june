@@ -291,6 +291,7 @@ export async function friendStatesFor(userIds: string[]): Promise<Record<string,
 export interface PublicProfile extends FriendCard {
   isMe: boolean;
   signedIn: boolean;
+  bio: string | null;
 }
 
 /** A user's public profile by handle, for /u/<username>. Viewable while signed out. */
@@ -314,5 +315,10 @@ export async function getPublicProfile(username: string): Promise<PublicProfile 
     state = friendState(await myFriendships(supabase, user.id), user.id, profile.id);
   }
 
-  return { ...toCard(profile.id, profile, state), isMe, signedIn: Boolean(user) };
+  return {
+    ...toCard(profile.id, profile, state),
+    isMe,
+    signedIn: Boolean(user),
+    bio: (profile as ProfileRow & { bio?: string | null }).bio ?? null,
+  };
 }
