@@ -1014,7 +1014,6 @@ a:hover {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    gap: 1.75rem;
   }
   /* No sticky here: the centre rail is a column with the card on top and the
      chat filling the rest, so there's nothing to float alongside. */
@@ -1070,6 +1069,12 @@ a:hover {
   overscroll-behavior: contain;
 }
 
+/* Add-music sits under the player now. The rail's divider used to provide
+   this separation; in the centre column nothing else does. */
+.room__center .add {
+  margin-top: 1.75rem;
+}
+
 /* ---- Room chat ---- */
 /* A column: header, the log that takes the slack and scrolls, then the
    composer pinned under it. On narrow layouts it isn't stretched by a rail,
@@ -1117,6 +1122,10 @@ a:hover {
 .chat--closed .chat__error {
   display: none;
 }
+/* Specific enough to beat `.room__rail .chat { flex: 1 }` — otherwise a
+   collapsed chat still reserves the whole rail and the header floats above an
+   empty box. */
+.room__rail .chat--closed,
 .chat--closed {
   flex: 0 0 auto;
 }
