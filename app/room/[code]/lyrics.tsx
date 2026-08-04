@@ -3,12 +3,7 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
 import { getTrackLyrics } from "@/src/lib/room/lyrics";
 import { playbackProgress } from "@/src/lib/room/progress";
-import {
-  activeLineIndex,
-  lineProgress,
-  parseLrc,
-  type LyricLine,
-} from "@/src/lyrics/lrc";
+import { activeLineIndex, parseLrc, type LyricLine } from "@/src/lyrics/lrc";
 import type { RoomNowPlaying } from "@/src/lib/room/types";
 
 /** Fast enough that the highlight slides rather than steps, slow enough to
@@ -108,7 +103,6 @@ export function Lyrics({
 
   const index = activeLineIndex(state.lines, position);
   const line = state.lines[index];
-  const progress = line ? lineProgress(state.lines, index, position, nowPlaying.durationMs) : 0;
 
   return (
     <div className="lyrics-box">
@@ -118,18 +112,7 @@ export function Lyrics({
       {!line || line.text === "" ? (
         <p className="lyrics lyrics--quiet" aria-hidden />
       ) : (
-        <p
-          className="lyrics"
-          key={index}
-          dir="auto"
-          aria-live="off"
-          // A continuous wipe, not per-word steps. LRC and caption tracks
-          // both time whole lines, so word boundaries would be my guess
-          // dressed up as data — and a word lighting a beat early is exactly
-          // what reads as "out of sync". The sweep moves with the line's real
-          // progress and claims nothing finer than that.
-          style={{ "--sweep": `${(progress * 100).toFixed(1)}%` } as React.CSSProperties}
-        >
+        <p className="lyrics" key={index} dir="auto" aria-live="off">
           {line.text}
         </p>
       )}
