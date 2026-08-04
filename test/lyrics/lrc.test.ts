@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   activeLineIndex,
+  lineProgress,
   parseLrc,
 } from "../../src/lyrics/lrc";
 
@@ -86,6 +87,28 @@ describe("activeLineIndex", () => {
 
   it("copes with no lines at all", () => {
     expect(activeLineIndex([], 1_000)).toBe(-1);
+  });
+});
+
+describe("lineProgress", () => {
+  it("runs 0 to 1 across the gap to the next line", () => {
+    expect(lineProgress(LINES, 0, 10_000, 60_000)).toBeCloseTo(0);
+    expect(lineProgress(LINES, 0, 15_000, 60_000)).toBeCloseTo(0.5);
+    expect(lineProgress(LINES, 0, 20_000, 60_000)).toBeCloseTo(1);
+  });
+
+  it("uses the track's end for the final line", () => {
+    expect(lineProgress(LINES, 2, 40_000, 50_000)).toBeCloseTo(0.5);
+  });
+
+  it("clamps rather than running past either end", () => {
+    expect(lineProgress(LINES, 0, 0, 60_000)).toBe(0);
+    expect(lineProgress(LINES, 0, 999_000, 60_000)).toBe(1);
+  });
+
+  it("returns 0 for an index that isn't a line", () => {
+    expect(lineProgress(LINES, -1, 5_000, 60_000)).toBe(0);
+    expect(lineProgress([], 0, 5_000, 60_000)).toBe(0);
   });
 });
 

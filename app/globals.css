@@ -1709,11 +1709,18 @@ a:hover {
   line-height: 1.35;
   text-align: center;
   text-wrap: balance;
-  /* The whole line lights when it is sung, and that is all this claims. A
-     travelling highlight would have to model how a line is paced — and pace
-     varies within a line, between lines, and between songs — so it would be
-     a guess wearing the costume of data. */
-  color: var(--ink);
+  /* The sung part of the line is bright, the rest sits back; --sweep is the
+     boundary and moves with the line's progress. Painted with a hard-stop
+     gradient clipped to the glyphs, so the edge travels through the words
+     themselves rather than behind them. */
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--ink) var(--sweep, 0%),
+    var(--muted) var(--sweep, 0%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
   animation: lyricIn 0.35s var(--ease);
 }
 .lyrics--quiet {
@@ -2071,6 +2078,14 @@ a:hover {
 }
 .spin {
   animation: spin 0.7s linear infinite;
+}
+
+/* A travelling highlight is motion: hold the line fully lit instead. */
+@media (prefers-reduced-motion: reduce) {
+  .lyrics {
+    color: var(--ink);
+    background-image: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
