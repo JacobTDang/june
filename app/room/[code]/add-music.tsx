@@ -18,6 +18,8 @@ import {
 } from "@/src/lib/room/add-music";
 import type { YouTubeResult } from "@/src/lib/supabase/youtube-error";
 import { parsePlaylistId } from "@/src/youtube/url";
+import { myRecentPlays } from "@/src/lib/room/history";
+import type { PlayRow } from "@/src/lib/room/play-event";
 import {
   AUTO_SEARCH_DEBOUNCE_MS,
   createRequestGate,
@@ -25,15 +27,23 @@ import {
 } from "@/src/discovery/typeahead";
 import { PlaylistCarousel, type Playlist } from "./playlist-carousel";
 
-type Tab = "search" | "playlist";
+type Tab = "search" | "playlist" | "again";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "search", label: "Search" },
   { id: "playlist", label: "My playlists" },
+  { id: "again", label: "Play it again" },
 ];
 
 /** A pasted YouTube link is added directly; anything else is searched. */
 const YT_LINK = /(?:youtube\.com|youtu\.be|music\.youtube\.com)/i;
+
+/** History has a row per play, so the same track appears every time it was
+ *  heard; a re-queue list wants each track once, most recent first. */
+function dedupeByVideo(plays: PlayRow[]): PlayRow[] {
+  const seen = new Set<string>();
+  return plays.filter((p) => (seen.has(p.videoId) ? false : (seen.add(p.videoId), true)));
+}
 
 /** A consistently framed cover thumbnail, with a music-note fallback. */
 function Cover({ url }: { url?: string | null }) {
@@ -69,6 +79,8 @@ export function AddMusic({ roomId }: { roomId: string }) {
   // uses (the pasted one needs no YouTube account).
   const [playlistLink, setPlaylistLink] = useState<string | null>(null);
   const [playlistTruncated, setPlaylistTruncated] = useState(false);
+  // Your own recent plays, loaded when the tab is first opened.
+  const [recent, setRecent] = useState<PlayRow[] | null>(null);
 
   const trimmed = query.trim();
   const isLink = YT_LINK.test(trimmed);
@@ -94,6 +106,10 @@ export function AddMusic({ roomId }: { roomId: string }) {
   function unwrap<T>(result: YouTubeResult<T>): T {
     if (!result.ok) throw new Error(result.notice);
     return result.data;
+  }
+
+  function loadRecent() {
+    void run(async () => setRecent(await myRecentPlays(20)));
   }
 
   function loadPlaylists() {
@@ -307,6 +323,43 @@ export function AddMusic({ roomId }: { roomId: string }) {
             <p className="muted">No songs found for this artist.</p>
           ) : (
             <ul className="add__list">{artistSongs.map(songRow)}</ul>
+          )}
+        </>
+      )}
+
+      {tab === "again" && (
+        <>
+          {recent === null ? (
+            <button className="btn" disabled={busy} onClick={loadRecent}>
+              Show what you&rsquo;ve played
+            </button>
+          ) : recent.length === 0 ? (
+            <p className="muted">Nothing yet — this fills up as you listen.</p>
+          ) : (
+            <ul className="add__list">
+              {dedupeByVideo(recent).map((play) => (
+                <li key={play.videoId} className="add__result">
+                  <Cover url={play.thumbnailUrl} />
+                  <div className="add__meta">
+                    <div className="add__title">{play.title}</div>
+                    <div className="add__sub">{play.artist ?? ""}</div>
+                  </div>
+                  <button
+                    className="add__btn"
+                    disabled={busy}
+                    aria-label={`Add ${play.title}`}
+                    onClick={() =>
+                      void run(
+                        async () => unwrap(await addVideoById(roomId, play.videoId)),
+                        () => `Added “${play.title}”`,
+                      )
+                    }
+                  >
+                    <Plus size={16} />
+                  </button>
+                </li>
+              ))}
+            </ul>
           )}
         </>
       )}

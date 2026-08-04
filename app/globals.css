@@ -403,6 +403,45 @@ a:hover {
   white-space: nowrap;
 }
 
+/* ---- Up next: suggestions when the queue is empty ---- */
+.suggest__lead {
+  font-size: 0.85rem;
+  line-height: 1.4;
+}
+.suggest__list {
+  list-style: none;
+  margin: 0.85rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+.suggest__item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 0;
+}
+.suggest__meta {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin-right: auto;
+}
+.suggest__title,
+.suggest__artist {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.suggest__title {
+  font-size: 0.9rem;
+}
+.suggest__artist {
+  font-size: 0.76rem;
+  color: var(--faint);
+}
+
 /* ---- Public profile: bio and taste ---- */
 .u__bio {
   margin: 0.5rem 0 0;
