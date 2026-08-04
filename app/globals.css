@@ -1230,6 +1230,20 @@ a:hover {
     flex: 1;
     min-height: 0;
   }
+  /* Sized so the composer lands on the same line as the search bar in the
+     centre column. Measured, not guessed: with the player card at its 162px
+     minimum and the now-playing block at 85px, the search bar sits 297px
+     below the top of this log — so that is the height.
+
+     It is a calibration, and it holds for the usual room. A long people list
+     pushes the chat down and the two bars drift apart again; the alternative
+     was pinning both to the bottom of the row, which would have moved search
+     results above the search box. */
+  .room__rail .chat__log {
+    flex: 0 0 auto;
+    height: 19.8rem;
+    max-height: none;
+  }
   /* The queue fills its rail and scrolls inside it, so a long queue uses the
      height that's actually there instead of a fixed 22rem window. */
   .room__queue {
