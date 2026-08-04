@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { SendHorizontal } from "lucide-react";
+import { ChevronDown, MessageCircle, SendHorizontal } from "lucide-react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/src/lib/supabase/client";
 import { fetchMessages, sendMessage } from "@/src/lib/room/chat";
@@ -36,6 +36,9 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Expanded by default: a collapsed chat that never announces itself is a
+  // chat nobody uses. Collapsing is for when the queue matters more.
+  const [open, setOpen] = useState(true);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const followRef = useRef(true);
@@ -157,12 +160,23 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
   const groups = groupMessages(messages);
 
   return (
-    <section className="chat">
-      <div className="section__head">
-        <span className="eyebrow">Chat</span>
-      </div>
+    <section className={open ? "chat" : "chat chat--closed"}>
+      <button
+        className="chat__toggle"
+        onClick={() => setOpen((wasOpen) => !wasOpen)}
+        aria-expanded={open}
+        aria-controls="chat-log"
+      >
+        <MessageCircle size={15} />
+        <span className="eyebrow chat__label">Chat</span>
+        {/* Collapsed, the count is the only sign anything happened. */}
+        {!open && messages.length > 0 && (
+          <span className="chat__count">{messages.length}</span>
+        )}
+        <ChevronDown className="chat__chevron" size={15} aria-hidden />
+      </button>
 
-      <div className="chat__log" ref={logRef} onScroll={onScroll}>
+      <div className="chat__log" id="chat-log" ref={logRef} onScroll={onScroll}>
         {groups.length === 0 ? (
           <p className="muted chat__empty">Say something to the room.</p>
         ) : (

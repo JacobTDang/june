@@ -1014,17 +1014,16 @@ a:hover {
     display: flex;
     flex-direction: column;
     min-height: 0;
-    gap: 1.75rem;
   }
   /* No sticky here: the centre rail is a column with the card on top and the
      chat filling the rest, so there's nothing to float alongside. */
   .room__center .stage {
     position: static;
   }
-  /* The chat takes the height the card leaves and scrolls inside it, which is
-     what fills the lower half of the room. min-height:0 so the log can shrink
-     below its content instead of pushing the page taller. */
-  .room__center .chat {
+  /* The chat sits in the rail and takes the height the people list leaves.
+     min-height:0 so the log can shrink below its content rather than pushing
+     the page taller. */
+  .room__rail .chat {
     flex: 1;
     min-height: 0;
   }
@@ -1070,6 +1069,12 @@ a:hover {
   overscroll-behavior: contain;
 }
 
+/* Add-music sits under the player now. The rail's divider used to provide
+   this separation; in the centre column nothing else does. */
+.room__center .add {
+  margin-top: 1.75rem;
+}
+
 /* ---- Room chat ---- */
 /* A column: header, the log that takes the slack and scrolls, then the
    composer pinned under it. On narrow layouts it isn't stretched by a rail,
@@ -1078,6 +1083,51 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-width: 0;
+}
+/* The whole header is the control, so the icon, the label and the chevron all
+   toggle rather than only one of them being a target. */
+.chat__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  padding: 0;
+  margin-bottom: 1rem;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+  transition: color 0.15s var(--ease);
+}
+.chat__toggle:hover {
+  color: var(--ink);
+}
+.chat__label {
+  margin: 0;
+}
+.chat__count {
+  font-size: 0.7rem;
+  color: var(--faint);
+}
+.chat__chevron {
+  margin-left: auto;
+  transition: transform 0.2s var(--ease);
+}
+.chat--closed .chat__chevron {
+  transform: rotate(-90deg);
+}
+/* Collapsed: the log and composer go, the header stays. */
+.chat--closed .chat__log,
+.chat--closed .chat__form,
+.chat--closed .chat__error {
+  display: none;
+}
+/* Specific enough to beat `.room__rail .chat { flex: 1 }` — otherwise a
+   collapsed chat still reserves the whole rail and the header floats above an
+   empty box. */
+.room__rail .chat--closed,
+.chat--closed {
+  flex: 0 0 auto;
 }
 /* A window of about seven messages, then it scrolls inside itself — the same
    treatment the up-next list gets, so neither list can run the page away. The
