@@ -50,6 +50,22 @@ describe("parseLrc", () => {
     expect(parseLrc("")).toEqual([]);
     expect(parseLrc("just some plain lyrics\nwith no timing")).toEqual([]);
   });
+
+  it("applies the file's offset tag to every timestamp", () => {
+    // Transcribers use [offset:] to correct a file that runs early or late
+    // against the recording; ignoring it leaves those files permanently out.
+    expect(parseLrc("[offset:+500]\n[00:10.00]x")).toEqual([{ timeMs: 10_500, text: "x" }]);
+    expect(parseLrc("[offset:-750]\n[00:10.00]x")).toEqual([{ timeMs: 9_250, text: "x" }]);
+    expect(parseLrc("[offset: 250 ]\n[00:10.00]x")).toEqual([{ timeMs: 10_250, text: "x" }]);
+  });
+
+  it("never lets an offset push a line before the start of the track", () => {
+    expect(parseLrc("[offset:-5000]\n[00:01.00]x")).toEqual([{ timeMs: 0, text: "x" }]);
+  });
+
+  it("ignores an offset tag that isn't a number", () => {
+    expect(parseLrc("[offset:soon]\n[00:10.00]x")).toEqual([{ timeMs: 10_000, text: "x" }]);
+  });
 });
 
 const LINES = parseLrc("[00:10.00]one\n[00:20.00]two\n[00:30.00]three");

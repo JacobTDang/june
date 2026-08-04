@@ -19,6 +19,10 @@ export interface WordSpan {
 /** `[mm:ss]` or `[mm:ss.xx]`, possibly several before one line of text. */
 const TIMESTAMP = /\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
 
+/** `[offset:+250]` — the transcriber's own correction for a file that runs
+ *  early or late against the recording, in milliseconds. */
+const OFFSET_TAG = /\[offset:\s*([+-]?\d+)\s*\]/i;
+
 /**
  * Parse an LRC file into lines ordered by time. Metadata tags (`[ar:…]`,
  * `[length:…]`) and untimed text are dropped: without a timestamp there is
@@ -26,6 +30,9 @@ const TIMESTAMP = /\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
  */
 export function parseLrc(raw: string): LyricLine[] {
   const lines: LyricLine[] = [];
+  // Positive shifts the lyrics later, matching the tag's usual reading.
+  const offsetMs = Number(OFFSET_TAG.exec(raw)?.[1] ?? 0);
+  const shift = Number.isFinite(offsetMs) ? offsetMs : 0;
 
   for (const rawLine of raw.split(/\r?\n/)) {
     TIMESTAMP.lastIndex = 0;
@@ -48,7 +55,7 @@ export function parseLrc(raw: string): LyricLine[] {
 
     if (stamps.length === 0) continue;
     const text = rawLine.slice(end).trim();
-    for (const timeMs of stamps) lines.push({ timeMs, text });
+    for (const timeMs of stamps) lines.push({ timeMs: Math.max(0, timeMs + shift), text });
   }
 
   return lines.sort((a, b) => a.timeMs - b.timeMs);
