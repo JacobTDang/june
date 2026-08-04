@@ -26,3 +26,10 @@ export const downloadsResponseSchema = z.array(downloadJobSchema);
  *  so the wire format has a single definition — every consumer narrows from
  *  this rather than re-declaring the shape. */
 export type DownloadJob = z.infer<typeof downloadJobSchema>;
+
+/** Response of mp3server's GET /captions/{videoId}. An empty cue list is a
+ *  normal answer: plenty of videos carry no captions. */
+export const captionsResponseSchema = z.object({
+  video_id: z.string(),
+  cues: z.array(z.object({ start_ms: z.number(), text: z.string() })),
+});

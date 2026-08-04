@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { Minus, Plus } from "lucide-react";
 import { getTrackLyrics } from "@/src/lib/room/lyrics";
 import { playbackProgress } from "@/src/lib/room/progress";
 import {
@@ -11,7 +10,6 @@ import {
   wordSpans,
   type LyricLine,
 } from "@/src/lyrics/lrc";
-import { NUDGE_STEP_MS, clampNudge, nudgeKey, readNudge } from "@/src/lyrics/nudge";
 import type { RoomNowPlaying } from "@/src/lib/room/types";
 
 /** Fast enough that the highlight slides rather than steps, slow enough to
@@ -49,7 +47,6 @@ export function Lyrics({
 }) {
   const [state, setState] = useState<State>({ kind: "loading" });
   const [now, setNow] = useState<number | null>(null);
-  const [nudgeMs, setNudgeMs] = useState(0);
   const videoId = nowPlaying.videoId;
   // Guards against a slow fetch for the previous track landing after the room
   // has moved on and painting the wrong song's words.
@@ -58,11 +55,6 @@ export function Lyrics({
   useEffect(() => {
     wanted.current = videoId;
     setState({ kind: "loading" });
-    try {
-      setNudgeMs(readNudge(window.localStorage.getItem(nudgeKey(videoId))));
-    } catch {
-      setNudgeMs(0);
-    }
 
     void getTrackLyrics({
       videoId,
@@ -88,16 +80,6 @@ export function Lyrics({
     return () => clearInterval(id);
   }, []);
 
-  function nudge(deltaMs: number) {
-    const next = clampNudge(nudgeMs + deltaMs);
-    setNudgeMs(next);
-    try {
-      window.localStorage.setItem(nudgeKey(videoId), String(next));
-    } catch {
-      // Storage unavailable: the correction still holds for this session.
-    }
-  }
-
   if (state.kind === "loading") return <p className="lyrics lyrics--quiet">Finding the words…</p>;
   if (state.kind === "none") return <p className="lyrics lyrics--quiet">No lyrics for this one.</p>;
   if (state.kind === "plain") {
@@ -121,9 +103,9 @@ export function Lyrics({
     !audio.paused &&
     audio.readyState >= HTMLMediaElement.HAVE_METADATA &&
     audio.currentTime > 0;
-  const position =
-    (playingHere ? audio.currentTime * 1000 : playbackProgress(now, offset, nowPlaying).position) +
-    nudgeMs;
+  const position = playingHere
+    ? audio.currentTime * 1000
+    : playbackProgress(now, offset, nowPlaying).position;
 
   const index = activeLineIndex(state.lines, position);
   const line = state.lines[index];
@@ -157,20 +139,6 @@ export function Lyrics({
         </p>
       )}
 
-      {/* Some uploads simply aren't the recording the file was timed against —
-          a longer intro, a different master. This is the cure for that, and
-          it's remembered per track on this device. */}
-      <div className="lyrics__nudge">
-        <button onClick={() => nudge(-NUDGE_STEP_MS)} aria-label="Lyrics earlier" title="Earlier">
-          <Minus size={12} />
-        </button>
-        <span className={nudgeMs === 0 ? "lyrics__nudge-value" : "lyrics__nudge-value is-set"}>
-          {nudgeMs === 0 ? "sync" : `${nudgeMs > 0 ? "+" : ""}${(nudgeMs / 1000).toFixed(1)}s`}
-        </span>
-        <button onClick={() => nudge(NUDGE_STEP_MS)} aria-label="Lyrics later" title="Later">
-          <Plus size={12} />
-        </button>
-      </div>
     </div>
   );
 }
