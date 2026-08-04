@@ -1690,10 +1690,61 @@ a:hover {
 
 /* One line at a time, centred in the card over the album backdrop. Sized off
    the card's width so a long line still fits on one row where it can. */
+.lyrics-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.6rem;
+}
+/* The nudge sits under the line, quiet until someone needs it. */
+.lyrics__nudge {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  opacity: 0.35;
+  transition: opacity 0.15s var(--ease);
+}
+.lyrics-box:hover .lyrics__nudge,
+.lyrics-box:focus-within .lyrics__nudge {
+  opacity: 1;
+}
+.lyrics__nudge button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.lyrics__nudge button:hover {
+  color: var(--ink);
+  background: var(--surface-2);
+}
+.lyrics__nudge-value {
+  min-width: 3.2rem;
+  text-align: center;
+  font-size: 0.65rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--faint);
+}
+.lyrics__nudge-value.is-set {
+  color: var(--accent);
+}
+
 .lyrics {
   margin: 0;
   max-width: 34ch;
-  font-family: var(--font-display);
+  /* Fraunces covers Latin only; the rest of the stack carries CJK, Cyrillic,
+     Arabic and the like so a non-English song renders in its own script
+     instead of falling back to tofu. */
+  font-family: var(--font-display), "Hiragino Sans", "Noto Sans CJK JP", "Noto Sans KR",
+    "Microsoft YaHei", "Noto Sans", system-ui, sans-serif;
   font-size: clamp(1.05rem, 2.6vw, 1.5rem);
   line-height: 1.35;
   text-align: center;

@@ -514,7 +514,7 @@ export function Player({
           </div>
         )}
         {showLyrics && nowPlaying !== null && (
-          <Lyrics nowPlaying={nowPlaying} offset={offset} />
+          <Lyrics nowPlaying={nowPlaying} offset={offset} audioRef={audioRef} silent={silent} />
         )}
         {!started ? (
           <>
