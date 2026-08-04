@@ -2,6 +2,7 @@
 
 import sharp from "sharp";
 import { createClient } from "../supabase/server";
+import { createServiceClient } from "../supabase/service";
 import { normalizeDisplayName, resolveDisplayName } from "./display-name";
 import { normalizeBio } from "./bio";
 import { normalizeUsername } from "./username";
@@ -148,8 +149,17 @@ export async function uploadAvatar(formData: FormData): Promise<{ avatarUrl: str
   }
 
   const path = avatarObjectPath(user.id);
-  const { error: upErr } = await supabase.storage
-    .from(AVATARS_BUCKET)
+  // Written with the service role, not the caller's client: this project signs
+  // JWTs with ES256, and Supabase Storage doesn't verify those — every
+  // authenticated upload arrived as anonymous and was refused by the bucket's
+  // own policy, which is why no avatar has ever landed.
+  //
+  // Safe because the trust boundary is this server action, not the client:
+  // `user` comes from a verified session and the path is built from user.id,
+  // so a caller can only ever write their own avatar. The storage policies
+  // stay in place to keep direct client writes locked down.
+  const { error: upErr } = await createServiceClient()
+    .storage.from(AVATARS_BUCKET)
     .upload(path, webp, { contentType: "image/webp", upsert: true });
   if (upErr) throw new Error(`Upload failed: ${upErr.message}`);
 

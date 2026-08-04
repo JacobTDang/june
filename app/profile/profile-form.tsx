@@ -8,6 +8,7 @@ import {
   type MyProfile,
 } from "@/src/lib/profile/actions";
 import { MAX_BIO } from "@/src/lib/profile/bio";
+import { validateAvatarFile } from "@/src/lib/profile/avatar";
 import { Avatar } from "../avatar";
 
 type Availability = { status: "idle" | "checking" | "ok" | "error"; message?: string };
@@ -64,6 +65,16 @@ export function ProfileForm({ initial }: { initial: MyProfile }) {
     const file = e.target.files?.[0];
     e.target.value = "";
     if (!file) return;
+
+    // The same check the server runs, run here first: an oversized photo
+    // should say so straight away rather than after uploading megabytes only
+    // to be turned back.
+    const check = validateAvatarFile({ size: file.size, type: file.type });
+    if (!check.ok) {
+      setMessage({ kind: "err", text: check.error });
+      return;
+    }
+
     setUploading(true);
     setMessage(null);
     try {
