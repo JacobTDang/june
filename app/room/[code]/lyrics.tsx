@@ -7,6 +7,7 @@ import {
   activeLineIndex,
   lineProgress,
   parseLrc,
+  wordSpans,
   type LyricLine,
 } from "@/src/lyrics/lrc";
 import type { RoomNowPlaying } from "@/src/lib/room/types";
@@ -118,19 +119,23 @@ export function Lyrics({
       {!line || line.text === "" ? (
         <p className="lyrics lyrics--quiet" aria-hidden />
       ) : (
-        <p
-          className="lyrics"
-          key={index}
-          dir="auto"
-          aria-live="off"
-          // A continuous wipe, not per-word steps. LRC and caption tracks
-          // both time whole lines, so word boundaries would be my guess
-          // dressed up as data — and a word lighting a beat early is exactly
-          // what reads as "out of sync". The sweep moves with the line's real
-          // progress and claims nothing finer than that.
-          style={{ "--sweep": `${(progress * 100).toFixed(1)}%` } as React.CSSProperties}
-        >
-          {line.text}
+        <p className="lyrics" key={index} dir="auto" aria-live="off">
+          {wordSpans(line.text).map((span, i) => (
+            <span
+              key={`${index}:${i}`}
+              // The leading space is real text, not a CSS ::before: generated
+              // content is invisible to copy-paste and to a screen reader,
+              // which would turn the line into one run-on word.
+              className={progress >= span.end ? "lyrics__word lyrics__word--sung" : "lyrics__word"}
+              style={
+                progress > span.start && progress < span.end
+                  ? { opacity: 0.55 + 0.45 * ((progress - span.start) / (span.end - span.start)) }
+                  : undefined
+              }
+            >
+              {i > 0 ? ` ${span.word}` : span.word}
+            </span>
+          ))}
         </p>
       )}
 
