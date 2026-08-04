@@ -9,13 +9,6 @@ export interface LyricLine {
   text: string;
 }
 
-export interface WordSpan {
-  word: string;
-  /** Fraction of the line elapsed when this word starts / ends (0–1). */
-  start: number;
-  end: number;
-}
-
 /** `[mm:ss]` or `[mm:ss.xx]`, possibly several before one line of text. */
 const TIMESTAMP = /\[(\d+):(\d{1,2})(?:[.:](\d{1,3}))?\]/g;
 
@@ -94,31 +87,3 @@ export function lineProgress(
   return Math.min(1, Math.max(0, (positionMs - start) / (end - start)));
 }
 
-/**
- * Split a line into words with the fraction of the line each occupies.
- *
- * LRC timing is per line, not per word, so these are interpolated: each word
- * gets a share of the line proportional to its length. It isn't real word
- * timing and can't be — but it tracks how a line is sung much more closely
- * than dividing the time evenly, and it keeps the highlight moving smoothly
- * instead of jumping a whole line at a time.
- */
-export function wordSpans(text: string): WordSpan[] {
-  const words = text.split(/\s+/).filter((w) => w.length > 0);
-  if (words.length === 0) return [];
-
-  const total = words.reduce((sum, w) => sum + w.length, 0);
-  const spans: WordSpan[] = [];
-  let elapsed = 0;
-
-  for (const word of words) {
-    const start = elapsed / total;
-    elapsed += word.length;
-    spans.push({ word, start, end: elapsed / total });
-  }
-
-  // Guard the last edge against floating-point drift: the caller compares
-  // progress against `end`, and 0.9999999 would leave the final word unlit.
-  spans[spans.length - 1]!.end = 1;
-  return spans;
-}
