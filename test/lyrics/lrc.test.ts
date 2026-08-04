@@ -3,6 +3,7 @@ import {
   activeLineIndex,
   lineProgress,
   parseLrc,
+  wordSpans,
 } from "../../src/lyrics/lrc";
 
 describe("parseLrc", () => {
@@ -112,3 +113,31 @@ describe("lineProgress", () => {
   });
 });
 
+describe("wordSpans", () => {
+  it("covers the line end to end, in order, without gaps", () => {
+    const spans = wordSpans("hey there you");
+    expect(spans.map((s) => s.word)).toEqual(["hey", "there", "you"]);
+    expect(spans[0]!.start).toBe(0);
+    expect(spans[spans.length - 1]!.end).toBe(1);
+    for (let i = 1; i < spans.length; i++) {
+      expect(spans[i]!.start).toBeCloseTo(spans[i - 1]!.end);
+    }
+  });
+
+  it("gives a longer word more of the line's time", () => {
+    // Line timings are per-line, so word timing is interpolated by length —
+    // an approximation, but one that tracks how a line is actually sung far
+    // better than splitting the time evenly.
+    const [short, long] = wordSpans("a considerable");
+    expect(long!.end - long!.start).toBeGreaterThan(short!.end - short!.start);
+  });
+
+  it("ignores extra whitespace", () => {
+    expect(wordSpans("  two   words  ").map((s) => s.word)).toEqual(["two", "words"]);
+  });
+
+  it("returns nothing for an empty line", () => {
+    expect(wordSpans("")).toEqual([]);
+    expect(wordSpans("   ")).toEqual([]);
+  });
+});
