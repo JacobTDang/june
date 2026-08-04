@@ -1709,8 +1709,18 @@ a:hover {
   line-height: 1.35;
   text-align: center;
   text-wrap: balance;
-  /* Unsung words sit back; the sweep below brings each one forward. */
-  color: var(--muted);
+  /* The sung part of the line is bright, the rest sits back; --sweep is the
+     boundary and moves with the line's progress. Painted with a hard-stop
+     gradient clipped to the glyphs, so the edge travels through the words
+     themselves rather than behind them. */
+  color: transparent;
+  background-image: linear-gradient(
+    90deg,
+    var(--ink) var(--sweep, 0%),
+    var(--muted) var(--sweep, 0%)
+  );
+  -webkit-background-clip: text;
+  background-clip: text;
   animation: lyricIn 0.35s var(--ease);
 }
 .lyrics--quiet {
@@ -1724,13 +1734,6 @@ a:hover {
 .lyrics--plain {
   font-size: 1rem;
   color: var(--muted);
-}
-.lyrics__word {
-  transition: color 0.12s linear;
-}
-.lyrics__word--sung {
-  color: var(--ink);
-  opacity: 1;
 }
 @keyframes lyricIn {
   from {
@@ -2075,6 +2078,14 @@ a:hover {
 }
 .spin {
   animation: spin 0.7s linear infinite;
+}
+
+/* A travelling highlight is motion: hold the line fully lit instead. */
+@media (prefers-reduced-motion: reduce) {
+  .lyrics {
+    color: var(--ink);
+    background-image: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
