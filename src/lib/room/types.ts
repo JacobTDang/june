@@ -59,6 +59,8 @@ export interface RoomRow {
   now_playing_thumbnail_url: string | null;
   now_playing_started_at: number | null;
   now_playing_added_by_name: string | null;
+  /** Who queued it. Null on rooms whose current track predates this column. */
+  now_playing_added_by: string | null;
 }
 
 export interface QueueItemRow {
@@ -69,6 +71,7 @@ export interface QueueItemRow {
   duration_ms: number;
   thumbnail_url: string | null;
   added_by_name: string | null;
+  added_by: string | null;
 }
 
 export interface ParticipantRow {
