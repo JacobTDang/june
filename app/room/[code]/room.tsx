@@ -24,6 +24,7 @@ import { visibleParticipants } from "@/src/lib/room/presence";
 import type { RoomState } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { activeDownloadProgress, shouldPollAgain } from "@/src/audio/downloads";
+import { alignedLogHeight } from "@/src/lib/room/align";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
 import { AddMusic } from "./add-music";
@@ -170,6 +171,7 @@ export function Room({
   // User ids currently connected to the room's realtime channel, or null while
   // presence is unknown (before the first sync, or realtime down).
   const [online, setOnline] = useState<Set<string> | null>(null);
+  const mainRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
     const next = await getRoomState(initial.id);
@@ -256,6 +258,49 @@ export function Room({
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, [queueVideoIds]);
+
+  // Keep the chat composer on the search bar's line. It has to be measured
+  // rather than set: the now-playing block only exists while something is
+  // playing, so the search bar moves down about 85px when a track starts and
+  // back up when the room falls idle. Runs after paint, watches the layout for
+  // changes, and stands down below the three-rail breakpoint where the columns
+  // stack and there is nothing to line up with.
+  useEffect(() => {
+    const main = mainRef.current;
+    if (!main || typeof ResizeObserver === "undefined") return;
+    const desktop = window.matchMedia("(min-width: 981px)");
+
+    const sync = () => {
+      const search = main.querySelector<HTMLElement>(".add__search");
+      const log = main.querySelector<HTMLElement>(".chat__log");
+      const form = main.querySelector<HTMLElement>(".chat__form");
+      // A collapsed chat has no log to size, and a stacked layout has nothing
+      // to align to.
+      if (!desktop.matches || !search || !log || !form || log.offsetParent === null) {
+        main.style.removeProperty("--chat-log-h");
+        return;
+      }
+      const height = alignedLogHeight({
+        searchTop: search.getBoundingClientRect().top,
+        logTop: log.getBoundingClientRect().top,
+        gap: parseFloat(getComputedStyle(form).marginTop) || 0,
+      });
+      // Only write on a real change: the observer below watches this same
+      // subtree, and rewriting an identical value invites a loop.
+      if (main.style.getPropertyValue("--chat-log-h") !== `${height}px`) {
+        main.style.setProperty("--chat-log-h", `${height}px`);
+      }
+    };
+
+    sync();
+    const observer = new ResizeObserver(sync);
+    observer.observe(main);
+    desktop.addEventListener("change", sync);
+    return () => {
+      observer.disconnect();
+      desktop.removeEventListener("change", sync);
+    };
+  }, [state.nowPlaying?.videoId, state.participants.length, queue.length]);
 
   function commitReorder() {
     reorderPending.current = true;
@@ -452,7 +497,7 @@ export function Room({
         </button>
       </div>
 
-      <div className="room__main">
+      <div className="room__main" ref={mainRef}>
         <section className="room__queue">
           <div className="section__head">
             <span className="eyebrow">Up next</span>
