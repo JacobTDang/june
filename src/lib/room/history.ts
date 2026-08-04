@@ -2,20 +2,13 @@
 
 import { getArtistTopSongs, searchArtists, pickArtistMatch } from "../../discovery";
 import { createClient } from "../supabase/server";
-import { getRecentPlays } from "./plays";
 import { pickSuggestions, type Suggestable } from "./suggest";
-import type { PlayRow } from "./play-event";
 
 /**
  * The client-callable slice of listening history. Separate from plays.ts on
  * purpose: that module writes with the service role, and a "use server" export
  * is a public endpoint.
  */
-
-/** Your recent tracks, for the "Play it again" tab. RLS scopes this to you. */
-export async function myRecentPlays(limit = 20): Promise<PlayRow[]> {
-  return getRecentPlays(limit);
-}
 
 /**
  * Something to play when a room's queue has run dry.
