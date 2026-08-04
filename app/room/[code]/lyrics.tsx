@@ -16,6 +16,46 @@ import type { RoomNowPlaying } from "@/src/lib/room/types";
  *  stay off the animation frame budget the visualizer is already using. */
 const TICK_MS = 80;
 
+/**
+ * How far behind `currentTime` the sound actually reaches the listener.
+ *
+ * The element reports where decoding is, not where hearing is: the samples
+ * still have to cross the output buffer, and over Bluetooth that can be half
+ * a second. Uncompensated, every lyric lands exactly that early. The browser
+ * measures it for us, and it's per-device — which is also why the error felt
+ * different on different setups.
+ *
+ * One shared context: contexts are a limited resource, and this one is only
+ * ever read.
+ */
+let latencyContext: AudioContext | null = null;
+
+/**
+ * Caption and lyric files are timed to *display* a line, and both conventions
+ * put that slightly before the singing — subtitles are meant to be read
+ * before they're spoken. Measured at about half a second against this
+ * catalogue, so lines are held back by that much.
+ *
+ * This is an observed constant, not a derived one. If lyrics ever read late
+ * rather than early, this is the number to change.
+ */
+const DISPLAY_LEAD_IN_MS = 500;
+
+function outputLatencyMs(): number {
+  try {
+    latencyContext ??= new AudioContext();
+    if (latencyContext.state === "suspended") void latencyContext.resume().catch(() => {});
+    // outputLatency is the real figure; baseLatency is the floor browsers
+    // report when they can't measure the device. Zero when neither is known,
+    // which simply leaves timing as it was.
+    const seconds = latencyContext.outputLatency || latencyContext.baseLatency || 0;
+    // A plausible ceiling: anything larger is a bad reading, not a device.
+    return Math.min(1000, seconds * 1000);
+  } catch {
+    return 0;
+  }
+}
+
 type State =
   | { kind: "loading" }
   | { kind: "synced"; lines: LyricLine[] }
@@ -103,9 +143,12 @@ export function Lyrics({
     !audio.paused &&
     audio.readyState >= HTMLMediaElement.HAVE_METADATA &&
     audio.currentTime > 0;
-  const position = playingHere
-    ? audio.currentTime * 1000
-    : playbackProgress(now, offset, nowPlaying).position;
+  // Only the device actually making sound has output latency to correct for;
+  // a silent one is reading the room's clock and has nothing to be late to.
+  const position =
+    (playingHere
+      ? audio.currentTime * 1000 - outputLatencyMs()
+      : playbackProgress(now, offset, nowPlaying).position) - DISPLAY_LEAD_IN_MS;
 
   const index = activeLineIndex(state.lines, position);
   const line = state.lines[index];
