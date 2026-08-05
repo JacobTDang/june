@@ -1,7 +1,7 @@
 # june
 
-A jam room for YouTube Music — friends join a room by code and listen to the
-same queue, **in sync**, each in their own browser.
+A jam room for music — friends join by code and listen to the same queue,
+**in sync**, each in their own browser.
 
 ![june home screen](docs/screenshots/home.png)
 
@@ -9,59 +9,67 @@ same queue, **in sync**, each in their own browser.
 
 ## How it works
 
-june never touches the audio. Each participant's browser plays the video through
-YouTube's own **IFrame player**; the server only coordinates *what* is playing
-and *when it started*. Everyone computes their position as `serverNow − startedAt`
-and converges — no audio ever flows through june.
+A small self-hosted audio server (`mp3server`, a sibling repo) fetches each track
+once and streams it back over signed, expiring URLs. Each browser plays that
+stream in a plain `<audio>` element; june's database only coordinates *what* is
+playing and *when it started*. Everyone computes their position as
+`serverNow − startedAt` and converges.
 
 ```
-Discovery (0 YouTube quota)   iTunes Search API  →  resolve to a videoId once  →  cached forever
-Add music                      paste link (1 unit) · search · import playlist (cheap)
-Room state                     Supabase Postgres + Realtime (rooms, queue_items, room_participants)
-Playback                       each browser's YouTube IFrame player, seeked to the shared clock
+Discovery      iTunes Search API  →  resolve to a videoId once  →  cached forever
+Audio          mp3server fetches the track, stores it, streams it back (HTTP Range)
+Room state     Supabase Postgres + Realtime (rooms, queue_items, participants, chat)
+Playback       each browser's <audio>, seeked to the shared clock
 ```
+
+Playing real audio rather than an embedded player is what makes it work on a
+phone with the screen off, and on networks that block YouTube.
 
 ## Features
 
 - **Synced playback** — same song, same second, in every browser in the room.
-- **Rooms + invite links** — start a jam, share the room link; signed-out invitees
-  sign in and auto-join.
-- **Forgiving search + artist view** — typo/noise-tolerant song search (iTunes,
-  zero YouTube quota) that ranks the studio version first, plus a click-through
-  artist view of top songs.
-- **Queue** — a scrollable "up next" window with **drag-to-reorder** (touch-friendly).
-- **Playlist import** — browse your YouTube playlists in a stacked card deck and
-  add tracks or whole playlists.
-- **Friends** — search by name/username, requests with an in-room toast
-  notification, see which friends are **in a jam**, and jump into their room.
-- **Profiles** — display name, `@username`, and avatar upload (HEIC → square WebP).
-- **Owner metrics** — an owner-only dashboard for YouTube quota + app stats.
-- **Signup cap** — a configurable seat limit while the app is new.
+- **Per-device sound** — mute or set the volume on *this* screen, so a laptop and
+  a phone can both be in the jam without doubling up.
+- **Chat** — realtime, in the room, alongside the queue.
+- **Lyrics (beta)** — line by line, timed from the video's own captions where they
+  exist and a lyrics database otherwise.
+- **Search that keeps up** — results as you type (iTunes, zero YouTube quota),
+  ranked so the studio version wins, with a click-through artist view.
+- **Queue** — a scrollable "up next" with drag-to-reorder, and suggestions drawn
+  from what the room has played once it runs dry.
+- **Playlists** — browse your own YouTube playlists, or paste any playlist link
+  and pick tracks from it.
+- **Friends** — requests with an in-room toast, and see what a friend is playing
+  right now with a button to join them.
+- **Your listening** — recently played and past jams on the home page, top artists
+  on your profile. Visible to you and to whoever was in the room with you.
+- **Profiles** — display name, `@username`, bio, avatar.
 
 ## Stack
 
-- **Next.js 16** (App Router, Server Actions, middleware) + **React 19** + **TypeScript**
-- **Supabase** — Postgres, Auth (Google OAuth), Row-Level Security, `SECURITY DEFINER`
-  RPCs, Realtime, Storage (avatars), `pg_cron` (dead-room sweep)
-- **motion** (framer-motion) — springy interactions, drag-reorder, transitions
-- **YouTube Data API** (playback/resolution) + **iTunes Search API** (zero-quota discovery)
-- **sharp** — avatar image pipeline
+- **Next.js 16** (App Router, Server Actions) + **React 19** + **TypeScript**
+- **Supabase** — Postgres, Auth (Google), RLS, `SECURITY DEFINER` RPCs, Realtime,
+  Storage, `pg_cron`
+- **mp3server** — FastAPI + arq + yt-dlp on a small VM, behind Caddy for TLS
+- **iTunes Search API** for discovery, **YouTube Data API** for resolution and playlists
 - **Vitest** — unit tests for the pure logic
 - **Vercel** — hosting
 
-## Architecture
+## Layout
 
-- **`src/jam/`** — the pure, tested core: FIFO queue, sync clock, NTP-style
-  clock-offset estimation. No IO, deterministic (`now` is a parameter).
-- **`src/youtube/`** — YouTube Data API layer: parsing, fetch-injected client,
-  playlist import. Anti-corruption boundary with Zod validation.
-- **`src/discovery/`** — iTunes Search API client + pure query normalization,
-  result ranking, and artist matching.
-- **`src/lib/`** — Supabase auth, the video-metadata cache, friends, profiles,
-  metrics, and the room (schema types, server actions, add-music).
-- **`app/`** — Next.js App Router UI (auth, lobby, room, synced player).
-- **`supabase/migrations/`** — schema, RLS policies, and participant-checked
-  `SECURITY DEFINER` functions (room lifecycle, queue reorder, signup cap, etc.).
+- **`src/jam/`** — the pure core: queue, sync clock, clock-offset estimation.
+  No IO, deterministic (`now` is a parameter).
+- **`src/audio/`** — mp3server client, download progress, visualizer spectrum math.
+- **`src/lyrics/`** — LRC parsing, caption conversion, lyrics matching.
+- **`src/discovery/`** · **`src/youtube/`** — iTunes search and ranking; the
+  YouTube API layer, with Zod validation at the boundary.
+- **`src/lib/`** — Supabase clients, room actions, plays, friends, profiles.
+- **`app/`** — App Router UI (lobby, room, player, chat, profile).
+- **`supabase/migrations/`** — schema, RLS, and participant-checked RPCs.
+
+How the pieces fit together, the invariants that aren't obvious from the code,
+and the operations runbook are in
+**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Local development
 
@@ -71,40 +79,37 @@ cp .env.local.example .env.local   # fill in the values
 npm run dev                        # http://localhost:3000
 ```
 
-`.env.local` (see `.env.local.example`):
-
 | Variable | Purpose |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase client (public) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side writes that bypass RLS (secret) |
+| `NEXT_PUBLIC_MP3SERVER_URL` | The audio server |
 | `YOUTUBE_API_KEY` | YouTube Data API |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Refresh the YouTube token (same OAuth client as the Supabase Google provider) |
-| `ADMIN_EMAIL` | Owner email for the `/metrics` dashboard |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Refresh the YouTube token |
+| `ADMIN_EMAIL` | Owner email for `/metrics` |
 | `SIGNUP_CAP` | Optional seat cap (defaults to 20) |
 
-Google sign-in also requires the Supabase Google provider + a Google OAuth client
-(redirect URI = your Supabase `/auth/v1/callback`).
+Sign-in needs the Supabase Google provider plus a Google OAuth client whose
+redirect URI is your Supabase `/auth/v1/callback`. Running the audio server
+locally is covered in the architecture doc.
 
 ## Testing
 
 ```bash
-npm test          # unit tests for the pure logic (jam core, youtube, cache, discovery, friends, ...)
+npm test          # the pure logic: sync clock, queue, lyrics, discovery, plays…
 npm run typecheck
 npm run build
 ```
 
-The realtime sync and IFrame playback are integration behavior — verify them by
-opening a room in **two browsers** and confirming they play the same track at the
-same position.
+Sync, realtime and playback are integration behaviour — verify them by opening a
+room in **two browsers** and confirming both play the same track at the same
+position.
 
-## Deploy (Vercel)
+## Deploy
 
-1. Push to GitHub, import the repo in Vercel.
-2. Set the env vars above in Vercel project settings.
-3. In Supabase → Authentication → URL Configuration: set the Site URL and add a
-   `https://<your-domain>/**` redirect URL.
-4. Publish the Google OAuth consent screen to **Production** so YouTube refresh
-   tokens don't expire after 7 days (the `youtube.readonly` scope is sensitive, so
-   users see an "unverified app" screen until you complete verification).
+Vercel for the app, any small VM for the audio server (the architecture doc has
+the runbook). Set the env vars above in Vercel, add `https://<your-domain>/**`
+as a Supabase redirect URL, and publish the Google OAuth consent screen so
+YouTube refresh tokens don't expire after 7 days.
 
-Runs on free tiers (Vercel Hobby + Supabase Free).
+The app runs on free tiers; the audio server needs a machine with disk.

@@ -91,6 +91,17 @@ Two subtleties worth not breaking:
   so iOS marks the element user-activated. `onEnded`/`onError` ignore it via a
   `data:` check — otherwise it instantly "ends" the room's track.
 
+### Lyrics
+
+Lines come from the video's own caption track when it has one — those are timed
+against the exact upload we stream — and from LRCLIB otherwise. That distinction
+matters: transcriptions of one song disagree by whole intros (16s versus 31s for
+the same recording length), and no metadata says which fits a given upload.
+Position comes from the playing element's `currentTime`, not the room clock,
+because the player tolerates ~1.2s of drift before correcting. Word positions
+within a line are interpolated; LRC and caption tracks both time whole lines
+only, so anything finer would be a guess.
+
 ### The visualizer
 
 `captureStream()` on the audio element feeds an `AnalyserNode`; `spectrumColumns`
@@ -134,13 +145,36 @@ eviction runs when disk gets tight.
   (`now_playing_video_id`, `_title`, `_artist`, `_duration_ms`,
   `_thumbnail_url`, `_started_at`, `_added_by_name`). `_started_at` NULL means
   pending.
-- `queue_items` — FIFO with a `position` column for drag-reorder.
-- `room_participants` — presence.
-- `track_resolution` — iTunes → YouTube videoId cache (service-role only).
-- Plus profiles, friendships, signup cap.
+- `queue_items` — FIFO with a `position` column for drag-reorder. Rows are
+  **deleted when a track starts playing** — the queue is not a history.
+- `room_participants` — presence, one room per user (unique on `user_id`).
+- `room_messages` — chat. Readable and writable only by room participants,
+  append-only, and cascade-deleted with the room.
+- `plays` — the one table that outlives a room: one row per listener per track,
+  written server-side when a track ends, with `skipped` and `listened_ms`.
+  Readable by you and by anyone who was in that room with you; writes are
+  service-role only, so a history can't be forged.
+- `track_resolution`, `video_cache`, `lyrics_cache` — service-role caches keyed
+  by track, shared across everyone.
+- Plus profiles (name, `@username`, bio, avatar), friendships, signup cap.
 
 Access is Row-Level Security + `SECURITY DEFINER` RPCs; `pg_cron` sweeps dead
 rooms.
+
+**Two gotchas worth knowing before you debug either.**
+
+*Realtime must be authorized before it subscribes.* `supabase.realtime.setAuth()`
+has to run before `.subscribe()`, and refreshed tokens must be handed to it via
+`onAuthStateChange`. Subscribing first opens the socket as anonymous, RLS then
+hides every row it is watching, and nothing errors — the symptom is a feature
+that only updates when you reload. Both the room channel and chat do this.
+
+*Storage can't verify this project's JWTs.* Auth issues **ES256** tokens.
+Postgres (via PostgREST) verifies them, but Supabase Storage does not, so an
+authenticated upload arrives as anonymous and is refused by the bucket policy.
+Avatar uploads therefore write with the service role from a server action, where
+the user is already verified and the object path is built from their id. The
+bucket policies stay in place for direct client writes.
 
 ## Environments and secrets
 
