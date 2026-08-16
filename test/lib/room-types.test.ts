@@ -18,6 +18,7 @@ describe("rowToNowPlaying", () => {
         now_playing_started_at: null,
         now_playing_added_by_name: null,
     now_playing_added_by: null,
+    now_playing_instance: null,
       }),
     ).toBeNull();
   });
@@ -34,6 +35,7 @@ describe("rowToNowPlaying", () => {
         now_playing_started_at: 5000,
         now_playing_added_by_name: "Bob",
     now_playing_added_by: null,
+    now_playing_instance: null,
       }),
     ).toEqual({
       videoId: "v",
@@ -61,6 +63,7 @@ describe("rowToNowPlaying", () => {
         now_playing_started_at: null,
         now_playing_added_by_name: "Bob",
     now_playing_added_by: null,
+    now_playing_instance: null,
       }),
     ).toEqual({
       videoId: "v",

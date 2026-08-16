@@ -4,6 +4,7 @@ import { createClient } from "../supabase/server";
 import { resolveDisplayName } from "../profile/display-name";
 import { safeThumbnailUrl } from "./thumbnail";
 import { clampText } from "./track-text";
+import { advanceGuard } from "./advance-guard";
 import type { PlayedTrack } from "./play-event";
 import { recordPlay } from "./plays";
 import {
@@ -50,6 +51,7 @@ const NOW_PLAYING_FIELDS = [
   "now_playing_started_at",
   "now_playing_added_by_name",
   "now_playing_added_by",
+  "now_playing_instance",
 ] as const satisfies readonly (keyof RoomRow)[];
 
 // Fails to compile if a column is added to RoomRow and not selected here.
@@ -73,6 +75,9 @@ const npFields = (
   now_playing_started_at: startedAt,
   now_playing_added_by_name: addedByName ?? null,
   now_playing_added_by: addedBy ?? null,
+  // A fresh id per promotion: this is what advancing compare-and-sets on, so
+  // two pending copies of the same video are no longer identical.
+  now_playing_instance: crypto.randomUUID(),
 });
 
 const NP_CLEARED = {
@@ -84,6 +89,7 @@ const NP_CLEARED = {
   now_playing_started_at: null,
   now_playing_added_by_name: null,
   now_playing_added_by: null,
+  now_playing_instance: null,
 };
 
 /** Create a room, add the creator as a participant, and return the room code. */
@@ -252,21 +258,16 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
     .update(update)
     .eq("id", roomId)
     .eq("now_playing_video_id", endedVideoId);
-  // Instance guard: the running branch (started_at != null) compares
-  // started_at equality, so concurrent "ended" events for the same instance
-  // can't double-advance. The pending branch (preparing-timeout skip,
-  // started_at NULL) can't use equality - Postgres NULL is never `=` to
-  // anything, including itself - so it falls back to `.is()`, which cannot
-  // distinguish two duplicate pending instances of the same videoId (every
-  // column is identical). That means duplicate pending instances of the same
-  // video could double-advance here. Accepted for now - a failing duplicate
-  // would fail again on its own next attempt - and tracked as a follow-up
-  // needing a `now_playing_instance` discriminator (a schema migration, out
-  // of scope this round).
+  // Compare-and-set on the exact copy of the track this caller saw, so
+  // concurrent "ended" events can't advance twice — including the case that
+  // used to slip through, two pending copies of the same video.
+  const guard = advanceGuard(room);
   query =
-    room.now_playing_started_at === null
-      ? query.is("now_playing_started_at", null)
-      : query.eq("now_playing_started_at", room.now_playing_started_at);
+    guard.kind === "instance"
+      ? query.eq("now_playing_instance", guard.instance)
+      : guard.startedAt === null
+        ? query.is("now_playing_started_at", null)
+        : query.eq("now_playing_started_at", guard.startedAt);
   const { data: applied } = await query.select("id");
 
   const advanced = applied !== null && applied.length > 0;
@@ -315,19 +316,38 @@ export async function skipTrack(roomId: string): Promise<void> {
     .maybeSingle();
   const room = roomData as unknown as RoomRow | null;
 
+  if (!room?.now_playing_video_id) return;
+
   const next = await popOldest(supabase, roomId);
   const update = next ? nextFields(next) : NP_CLEARED;
-  await supabase.from("rooms").update(update).eq("id", roomId);
+
+  // Same compare-and-set as advancing, for the same reason: two people hitting
+  // Skip at the same moment used to skip two tracks, because the second update
+  // applied unconditionally to whatever was playing by then.
+  let query = supabase
+    .from("rooms")
+    .update(update)
+    .eq("id", roomId)
+    .eq("now_playing_video_id", room.now_playing_video_id);
+  const guard = advanceGuard(room);
+  query =
+    guard.kind === "instance"
+      ? query.eq("now_playing_instance", guard.instance)
+      : guard.startedAt === null
+        ? query.is("now_playing_started_at", null)
+        : query.eq("now_playing_started_at", guard.startedAt);
+
+  const { data: applied } = await query.select("id");
+  if (applied === null || applied.length === 0) return; // someone else skipped it
+
   if (next) await supabase.from("queue_items").delete().eq("id", next.id);
 
-  if (room?.now_playing_video_id) {
-    await recordPlay({
-      roomId,
-      track: outgoingTrack(room),
-      endedAt: Date.now(),
-      skipped: true,
-    });
-  }
+  await recordPlay({
+    roomId,
+    track: outgoingTrack(room),
+    endedAt: Date.now(),
+    skipped: true,
+  });
 }
 
 /** Remove a not-yet-played track from the queue. */
