@@ -185,6 +185,19 @@ export async function enqueueTrack(roomId: string, rawTrack: AddTrackInput): Pro
 }
 
 /**
+ * Say "still here". Presence used to be membership alone, so a closed tab left
+ * someone showing as in a jam until the room was swept — up to twelve hours.
+ * Called on a timer by the room page; the friends list only counts people seen
+ * in the last few minutes.
+ */
+export async function touchParticipant(roomId: string): Promise<void> {
+  const { supabase } = await requireUser();
+  // Best effort: a missed heartbeat costs a friend's dot, and there will be
+  // another along in half a minute.
+  await supabase.rpc("touch_participant", { p_room: roomId });
+}
+
+/**
  * Start the shared clock for a pending track once a listener confirms it's
  * downloadable. Compare-and-set on (roomId, videoId, started_at IS NULL) so
  * N racing clients calling this for the same track start it exactly once.
