@@ -36,8 +36,28 @@ async function requireUser() {
   return { supabase, user };
 }
 
-const NOW_PLAYING_COLS =
-  "id, now_playing_video_id, now_playing_title, now_playing_artist, now_playing_duration_ms, now_playing_thumbnail_url, now_playing_started_at, now_playing_added_by_name";
+/** Every column of the now-playing projection, as a list rather than a string
+ *  so the type system can check it. `now_playing_added_by` was written but
+ *  never selected, which silently left `added_by` null on every recorded play
+ *  — the completeness check below makes that shape of mistake a build error. */
+const NOW_PLAYING_FIELDS = [
+  "id",
+  "now_playing_video_id",
+  "now_playing_title",
+  "now_playing_artist",
+  "now_playing_duration_ms",
+  "now_playing_thumbnail_url",
+  "now_playing_started_at",
+  "now_playing_added_by_name",
+  "now_playing_added_by",
+] as const satisfies readonly (keyof RoomRow)[];
+
+// Fails to compile if a column is added to RoomRow and not selected here.
+type UnselectedRoomColumn = Exclude<keyof RoomRow, (typeof NOW_PLAYING_FIELDS)[number]>;
+const _everyColumnSelected: UnselectedRoomColumn extends never ? true : never = true;
+void _everyColumnSelected;
+
+const NOW_PLAYING_COLS = NOW_PLAYING_FIELDS.join(", ");
 
 const npFields = (
   t: AddTrackInput,
@@ -219,7 +239,7 @@ export async function advanceTrack(roomId: string, endedVideoId: string): Promis
     .select(NOW_PLAYING_COLS)
     .eq("id", roomId)
     .maybeSingle();
-  const room = roomData as RoomRow | null;
+  const room = roomData as unknown as RoomRow | null;
   if (!room || room.now_playing_video_id !== endedVideoId) return; // already advanced
 
   const next = await popOldest(supabase, roomId);
@@ -293,7 +313,7 @@ export async function skipTrack(roomId: string): Promise<void> {
     .select(NOW_PLAYING_COLS)
     .eq("id", roomId)
     .maybeSingle();
-  const room = roomData as RoomRow | null;
+  const room = roomData as unknown as RoomRow | null;
 
   const next = await popOldest(supabase, roomId);
   const update = next ? nextFields(next) : NP_CLEARED;
@@ -350,7 +370,7 @@ export async function getRoomState(roomId: string): Promise<RoomState | null> {
 
   return {
     id: roomId,
-    nowPlaying: rowToNowPlaying(roomData as RoomRow),
+    nowPlaying: rowToNowPlaying(roomData as unknown as RoomRow),
     queue: ((queueData as QueueItemRow[] | null) ?? []).map(rowToQueueTrack),
     participants: await enrichParticipants(
       supabase,
@@ -443,7 +463,7 @@ export async function enterRoom(code: string): Promise<EnterRoomResult> {
     status: "ok",
     state: {
       id: code,
-      nowPlaying: rowToNowPlaying(roomData as RoomRow),
+      nowPlaying: rowToNowPlaying(roomData as unknown as RoomRow),
       queue: ((queueData as QueueItemRow[] | null) ?? []).map(rowToQueueTrack),
       participants,
     },
