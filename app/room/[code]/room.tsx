@@ -19,6 +19,7 @@ import {
   removeQueueItem,
   reorderQueue,
   skipTrack,
+  touchParticipant,
 } from "@/src/lib/room/actions";
 import { visibleParticipants } from "@/src/lib/room/presence";
 import type { RoomState } from "@/src/lib/room/types";
@@ -34,6 +35,11 @@ import { FriendToasts } from "./friend-toasts";
 import { sampleClockOffset } from "./clock-client";
 
 type QueueItem = RoomState["queue"][number];
+
+/** How often to say we're still in the room. Comfortably inside the five
+ *  minutes the friends list allows, even when a backgrounded tab throttles
+ *  timers to roughly one a minute. */
+const HEARTBEAT_MS = 30_000;
 
 /** How often to poll download progress while it can matter. */
 const DOWNLOAD_POLL_MS = 2500;
@@ -382,9 +388,22 @@ export function Room({
 
     const poll = setInterval(onChange, 3000);
 
+    // Tell the room we're still here, so friends stop seeing us in a jam the
+    // moment we're gone. Sent on visibility changes too: a phone waking up
+    // should re-appear immediately rather than at the next tick.
+    const beat = () => void touchParticipant(initial.id).catch(() => {});
+    beat();
+    const heartbeat = setInterval(beat, HEARTBEAT_MS);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") beat();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     return () => {
       cancelled = true;
       clearInterval(poll);
+      clearInterval(heartbeat);
+      document.removeEventListener("visibilitychange", onVisible);
       auth.subscription.unsubscribe();
       if (channel) void supabase.removeChannel(channel);
     };
