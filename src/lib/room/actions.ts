@@ -127,12 +127,12 @@ export async function getMyRoom(): Promise<string | null> {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return null;
-  const { data } = await supabase
-    .from("room_participants")
-    .select("room_id")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  return (data as { room_id: string } | null)?.room_id ?? null;
+  // Not "am I a member" — membership survives a closed tab until the room is
+  // swept, which had this card offering to return you to a jam that ended days
+  // ago. The RPC asks whether the room still has anyone in it or is still
+  // playing, so returning to a jam your friends are still in keeps working.
+  const { data } = await supabase.rpc("my_active_room");
+  return (data as string | null) ?? null;
 }
 
 /**
