@@ -61,6 +61,9 @@ export interface RoomRow {
   now_playing_added_by_name: string | null;
   /** Who queued it. Null on rooms whose current track predates this column. */
   now_playing_added_by: string | null;
+  /** Identifies this promotion, so advancing can target the exact copy of a
+   *  track it saw. Null for a track promoted before the column existed. */
+  now_playing_instance: string | null;
 }
 
 export interface QueueItemRow {
