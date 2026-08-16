@@ -22,3 +22,6 @@ fix-mcp-auth.sh
 
 # local Claude Code config/skills
 .claude/
+
+# Scratch output from browser-automation tooling
+.playwright-mcp/
