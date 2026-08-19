@@ -67,14 +67,14 @@ export default async function Home({
 
         {!user ? (
           <Reveal delay={0.16}>
-            <div className="stack" style={{ marginTop: "2.5rem" }}>
+            <div className="stack" style={{ marginTop: "var(--space-7)" }}>
               {isFull && (
-                <p className="muted" style={{ maxWidth: "34ch", marginBottom: "0.25rem" }}>
+                <p className="muted" style={{ maxWidth: "34ch", marginBottom: "var(--space-1)" }}>
                   june is full right now. It’s capped while it’s new. Check back soon.
                 </p>
               )}
               <SignInButton next={returnTo} />
-              <span className="faint" style={{ fontSize: "0.85rem" }}>
+              <span className="faint" style={{ fontSize: "var(--text-body)" }}>
                 {returnTo
                   ? "Sign in to join the jam you were invited to."
                   : "Sign in to start a room. Friends join with a code."}

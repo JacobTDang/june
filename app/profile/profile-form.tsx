@@ -140,7 +140,7 @@ export function ProfileForm({ initial }: { initial: MyProfile }) {
               {availability.status === "checking" ? "Checking…" : availability.message}
             </span>
           )}
-          <span className="profile__label" style={{ marginTop: "0.4rem" }}>
+          <span className="profile__label" style={{ marginTop: "var(--space-2)" }}>
             Lets friends find you and share your link.
           </span>
         </div>
@@ -158,7 +158,7 @@ export function ProfileForm({ initial }: { initial: MyProfile }) {
             rows={2}
             placeholder="A line about you"
           />
-          <span className="profile__label" style={{ marginTop: "0.4rem" }}>
+          <span className="profile__label" style={{ marginTop: "var(--space-2)" }}>
             Shown on your public page. {MAX_BIO - bio.trim().length} left.
           </span>
         </div>

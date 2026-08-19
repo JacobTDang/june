@@ -20,7 +20,7 @@ export default async function MetricsPage() {
         <ArrowLeft size={15} />
         Back
       </a>
-      <h1 className="pl__title" style={{ margin: "1rem 0 0" }}>
+      <h1 className="pl__title" style={{ margin: "var(--space-5) 0 0" }}>
         Metrics
       </h1>
       <MetricsView metrics={metrics} quota={DAILY_QUOTA} />

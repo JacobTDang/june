@@ -19,7 +19,7 @@ export default async function UserPage({
           <ArrowLeft size={15} />
           Home
         </a>
-        <p className="muted" style={{ marginTop: "2rem" }}>
+        <p className="muted" style={{ marginTop: "var(--space-7)" }}>
           No one goes by <strong>@{username}</strong>.
         </p>
       </main>

@@ -19,7 +19,7 @@ export default async function FriendsPage() {
         <ArrowLeft size={15} />
         Back
       </a>
-      <h1 className="pl__title" style={{ margin: "1rem 0 0" }}>
+      <h1 className="pl__title" style={{ margin: "var(--space-5) 0 0" }}>
         Friends
       </h1>
       <FriendsClient incoming={incoming} friends={friends} />
