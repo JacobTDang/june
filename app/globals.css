@@ -59,6 +59,22 @@
   --space-fluid-top: clamp(2rem, 8vh, 4rem);
   --space-fluid-x: clamp(1rem, 4vw, 1.5rem);
 
+  /* Leading, following size: the bigger the type, the tighter it sets. */
+  --leading-display: 1;
+  --leading-tight: 1.2;
+  --leading-body: 1.4;
+  --leading-relaxed: 1.5;
+
+  /* Tracking. Negative steps are optical correction for large type; the
+     positive ones open up uppercase labels, which need it to stay readable.
+     --track-code is every place a room code appears, so a code always looks
+     like the same object whether it is a heading, a chip, or an input. */
+  --track-display: -0.03em;
+  --track-title: -0.02em;
+  --track-body: -0.006em;
+  --track-label: 0.1em;
+  --track-code: 0.16em;
+
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
@@ -78,7 +94,7 @@ body {
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--text-root);
-  letter-spacing: -0.006em;
+  letter-spacing: var(--track-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
@@ -103,7 +119,7 @@ h2,
 h3 {
   font-family: var(--font-display);
   font-weight: 400;
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-title);
   color: var(--ink);
   margin: 0;
 }
@@ -145,7 +161,7 @@ a:hover {
   font-family: var(--font-sans);
   font-size: var(--text-micro);
   text-transform: uppercase;
-  letter-spacing: 0.14em;
+  letter-spacing: var(--track-label);
   font-weight: 600;
   color: var(--muted);
   margin: 0 0 var(--space-5);
@@ -171,12 +187,12 @@ a:hover {
 }
 .display {
   font-size: var(--text-display);
-  line-height: 0.98;
-  letter-spacing: -0.03em;
+  line-height: var(--leading-display);
+  letter-spacing: var(--track-display);
 }
 .lead {
   font-size: var(--text-lead);
-  line-height: 1.5;
+  line-height: var(--leading-relaxed);
   color: var(--muted);
   margin-top: var(--space-5);
   max-width: 34ch;
@@ -342,13 +358,13 @@ a:hover {
 .resume__label {
   font-size: var(--text-micro);
   text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: var(--track-label);
   color: var(--muted);
   font-weight: 600;
 }
 .resume__code {
   font-family: var(--font-sans);
-  letter-spacing: 0.14em;
+  letter-spacing: var(--track-code);
   font-size: var(--text-body);
 }
 .resume__go {
@@ -381,10 +397,10 @@ a:hover {
 .join .input {
   flex: 1;
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-code);
 }
 .join .input::placeholder {
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-code);
 }
 .yt-status {
   display: flex;
@@ -446,7 +462,7 @@ a:hover {
 /* ---- Up next: suggestions when the queue is empty ---- */
 .suggest__lead {
   font-size: var(--text-body);
-  line-height: 1.4;
+  line-height: var(--leading-body);
 }
 .suggest__list {
   list-style: none;
@@ -488,7 +504,7 @@ a:hover {
   max-width: 42ch;
   color: var(--muted);
   font-size: var(--text-body);
-  line-height: 1.5;
+  line-height: var(--leading-relaxed);
 }
 .u__taste {
   display: flex;
@@ -553,7 +569,7 @@ a:hover {
 .profile__bio {
   resize: none;
   font-family: inherit;
-  line-height: 1.4;
+  line-height: var(--leading-body);
 }
 
 /* ---- Home: your listening history ---- */
@@ -794,7 +810,7 @@ a:hover {
 .quota__num {
   font-family: var(--font-display);
   font-size: var(--text-stat);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-title);
 }
 .quota__cap {
   font-family: var(--font-sans);
@@ -893,13 +909,13 @@ a:hover {
 .tile__val {
   font-family: var(--font-display);
   font-size: var(--text-stat);
-  letter-spacing: -0.02em;
+  letter-spacing: var(--track-title);
 }
 .tile__label {
   font-size: var(--text-micro);
   color: var(--muted);
   text-transform: uppercase;
-  letter-spacing: 0.1em;
+  letter-spacing: var(--track-label);
   margin-top: var(--space-1);
 }
 .metrics__cleanup {
@@ -926,7 +942,7 @@ a:hover {
 .u__name {
   font-family: var(--font-display);
   font-size: var(--text-title);
-  line-height: 1.1;
+  line-height: var(--leading-tight);
 }
 .u__handle {
   color: var(--muted);
@@ -971,7 +987,7 @@ a:hover {
   gap: var(--space-3);
   font-size: var(--text-micro);
   text-transform: uppercase;
-  letter-spacing: 0.13em;
+  letter-spacing: var(--track-label);
   font-weight: 600;
   color: var(--muted);
 }
@@ -988,7 +1004,7 @@ a:hover {
   gap: var(--space-2);
   font-family: var(--font-sans);
   font-size: var(--text-micro);
-  letter-spacing: 0.18em;
+  letter-spacing: var(--track-code);
   color: var(--faint);
   font-weight: 500;
   background: transparent;
@@ -1180,8 +1196,8 @@ a:hover {
 .now__title {
   font-family: var(--font-display);
   font-size: var(--text-title);
-  line-height: 1.15;
-  letter-spacing: -0.01em;
+  line-height: var(--leading-tight);
+  letter-spacing: var(--track-title);
 }
 .now__meta .muted {
   font-size: var(--text-body);
@@ -1206,7 +1222,6 @@ a:hover {
   font-size: var(--text-meta);
   color: var(--faint);
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 .empty {
   text-align: center;
@@ -1429,7 +1444,7 @@ a:hover {
 .chat__body {
   margin: 0;
   font-size: var(--text-body);
-  line-height: 1.45;
+  line-height: var(--leading-body);
   /* Messages can carry their own line breaks now that the composer accepts
      them, and they should read back the way they were typed. */
   white-space: pre-wrap;
@@ -1482,7 +1497,7 @@ a:hover {
 .chat__input {
   resize: none;
   overflow-y: auto;
-  line-height: 1.4;
+  line-height: var(--leading-body);
   font-family: inherit;
 }
 
@@ -1975,7 +1990,7 @@ a:hover {
   color: var(--faint);
   font-family: var(--font-sans);
   font-size: var(--text-meta);
-  letter-spacing: 0.08em;
+  letter-spacing: var(--track-label);
   text-transform: uppercase;
   cursor: pointer;
   transition:
@@ -1993,7 +2008,7 @@ a:hover {
   border: 1px solid var(--line);
   border-radius: 3px;
   font-size: var(--text-micro);
-  letter-spacing: 0.06em;
+  letter-spacing: var(--track-label);
   color: var(--faint);
 }
 .sound__lyrics[aria-pressed="true"] .sound__beta {
@@ -2022,7 +2037,7 @@ a:hover {
   font-family: var(--font-display), "Hiragino Sans", "Noto Sans CJK JP", "Noto Sans KR",
     "Microsoft YaHei", "Noto Sans", system-ui, sans-serif;
   font-size: var(--text-lyric);
-  line-height: 1.35;
+  line-height: var(--leading-body);
   text-align: center;
   text-wrap: balance;
   /* Unsung words sit back; the sweep below brings each one forward. */
@@ -2182,7 +2197,7 @@ a:hover {
 .plc-row__name {
   font-weight: 600;
   font-size: var(--text-body);
-  letter-spacing: -0.01em;
+  letter-spacing: var(--track-body);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2283,7 +2298,7 @@ a:hover {
 .pl__name {
   font-weight: 500;
   font-size: var(--text-body);
-  line-height: 1.25;
+  line-height: var(--leading-tight);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2414,14 +2429,14 @@ a:hover {
 .lab-title {
   font-family: var(--font-display);
   font-size: var(--text-display-sm);
-  line-height: 1.05;
-  letter-spacing: -0.015em;
+  line-height: var(--leading-display);
+  letter-spacing: var(--track-title);
   margin: var(--space-3) 0 var(--space-3);
 }
 .lab-lead {
   color: var(--muted);
   font-size: var(--text-lead);
-  line-height: 1.55;
+  line-height: var(--leading-relaxed);
   max-width: 46ch;
 }
 .lab-search {
