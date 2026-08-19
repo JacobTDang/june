@@ -75,6 +75,14 @@
   --track-label: 0.1em;
   --track-code: 0.16em;
 
+  /* Weight. Only three, and only three are loaded — the display serif carries
+     headings by family and size rather than by getting heavier. Strong is for
+     small uppercase labels and primary actions, where it is optical
+     compensation for being tiny rather than a claim to lead. */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;
+
   --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
@@ -118,7 +126,7 @@ h1,
 h2,
 h3 {
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: var(--weight-normal);
   letter-spacing: var(--track-title);
   color: var(--ink);
   margin: 0;
@@ -162,7 +170,7 @@ a:hover {
   font-size: var(--text-micro);
   text-transform: uppercase;
   letter-spacing: var(--track-label);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--muted);
   margin: 0 0 var(--space-5);
 }
@@ -214,7 +222,7 @@ a:hover {
   border-radius: var(--r);
   font-family: var(--font-sans);
   font-size: var(--text-body);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   border: 1px solid var(--line);
   background: transparent;
   color: var(--ink);
@@ -235,7 +243,7 @@ a:hover {
   background: var(--accent);
   border-color: var(--accent);
   color: var(--accent-ink);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 .btn--primary:hover {
   background: var(--accent-hi);
@@ -360,16 +368,17 @@ a:hover {
   text-transform: uppercase;
   letter-spacing: var(--track-label);
   color: var(--muted);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 .resume__code {
   font-family: var(--font-sans);
+  font-weight: var(--weight-medium);
   letter-spacing: var(--track-code);
   font-size: var(--text-body);
 }
 .resume__go {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-size: var(--text-body);
   flex-shrink: 0;
 }
@@ -414,7 +423,7 @@ a:hover {
   align-items: center;
   gap: var(--space-2);
   color: var(--muted);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 .yt-status a {
   display: inline-flex;
@@ -441,7 +450,7 @@ a:hover {
   font-size: var(--text-body);
 }
 .home-jam__name {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 /* Name over track, so a long title can't shove the Join button around. */
 .home-jam__meta {
@@ -530,7 +539,7 @@ a:hover {
   gap: var(--space-3);
 }
 .u__artist-name {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
 }
 .u__artist-plays {
   margin-left: auto;
@@ -662,7 +671,7 @@ a:hover {
   align-items: center;
   justify-content: center;
   font-size: var(--text-meta);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   flex-shrink: 0;
 }
 
@@ -771,7 +780,7 @@ a:hover {
   min-width: 0;
 }
 .friend__name {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -988,7 +997,7 @@ a:hover {
   font-size: var(--text-micro);
   text-transform: uppercase;
   letter-spacing: var(--track-label);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--muted);
 }
 .live__dot {
@@ -1006,7 +1015,7 @@ a:hover {
   font-size: var(--text-micro);
   letter-spacing: var(--track-code);
   color: var(--faint);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   background: transparent;
   border: 0;
   padding: 0;
@@ -1429,7 +1438,7 @@ a:hover {
 }
 .chat__name {
   font-size: var(--text-meta);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   color: var(--muted);
 }
 /* Your own name carries the accent — the only colour in the log, so you can
@@ -1566,7 +1575,7 @@ a:hover {
   min-width: 0;
 }
 .track__title {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -1656,7 +1665,7 @@ a:hover {
   min-width: 0;
 }
 .ftoast__title {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -1723,7 +1732,7 @@ a:hover {
   color: var(--muted);
   font-family: var(--font-sans);
   font-size: var(--text-body);
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   cursor: pointer;
   transition: color 0.15s var(--ease);
 }
@@ -1778,7 +1787,7 @@ a:hover {
 }
 .add__search .btn--primary {
   color: var(--accent);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 .add__search .btn--primary:hover {
   color: var(--accent-hi);
@@ -1831,7 +1840,7 @@ a:hover {
   min-width: 0;
 }
 .add__title {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -1910,7 +1919,7 @@ a:hover {
 .add__pltitle {
   flex: 1;
   min-width: 0;
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2195,7 +2204,7 @@ a:hover {
   gap: var(--space-0);
 }
 .plc-row__name {
-  font-weight: 600;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   letter-spacing: var(--track-body);
   white-space: nowrap;
@@ -2296,7 +2305,7 @@ a:hover {
   min-width: 0;
 }
 .pl__name {
-  font-weight: 500;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   line-height: var(--leading-tight);
   white-space: nowrap;
@@ -2501,7 +2510,7 @@ a:hover {
   gap: var(--space-0);
 }
 .lab-track__title {
-  font-weight: 600;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   white-space: nowrap;
   overflow: hidden;
@@ -2549,7 +2558,7 @@ a:hover {
   gap: var(--space-0);
 }
 .lab-bar__title {
-  font-weight: 600;
+  font-weight: var(--weight-medium);
   font-size: var(--text-body);
   white-space: nowrap;
   overflow: hidden;
