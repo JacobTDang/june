@@ -64,6 +64,18 @@ describe("space scale", () => {
   });
 });
 
+describe("tracking and leading", () => {
+  it("tracks and leads from the scales", () => {
+    const loose = [
+      ...declarations(/^letter-spacing$/).filter(({ value }) => !value.startsWith("var(--track-")),
+      ...declarations(/^line-height$/).filter(
+        ({ value }) => !value.startsWith("var(--leading-") && value !== "inherit" && value !== "1",
+      ),
+    ];
+    expect(loose.map((d) => `${d.selector} { ${d.value} }`)).toEqual([]);
+  });
+});
+
 describe("components", () => {
   it("keeps inline styles on the scales", () => {
     const files = execSync("git ls-files 'app/*.tsx' 'src/*.tsx'", { encoding: "utf8" })
