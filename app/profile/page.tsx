@@ -19,7 +19,7 @@ export default async function ProfilePage() {
         <ArrowLeft size={15} />
         Back
       </a>
-      <h1 className="pl__title" style={{ margin: "1rem 0 0.5rem" }}>
+      <h1 className="pl__title" style={{ margin: "var(--space-5) 0 var(--space-3)" }}>
         Profile
       </h1>
       <ProfileForm initial={profile} />

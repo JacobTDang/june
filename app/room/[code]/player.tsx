@@ -508,7 +508,7 @@ export function Player({
         {nowPlaying === null && (
           <div className="empty">
             <div className="empty__title">Your room is ready.</div>
-            <p className="muted" style={{ marginTop: "0.5rem" }}>
+            <p className="muted" style={{ marginTop: "var(--space-3)" }}>
               Add the first song. It starts playing for everyone at once.
             </p>
           </div>
