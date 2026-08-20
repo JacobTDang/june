@@ -135,6 +135,43 @@ Accepts both shapes without being told which:
 Trims, drops blank and unparseable lines, de-duplicates on `(artist, title)`
 case-insensitively.
 
+### Source: a public Spotify playlist link (mp3server)
+
+The CSV is the backbone — it is the only path that reaches Liked Songs and
+private playlists, and it has no length limit. But for a *public* playlist,
+`open.spotify.com/embed/playlist/{id}` returns a `__NEXT_DATA__` JSON blob
+carrying title, artist and duration with **no authentication of any kind**, so
+pasting a link can replace the export-and-upload round trip.
+
+Verified against the live endpoint: it returns exactly the three fields the
+resolver needs, and nothing else is required to read it.
+
+```
+GET /imports/spotify/preview?url=<spotify playlist url>  → { name, tracks[], truncated }
+```
+
+It is a second *source*, not a second system: it produces the same track shape
+the CSV parser does and feeds the same resolution pipeline. That is the "import
+a format, not a service" decision paying off.
+
+**Two limits, both load-bearing:**
+
+- **The payload stops at 100 tracks** and carries no total, so a longer playlist
+  is silently cut. Three separate 150+ track playlists all returned exactly 100.
+  Since the count is the only signal, a result of exactly 100 sets
+  `truncated: true` and the UI says the list may be incomplete and points at the
+  CSV. An unmarked silent cut is the one behaviour this feature cannot have.
+- **Public playlists only.** Private and collaborative playlists, and Liked
+  Songs, are invisible here. The CSV remains the complete path.
+
+This reads an undocumented internal payload rather than an API, so it will break
+without warning — the same bet mp3server already makes on yt-dlp, and it fails
+the same way: loudly, on a shape that no longer parses. When it breaks, the CSV
+path is unaffected.
+
+No new dependency: `urllib.request` already fetches caption tracks in `ytdl.py`,
+run off the event loop with `asyncio.to_thread` like every other blocking call.
+
 ### Resolution (mp3server)
 
 A new `/imports` router, sitting on the existing job machinery:
