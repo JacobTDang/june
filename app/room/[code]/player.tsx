@@ -14,6 +14,7 @@ import { VOLUME_STORAGE_KEY, readVolume, volumeLevel } from "@/src/lib/room/volu
 import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { shouldSkipPreparing } from "@/src/audio/preparing";
+import { trackDownloadState, type TrackDownloadState } from "@/src/audio/downloads";
 import { createClient } from "@/src/lib/supabase/client";
 import { Lyrics } from "./lyrics";
 import { PixelVisualizer, type VisualizerMode } from "./pixel-visualizer";
@@ -38,8 +39,9 @@ const SILENCE =
 type Status =
   | { kind: "idle" }
   | { kind: "loading" }
-  | { kind: "preparing" }
+  | { kind: "preparing"; percent: number | null }
   | { kind: "playing" }
+  | { kind: "failed"; title: string; reason: string }
   | { kind: "unreachable" }
   | { kind: "config-error" }
   | { kind: "skipped"; title: string };
@@ -71,8 +73,16 @@ function statusText(status: Status): string {
       // (Feature B); playing shows no caption at all.
       return "";
     case "loading":
-    case "preparing":
       return "Preparing this track…";
+    case "preparing":
+      // The percent is the download's own, straight off the job. Without it
+      // a track that is genuinely downloading and one whose job died look
+      // identical from the sofa.
+      return status.percent === null
+        ? "Preparing this track…"
+        : `Downloading… ${status.percent}%`;
+    case "failed":
+      return `${status.reason} — skipping “${status.title}”.`;
     case "unreachable":
       return "Can’t reach the audio server — retrying…";
     case "config-error":
@@ -192,14 +202,24 @@ export function Player({
       setStatus({ kind: "loading" });
       while (!cancelled) {
         let url: string | null;
+        let download: TrackDownloadState = { kind: "idle" };
         try {
           url = await audioServer().mintStreamUrl(np!.videoId);
-          if (url === null && !ensured.current.has(np!.videoId)) {
-            // Only a confirmed "queued" marks the id ensured — a throttled
-            // request enqueued nothing, so the next poll must ask again.
-            if ((await audioServer().ensureDownload(np!.videoId)) === "queued") {
-              ensured.current.add(np!.videoId);
+          if (url === null) {
+            if (!ensured.current.has(np!.videoId)) {
+              // Only a confirmed "queued" marks the id ensured — a throttled
+              // request enqueued nothing, so the next poll must ask again.
+              if ((await audioServer().ensureDownload(np!.videoId)) === "queued") {
+                ensured.current.add(np!.videoId);
+              }
             }
+            // Only while actually waiting, and inside this try on purpose: if
+            // the server can't answer, that's the "unreachable" path below,
+            // not something to swallow and narrate as progress.
+            download = trackDownloadState(
+              await audioServer().listDownloads(),
+              np!.videoId,
+            );
           }
         } catch (err) {
           if (cancelled) return;
@@ -219,12 +239,22 @@ export function Player({
           // Start the preparing clock at the first confirmed "not stored
           // yet" — server outage time must not eat the 90s budget.
           preparingSince ??= Date.now();
+          if (download.kind === "failed") {
+            // The job is already dead. Waiting out the remaining liveness
+            // budget would tell the room nothing it doesn't now know.
+            setStatus({ kind: "failed", title: np!.title, reason: download.reason });
+            void advanceTrack(roomId, np!.videoId);
+            return;
+          }
           if (shouldSkipPreparing(preparingSince, Date.now())) {
             setStatus({ kind: "skipped", title: np!.title });
             void advanceTrack(roomId, np!.videoId);
             return;
           }
-          setStatus({ kind: "preparing" });
+          setStatus({
+            kind: "preparing",
+            percent: download.kind === "active" ? download.percent : null,
+          });
           await sleep(PREPARING_POLL_MS);
           continue;
         }
@@ -253,7 +283,7 @@ export function Player({
           // The realtime update flips startedAt, trackKey changes, and this
           // effect re-runs to mint again (server-cached, cheap) and actually
           // play. Do not set src/play yet.
-          setStatus({ kind: "preparing" });
+          setStatus({ kind: "preparing", percent: null });
           return;
         }
 
@@ -515,6 +545,21 @@ export function Player({
         )}
         {showLyrics && nowPlaying !== null && (
           <Lyrics nowPlaying={nowPlaying} offset={offset} audioRef={audioRef} silent={silent} />
+        )}
+        {status.kind === "preparing" && status.percent !== null && (
+          <div
+            className="audio-stage__progress"
+            role="progressbar"
+            aria-label="Download progress"
+            aria-valuenow={status.percent}
+            aria-valuemin={0}
+            aria-valuemax={100}
+          >
+            <div
+              className="audio-stage__progress__fill"
+              style={{ width: `${status.percent}%` }}
+            />
+          </div>
         )}
         {!started ? (
           <>

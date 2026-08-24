@@ -18,6 +18,11 @@ export const downloadJobSchema = z.object({
    * serializes to a string, not the epoch number the sibling link response
    * uses for `expires_at`. Verified against the running server. */
   created_at: z.string(),
+  /** Why a failed job failed, as raw server text — run it through
+   *  `describeDownloadFailure` before showing it to anyone. Nullish rather
+   *  than required so an older server that omits the field doesn't fail
+   *  validation and take the whole downloads poll down with it. */
+  error: z.string().nullish(),
 });
 
 export const downloadsResponseSchema = z.array(downloadJobSchema);
