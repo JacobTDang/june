@@ -130,9 +130,9 @@ body {
    canvas — so it is the surface that shows before the canvas has drawn, and
    in any gap it leaves. */
 html {
-  /* Black behind the starfield: the sky is the ground now, and a white flash
-     before the canvas paints would be jarring on every load. */
-  background: #000000;
+  /* Paper behind the starfield: the stars are ink on the page, not lights in
+     the dark, so the ground matches what the canvas paints. */
+  background: var(--bg);
 }
 
 main,
@@ -3107,13 +3107,15 @@ a:hover {
    say why. Fades in because a dithered image appearing instantly reads as a
    flash of noise. */
 .albumart {
+  /* Absolute, so the canvas cannot contribute to the height of the frame it is
+     measuring. In flow, setting canvas.width/height changed the element's
+     intrinsic size, which grew the parent, which grew the canvas — the art
+     appeared to zoom in forever. Out of flow there is no loop to have. */
+  position: absolute;
+  inset: 0;
   display: block;
-  /* Capped, not full-bleed: a square that tracks the column width becomes
-     enormous on a wide screen and pushes the controls off the card. A record
-     sleeve has a size. */
-  width: min(100%, 300px);
-  aspect-ratio: 1;
-  margin: 0 auto;
+  width: 100%;
+  height: 100%;
   image-rendering: pixelated;
   opacity: 0;
   transition: opacity 0.3s var(--ease);
@@ -3143,4 +3145,14 @@ a:hover {
 }
 .room__center .player-wrap {
   flex: none;
+}
+
+
+/* The stage is the frame the sleeve fills: a fixed band rather than something
+   that grows with its contents, so the card keeps its shape whatever is
+   playing and chat keeps the height below it. */
+.room__center .audio-stage {
+  padding: 0;
+  height: clamp(220px, 34vh, 340px);
+  overflow: hidden;
 }

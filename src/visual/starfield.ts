@@ -15,6 +15,9 @@ export type Star = {
   phase: number;
   /** Radians per millisecond. */
   rate: number;
+  /** Drawn as an outline rather than filled — a few of these keep the field
+   *  from reading as a single repeated stamp. */
+  outlined: boolean;
 };
 
 export type Asteroid = {
@@ -41,12 +44,19 @@ export function makeStars(
     stars.push({
       x: rand() * width,
       y: rand() * height,
-      // Mostly small: a sky of uniform dots looks like a grid, not a sky.
-      size: rand() < 0.86 ? 1 : 2,
+      // A range of sizes: a sky of one size reads as a grid, not a sky. The
+      // few large ones are what the eye actually lands on.
+      size: (() => {
+        const r = rand();
+        if (r < 0.7) return 2.2;
+        if (r < 0.94) return 4;
+        return 7;
+      })(),
       // Its own phase, or the whole sky pulses in unison — the classic tell
       // of a fake starfield.
       phase: rand() * Math.PI * 2,
       rate: 0.0006 + rand() * 0.0018,
+      outlined: rand() < 0.28,
     });
   }
   return stars;

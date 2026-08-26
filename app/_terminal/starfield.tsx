@@ -28,6 +28,37 @@ const ASTEROID_EVERY_MS = 5200;
  * Under prefers-reduced-motion the field is painted once and left alone — the
  * stars are still there, they simply stop moving.
  */
+/**
+ * The four-pointed sparkle: points north, east, south and west, with the sides
+ * pulled in toward the centre so the arms taper.
+ *
+ * The concave curve is the whole character of the shape — a straight-sided
+ * version is a diamond, which reads as a gem rather than a glint. Each side is
+ * a quadratic with its control point at the centre, which is what pinches the
+ * waist.
+ */
+function sparkle(
+  ctx: CanvasRenderingContext2D,
+  x: number,
+  y: number,
+  r: number,
+  outlined: boolean,
+) {
+  ctx.beginPath();
+  ctx.moveTo(x, y - r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.quadraticCurveTo(x, y, x, y + r);
+  ctx.quadraticCurveTo(x, y, x - r, y);
+  ctx.quadraticCurveTo(x, y, x, y - r);
+  ctx.closePath();
+  if (outlined && r > 3) {
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  } else {
+    ctx.fill();
+  }
+}
+
 export function Starfield() {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -66,17 +97,20 @@ export function Starfield() {
       if (started === 0) started = now;
       const elapsed = now - started;
 
-      ctx.fillStyle = "#000000";
+      // Paper, not night sky: the page is light, so the stars are ink on it.
+      ctx.fillStyle = "#f4f3ee";
       ctx.fillRect(0, 0, c.width, c.height);
 
-      ctx.fillStyle = "#ffffff";
+      ctx.fillStyle = "#111111";
+      ctx.strokeStyle = "#111111";
       for (const star of stars) {
-        const lit = reduced ? 0.8 : starBrightness(star, elapsed);
-        // Thresholded, not faded: a one-bit sky has lit stars and dark ones,
-        // and the twinkle is which side of the line each is on.
-        if (lit < 0.35) continue;
-        const s = star.size + (lit > 0.85 ? 1 : 0);
-        ctx.fillRect(Math.round(star.x), Math.round(star.y), s, s);
+        // Brightness drives *size*, not opacity. On a one-bit page a star
+        // cannot dim — it can only be bigger or smaller, and a sparkle that
+        // swells and shrinks is what reads as twinkling.
+        const lit = reduced ? 0.7 : starBrightness(star, elapsed);
+        const r = star.size * (0.45 + lit * 0.85);
+        if (r < 0.6) continue;
+        sparkle(ctx, star.x, star.y, r, star.outlined);
       }
 
       if (!reduced) {
@@ -94,8 +128,8 @@ export function Starfield() {
           const tailX = a.x - (a.vx / mag) * a.length;
           const tailY = a.y - (a.vy / mag) * a.length;
           const trail = ctx.createLinearGradient(a.x, a.y, tailX, tailY);
-          trail.addColorStop(0, "rgba(255,255,255,0.95)");
-          trail.addColorStop(1, "rgba(255,255,255,0)");
+          trail.addColorStop(0, "rgba(17,17,17,0.9)");
+          trail.addColorStop(1, "rgba(17,17,17,0)");
           ctx.strokeStyle = trail;
           ctx.lineWidth = 1.4;
           ctx.beginPath();

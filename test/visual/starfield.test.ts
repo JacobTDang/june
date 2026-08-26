@@ -32,13 +32,27 @@ describe("makeStars", () => {
     expect(phases.size).toBeGreaterThan(30);
   });
 
+  it("mixes filled and outlined stars", () => {
+    // All-filled reads as one stamp repeated; all-outlined disappears at small
+    // sizes. The field wants both.
+    const stars = makeStars(120, 800, 600, seeded(4));
+    const outlined = stars.filter((s) => s.outlined).length;
+    expect(outlined).toBeGreaterThan(5);
+    expect(outlined).toBeLessThan(stars.length - 5);
+  });
+
+  it("varies star size, so the sky is not a grid", () => {
+    const sizes = new Set(makeStars(120, 800, 600, seeded(5)).map((s) => s.size));
+    expect(sizes.size).toBeGreaterThan(1);
+  });
+
   it("is reproducible for a given seed", () => {
     expect(makeStars(10, 400, 400, seeded(7))).toEqual(makeStars(10, 400, 400, seeded(7)));
   });
 });
 
 describe("starBrightness", () => {
-  const star = { x: 0, y: 0, size: 1, phase: 0, rate: 0.001 };
+  const star = { x: 0, y: 0, size: 1, phase: 0, rate: 0.001, outlined: false };
 
   it("stays within range at every moment", () => {
     for (let t = 0; t < 20000; t += 137) {
