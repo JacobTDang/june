@@ -34,3 +34,29 @@ export function playbackCorrection({
   }
   return { kind: "hold" };
 }
+
+/**
+ * Whether the room's shared clock has carried the current track past its own
+ * duration.
+ *
+ * Deliberately independent of any audio element: the room has to move on even
+ * when nothing is playing it. Advancement used to ride on the playing
+ * device's drift check, which required a started, sourced, unpaused element -
+ * so a track that ran out while every listener was paused, silent, or merely
+ * looking at the page stayed on screen forever at full elapsed time, and the
+ * room could only be freed by someone tapping in.
+ */
+export function trackHasEnded({
+  startedAt,
+  durationMs,
+  nowMs,
+}: {
+  startedAt: number | null;
+  durationMs: number;
+  nowMs: number;
+}): boolean {
+  // A pending track has no elapsed time yet, and a track of unknown length
+  // would read as instantly over - neither is something to skip.
+  if (startedAt === null || durationMs <= 0) return false;
+  return nowMs - startedAt >= durationMs;
+}
