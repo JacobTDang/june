@@ -135,7 +135,28 @@ Eight surfaces and 35 components is too much for one plan.
    terminal primitives, and the home page converted as proof.
 2. **Surfaces** — `/friends`, `/playlists`, `/profile`, `/u/[username]`,
    `/metrics`, `/labs/audius` against the established vocabulary.
-3. **The room** — player, visualizer, lyrics, chat.
+3. **The room** — player, visualizer, lyrics, chat, **and a layout change**.
+
+### Room layout (Phase 3)
+
+Today the room is three columns —
+`minmax(220px,250px) | 1fr | minmax(310px,350px)` — queue, stage, rail
+(people + chat). The stage sits in the middle, which gives the album art the
+least room of the three.
+
+The new arrangement puts the artwork first:
+
+- **Left:** album art, large, with the audio visualizer on or around it.
+- **Right:** song selection and chat.
+- Content continues **beneath** the artwork rather than the left column
+  ending where the art does.
+
+One ambiguity to settle before this phase starts: whether "spread under the
+album art" means the *right-hand* column's content wraps beneath the artwork
+once it runs past the art's height, or whether the *left* column gains its own
+stack (now-playing meta, queue) underneath the art. These produce different
+grids and different responsive behaviour, so it is a question to answer with
+mockups at the start of Phase 3, not a detail to infer now.
 
 The room is last deliberately. `PixelVisualizer` draws amber dots on dark;
 inverted it becomes dark dots on light, which is the same visual language as
