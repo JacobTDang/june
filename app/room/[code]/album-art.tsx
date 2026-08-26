@@ -238,10 +238,10 @@ export function AlbumArt({
       const highT = high / ((bins.length - midEnd) * 255);
 
       // Fast to rise, slow to fall, so a kick reads as a hit and not a wobble.
-      level += (lowT - level) * (lowT > level ? 0.5 : 0.05);
-      lobe += (midT - lobe) * 0.2;
-      edge += (highT - edge) * 0.38;
-      spin += 0.008 + lowT * 0.05;
+      level += (lowT - level) * (lowT > level ? 0.6 : 0.04);
+      lobe += (midT - lobe) * 0.3;
+      edge += (highT - edge) * 0.5;
+      spin += 0.02 + lowT * 0.12;
 
       ctx.globalCompositeOperation = "source-over";
       ctx.drawImage(mono, 0, 0, w, h);
@@ -269,7 +269,7 @@ export function AlbumArt({
         // A wide base the bass swells...
         cutCtx.globalCompositeOperation = "destination-in";
         const base = cutCtx.createRadialGradient(
-          cx, cy, 0, cx, cy, Math.max(1, reach * (0.72 + level * 0.55)),
+          cx, cy, 0, cx, cy, Math.max(1, reach * (0.62 + level * 0.75)),
         );
         base.addColorStop(0, "rgba(0,0,0,1)");
         base.addColorStop(0.72, "rgba(0,0,0,1)");
@@ -281,12 +281,17 @@ export function AlbumArt({
         // rather than a clean circle. The bites counter-rotate at a rate the
         // bass sets, and the treble decides how deep they cut.
         cutCtx.globalCompositeOperation = "destination-out";
-        for (let i = 0; i < 3; i++) {
-          const angle = spin * (i % 2 === 0 ? 1 : -1.45) + (i * Math.PI * 2) / 3;
-          const dist = reach * (0.66 + lobe * 0.55);
+        // Five, at uneven rates and radii. Three evenly spaced bites turning
+        // together still read as a rotating shape; five that drift apart never
+        // repeat the same silhouette.
+        for (let i = 0; i < 5; i++) {
+          const rate = [1, -1.6, 0.7, -1.15, 1.9][i]!;
+          const angle = spin * rate + (i * Math.PI * 2) / 5;
+          const wobble = Math.sin(spin * (1.3 + i * 0.4)) * 0.22;
+          const dist = reach * (0.52 + lobe * 0.75 + wobble);
           const bx = cx + Math.cos(angle) * dist;
           const by = cy + Math.sin(angle) * dist;
-          const br = Math.max(1, reach * (0.3 + edge * 0.5));
+          const br = Math.max(1, reach * (0.26 + edge * 0.78));
           const bite = cutCtx.createRadialGradient(bx, by, 0, bx, by, br);
           bite.addColorStop(0, "rgba(0,0,0,0.95)");
           bite.addColorStop(1, "rgba(0,0,0,0)");
