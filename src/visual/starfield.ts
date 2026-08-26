@@ -102,6 +102,12 @@ export function isSpent(a: Asteroid, width: number, height: number): boolean {
   );
 }
 
+/** Share of the width at each edge that staves may occupy. The middle is
+ *  where the app's cards sit, and notation behind a card is just noise the
+ *  reader has to see past. Exported so the rule lives in one place rather
+ *  than being restated as a magic number wherever it is checked. */
+export const STAVE_EDGE_BAND = 0.33;
+
 /** A fragment of hand-drawn staff sitting somewhere in the field. */
 export type Stave = {
   x: number;
@@ -152,9 +158,11 @@ export function makeStaves(
     }
     // Left or right third, never the middle: the cards live there.
     const leftSide = rand() < 0.5;
-    const w = 100 + rand() * 150;
+    const w = 90 + rand() * 190;
     staves.push({
-      x: leftSide ? rand() * (width * 0.3) : width * 0.7 + rand() * (width * 0.3 - w * 0.3),
+      x: leftSide
+        ? rand() * (width * STAVE_EDGE_BAND)
+        : width * (1 - STAVE_EDGE_BAND) + rand() * (width * STAVE_EDGE_BAND - w * 0.25),
       y: rand() * height,
       width: w,
       spacing,

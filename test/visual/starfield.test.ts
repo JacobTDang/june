@@ -3,6 +3,7 @@ import {
   isSpent,
   makeStars,
   makeStaves,
+  STAVE_EDGE_BAND,
   spawnAsteroid,
   starBrightness,
   stepAsteroid,
@@ -114,10 +115,12 @@ describe("asteroids", () => {
 describe("makeStaves", () => {
   it("keeps out of the middle band where the cards sit", () => {
     // Notation behind a card is noise the reader has to see past.
-    const staves = makeStaves(40, 1000, 700, seeded(11));
+    const width = 1000;
+    const staves = makeStaves(40, width, 700, seeded(11));
     for (const s of staves) {
-      const middle = s.x > 300 && s.x < 700;
-      expect(middle).toBe(false);
+      const inMiddle =
+        s.x > width * STAVE_EDGE_BAND && s.x < width * (1 - STAVE_EDGE_BAND);
+      expect(inMiddle).toBe(false);
     }
   });
 

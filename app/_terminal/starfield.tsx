@@ -182,7 +182,7 @@ export function Starfield() {
       c.width = w;
       c.height = h;
       stars = makeStars(Math.min(MAX_STARS, Math.round((w * h) / 1e6 * DENSITY)), w, h, Math.random);
-      staves = makeStaves(Math.max(4, Math.round((w * h) / 230000)), w, h, Math.random);
+      staves = makeStaves(Math.max(8, Math.round((w * h) / 105000)), w, h, Math.random);
     }
 
     function draw(now: number) {
@@ -199,8 +199,8 @@ export function Starfield() {
 
       // Notation sits behind the stars, and lighter: it is texture the eye
       // should find rather than read.
-      ctx.fillStyle = "rgba(17,17,17,0.30)";
-      ctx.strokeStyle = "rgba(17,17,17,0.30)";
+      ctx.fillStyle = "rgba(17,17,17,0.34)";
+      ctx.strokeStyle = "rgba(17,17,17,0.34)";
       for (const stave of staves) drawStave(ctx, stave);
 
       ctx.fillStyle = "#111111";
