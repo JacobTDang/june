@@ -1,3 +1,5 @@
+import type { QueueTrack, RoomNowPlaying } from "./types";
+
 /**
  * Editing the queue in the interface before the server has agreed to it.
  *
@@ -50,4 +52,37 @@ export function confirmedRemovals(
 ): string[] {
   const present = new Set(serverItems.map((item) => item.id));
   return [...pending].filter((id) => !present.has(id));
+}
+
+/**
+ * Move the queue on by one, in the interface, without waiting for the server.
+ *
+ * Pressing skip used to fire the server action and then sit there until a
+ * realtime event or a poll came back, so the room appeared to think about it.
+ * This is the same move the server makes, applied at once: the next track is
+ * promoted and leaves the queue, and the server's answer only has to confirm
+ * what is already on screen.
+ *
+ * Promoted *pending* — with no clock — because that is what the server does.
+ * A track's clock starts when a listener confirms it can actually be played,
+ * and inventing a start time here would put this device ahead of the room.
+ */
+export function skipLocally(queue: QueueTrack[]): {
+  nowPlaying: RoomNowPlaying | null;
+  queue: QueueTrack[];
+} {
+  const [next, ...rest] = queue;
+  if (!next) return { nowPlaying: null, queue: [] };
+  return {
+    nowPlaying: {
+      videoId: next.videoId,
+      title: next.title,
+      artist: next.artist,
+      durationMs: next.durationMs,
+      thumbnailUrl: next.thumbnailUrl,
+      addedByName: next.addedByName,
+      startedAt: null,
+    },
+    queue: rest,
+  };
 }
