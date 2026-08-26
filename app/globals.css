@@ -2401,39 +2401,7 @@ a:hover {
 
 /* Mid widths: two columns, people wrap to a strip along the bottom. */
 /* Tablet: player over the queue on the left, the rail as a sidebar. */
-@media (max-width: 980px) {
-  .room__main {
-    grid-template-columns: minmax(0, 1fr) minmax(290px, 340px);
-    grid-template-areas:
-      "stage rail"
-      "queue rail";
-  }
-  .room__center {
-    grid-area: stage;
-  }
-  .room__queue {
-    grid-area: queue;
-  }
-  .room__rail {
-    grid-area: rail;
-  }
-  /* No sticky once the layout stacks — there's no rail to float alongside. */
-  .room__center .stage {
-    position: static;
-  }
-}
 
-/* Phone: one column — player, then what's next, then who's here + add music. */
-@media (max-width: 720px) {
-  .room__main {
-    grid-template-columns: 1fr;
-    grid-template-areas:
-      "stage"
-      "queue"
-      "rail";
-    gap: var(--space-7);
-  }
-}
 
 @media (max-width: 640px) {
   .room {
@@ -2866,7 +2834,7 @@ a:hover {
   min-height: calc(100vh - var(--space-9));
 }
 
-@media (max-width: 900px) {
+@media (max-width: 980px) {
   .container.hero--wide {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "banner" "friends" "rail";
@@ -3349,4 +3317,98 @@ a:hover {
    than hugging the top with the slack pooled underneath the meta. */
 .room__center .stage {
   justify-content: center;
+}
+
+
+/* ============================================================
+   Narrow: the room stops being an app shell
+   ============================================================
+   On a phone the room is a page, not a fixed frame. A 100dvh shell with
+   internal scrolling regions fights the browser's own scroll and its
+   disappearing address bar, and the stacked content simply does not fit — the
+   old rules also handed grid areas to elements that are no longer grid
+   children, which is what drew the rail over the player. */
+@media (max-width: 980px) {
+  .room {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+    padding-bottom: var(--space-8);
+  }
+  .room__main {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-4);
+  }
+  .room__center,
+  .room__rail {
+    min-height: 0;
+  }
+  /* Everything scrolls with the page rather than inside itself. Nested scroll
+     regions on a touch screen are a way to trap a finger. */
+  .room__rail,
+  .rail__view .home-history,
+  .rail__view .chat__log {
+    overflow: visible;
+    max-height: none;
+  }
+  /* The queue keeps a window here too — a forty-track room would otherwise be
+     a forty-screen page. Taller than on desktop, because a short scroll region
+     under a finger is worse than a tall one. */
+  .rail__view .queue {
+    max-height: calc(var(--space-10) * 4.4);
+    overflow-y: auto;
+  }
+  /* The stage sizes off the column's width here, not the viewport's height:
+     a phone is tall and narrow, so vh would make the sleeve taller than the
+     screen is wide. */
+  .room__center .stage {
+    flex: none;
+  }
+  .room__center .audio-stage {
+    max-height: none;
+    width: 100%;
+  }
+  /* The switch's two views are stacked on one grid cell, which needs a height
+     to resolve against; on a page that scrolls, let the taller one set it. */
+  .rail__stack {
+    flex: none;
+  }
+  .rail__view {
+    min-height: 0;
+  }
+  /* Chat's composer belongs at the end of the log, not pinned to a box that
+     no longer has a fixed height. */
+  .rail__view .chat {
+    height: auto;
+    min-height: 0;
+  }
+  .rail__view .chat__form {
+    margin-top: var(--space-5);
+  }
+  .room__who {
+    /* The bar wraps rather than squeezing the code and the participants into
+       one unreadable line. */
+    margin-right: 0;
+    order: 3;
+    width: 100%;
+  }
+  .room__bar {
+    flex-wrap: wrap;
+    gap: var(--space-3);
+  }
+}
+
+/* The home page stacks its own way; these are the pieces the desktop grid
+   was carrying. */
+@media (max-width: 980px) {
+  .container.hero--wide {
+    margin-inline: auto;
+    min-height: 0;
+  }
+  .hero--wide .hero__banner {
+    row-gap: var(--space-5);
+  }
+  .hero--wide .banner__do {
+    width: 100%;
+  }
 }
