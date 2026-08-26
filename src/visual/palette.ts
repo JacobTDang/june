@@ -66,3 +66,25 @@ export function dominantColors(rgba: Uint8ClampedArray, count: number): Swatch[]
     })
     .slice(0, count);
 }
+
+/**
+ * A hex colour at a given alpha, for canvas work that has to fade an ink the
+ * theme decides. Anything that isn't a hex is returned untouched: a token
+ * could hold `rgb()` or `oklch()`, and returning transparent black for those
+ * would paint an invisible starfield that reads as a broken canvas.
+ */
+export function withAlpha(hex: string, alpha: number): string {
+  const raw = hex.trim();
+  const match = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(raw);
+  if (!match) return raw;
+  const digits = match[1]!;
+  const full =
+    digits.length === 3
+      ? digits
+          .split("")
+          .map((d) => d + d)
+          .join("")
+      : digits;
+  const n = parseInt(full, 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef } from "react";
+import { withAlpha } from "@/src/visual/palette";
 import {
   isSpent,
   makeStars,
@@ -163,6 +164,33 @@ export function Starfield() {
     if (!ctx) return;
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    // Canvas cannot use a CSS variable, so the field reads the same two
+    // tokens the rest of the page is painted from rather than keeping its
+    // own copy of the palette. Re-read on theme change, not per frame.
+    let paper = "#f4f3ee";
+    let ink = "#111111";
+    function readPalette() {
+      const cs = getComputedStyle(document.documentElement);
+      paper = cs.getPropertyValue("--bg").trim() || paper;
+      ink = cs.getPropertyValue("--ink").trim() || ink;
+    }
+    readPalette();
+    const themeWatch = new MutationObserver(() => {
+      readPalette();
+      // Repaint now, not on the next frame. The theme swap happens inside a
+      // View Transition callback, and the browser snapshots the page right
+      // after it - a canvas still holding last theme's colours would be
+      // caught in that snapshot and flip only once the reveal finished.
+      // draw() schedules the next frame itself, so drop the pending one to
+      // avoid running two loops.
+      cancelAnimationFrame(raf);
+      draw(performance.now());
+    });
+    themeWatch.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["data-theme"],
+    });
     let stars: Star[] = [];
     let staves: Stave[] = [];
     let asteroids: Asteroid[] = [];
@@ -195,18 +223,18 @@ export function Starfield() {
       if (started === 0) started = now;
       const elapsed = now - started;
 
-      // Paper, not night sky: the page is light, so the stars are ink on it.
-      ctx.fillStyle = "#f4f3ee";
+      // Ink on paper, whichever way round the theme has them.
+      ctx.fillStyle = paper;
       ctx.fillRect(0, 0, c.width, c.height);
 
       // Notation sits behind the stars, and lighter: it is texture the eye
       // should find rather than read.
-      ctx.fillStyle = "rgba(17,17,17,0.34)";
-      ctx.strokeStyle = "rgba(17,17,17,0.34)";
+      ctx.fillStyle = withAlpha(ink, 0.34);
+      ctx.strokeStyle = withAlpha(ink, 0.34);
       for (const stave of staves) drawStave(ctx, stave);
 
-      ctx.fillStyle = "#111111";
-      ctx.strokeStyle = "#111111";
+      ctx.fillStyle = ink;
+      ctx.strokeStyle = ink;
       for (const star of stars) {
         // Brightness drives *size*, not opacity. On a one-bit page a star
         // cannot dim — it can only be bigger or smaller, and a sparkle that
@@ -232,8 +260,8 @@ export function Starfield() {
           const tailX = a.x - (a.vx / mag) * a.length;
           const tailY = a.y - (a.vy / mag) * a.length;
           const trail = ctx.createLinearGradient(a.x, a.y, tailX, tailY);
-          trail.addColorStop(0, "rgba(17,17,17,0.9)");
-          trail.addColorStop(1, "rgba(17,17,17,0)");
+          trail.addColorStop(0, withAlpha(ink, 0.9));
+          trail.addColorStop(1, withAlpha(ink, 0));
           ctx.strokeStyle = trail;
           ctx.lineWidth = 1.4;
           ctx.beginPath();
@@ -269,6 +297,7 @@ export function Starfield() {
     return () => {
       cancelAnimationFrame(raf);
       observer.disconnect();
+      themeWatch.disconnect();
       document.removeEventListener("visibilitychange", onVisibility);
     };
   }, []);

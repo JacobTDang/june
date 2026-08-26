@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dominantColors } from "../../src/visual/palette";
+import { dominantColors, withAlpha } from "../../src/visual/palette";
 
 /** A w×h RGBA buffer filled from a per-pixel function. */
 function image(w: number, h: number, at: (i: number) => [number, number, number]) {
@@ -66,5 +66,27 @@ describe("dominantColors", () => {
     for (let i = 0; i < 5; i++) data[i * 4 + 3] = 0;
     const colors = dominantColors(data, 1);
     expect(colors[0]!.r).toBeGreaterThan(150);
+  });
+});
+
+describe("withAlpha", () => {
+  it("turns a six-digit hex into rgba at the given alpha", () => {
+    expect(withAlpha("#111111", 0.34)).toBe("rgba(17, 17, 17, 0.34)");
+    expect(withAlpha("#eeeeee", 0.9)).toBe("rgba(238, 238, 238, 0.9)");
+  });
+
+  it("expands three-digit hex", () => {
+    expect(withAlpha("#fff", 1)).toBe("rgba(255, 255, 255, 1)");
+  });
+
+  it("tolerates the whitespace a CSS custom property comes back with", () => {
+    // getPropertyValue returns " #111111" for `--ink: #111111`.
+    expect(withAlpha("  #111111  ", 0.5)).toBe("rgba(17, 17, 17, 0.5)");
+  });
+
+  it("passes a non-hex colour through at full strength rather than guessing", () => {
+    // A token could hold rgb()/oklch(); silently returning transparent black
+    // would paint an invisible starfield and look like a broken canvas.
+    expect(withAlpha("rebeccapurple", 0.4)).toBe("rebeccapurple");
   });
 });

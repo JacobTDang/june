@@ -4,6 +4,7 @@ import { isYouTubeConnected } from "@/src/lib/supabase/youtube-auth";
 import { getMyRoom } from "@/src/lib/room/actions";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
+import { ThemeToggle } from "./_terminal/theme-toggle";
 import { Avatar } from "./avatar";
 import { DotRule, Prompt, Tick } from "./_terminal/primitives";
 import { TypedLine } from "./_terminal/typed-line";
@@ -60,6 +61,7 @@ export default async function Home({
             <a href="/friends" className="btn btn--sm">
               Friends
             </a>
+            <ThemeToggle />
             <form action="/auth/signout" method="post">
               <button type="submit" className="btn btn--sm">
                 Sign out

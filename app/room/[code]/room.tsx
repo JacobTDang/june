@@ -29,6 +29,7 @@ import { activeDownloadProgress, shouldPollAgain } from "@/src/audio/downloads";
 import { alignedLogHeight } from "@/src/lib/room/align";
 import { Player } from "./player";
 import { NowPlaying } from "./now-playing";
+import { ThemeToggle } from "@/app/_terminal/theme-toggle";
 import { AddMusic } from "./add-music";
 import { Chat } from "./chat";
 import { QueueSuggestions } from "./queue-suggestions";
@@ -539,6 +540,7 @@ export function Room({
               ))}
             </ul>
           </div>
+        <ThemeToggle />
         <button className="btn btn--sm" onClick={onLeave}>
           Leave
         </button>
