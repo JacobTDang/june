@@ -16,7 +16,7 @@ import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { shouldSkipPreparing } from "@/src/audio/preparing";
 import { createClient } from "@/src/lib/supabase/client";
 import { Lyrics } from "./lyrics";
-import { PixelVisualizer, type VisualizerMode } from "./pixel-visualizer";
+import { AlbumArt } from "./album-art";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
 const DRIFT_THRESHOLD_S = 1.2;
@@ -82,18 +82,6 @@ function statusText(status: Status): string {
   }
 }
 
-function visualizerMode(status: Status): VisualizerMode {
-  switch (status.kind) {
-    case "playing":
-      return "reactive";
-    case "loading":
-    case "preparing":
-    case "unreachable":
-      return "pulse";
-    default:
-      return "idle";
-  }
-}
 
 export function Player({
   roomId,
@@ -489,12 +477,7 @@ export function Player({
   return (
     <>
       <div className="audio-stage">
-      <PixelVisualizer
-        audio={audioRef.current}
-        // Nothing to react to when this device isn't the one playing.
-        mode={silent ? "idle" : visualizerMode(status)}
-        artworkUrl={nowPlaying?.thumbnailUrl ?? null}
-      />
+      <AlbumArt artworkUrl={nowPlaying?.thumbnailUrl ?? null} title={nowPlaying?.title ?? null} />
       <audio
         ref={audioRef}
         crossOrigin="anonymous"

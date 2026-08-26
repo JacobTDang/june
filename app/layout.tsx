@@ -2,7 +2,7 @@ import "./globals.css";
 import type { ReactNode } from "react";
 import type { Viewport } from "next";
 import { Geist_Mono } from "next/font/google";
-import { DitheredField } from "./_terminal/dithered-field";
+import { Starfield } from "./_terminal/starfield";
 
 const geistMono = Geist_Mono({
   subsets: ["latin"],
@@ -27,7 +27,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" className={geistMono.variable}>
       <body>
-        <DitheredField src="/backdrops/field-01.png" />
+        <Starfield />
         {children}
       </body>
     </html>

@@ -32,7 +32,6 @@ import { AddMusic } from "./add-music";
 import { Chat } from "./chat";
 import { QueueSuggestions } from "./queue-suggestions";
 import { FriendToasts } from "./friend-toasts";
-import { RoomBackdrop } from "./room-backdrop";
 import { sampleClockOffset } from "./clock-client";
 
 type QueueItem = RoomState["queue"][number];
@@ -500,11 +499,6 @@ export function Room({
 
   return (
     <>
-      {/* A sibling of the room, not a child of it: .rise animates a transform,
-          and a transformed ancestor becomes the containing block for
-          position:fixed descendants — the backdrop measured itself against the
-          room's 1200px box instead of the viewport and painted a strip. */}
-      <RoomBackdrop nowPlaying={nowPlaying} />
       <main className="room rise">
       <FriendToasts meId={me.userId} />
       <div className="room__bar">

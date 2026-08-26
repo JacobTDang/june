@@ -130,7 +130,9 @@ body {
    canvas — so it is the surface that shows before the canvas has drawn, and
    in any gap it leaves. */
 html {
-  background: var(--dither-paper);
+  /* Black behind the starfield: the sky is the ground now, and a white flash
+     before the canvas paints would be jarring on every load. */
+  background: #000000;
 }
 
 main,
@@ -3098,4 +3100,47 @@ a:hover {
      takes what is left instead. */
   height: auto;
   max-height: none;
+}
+
+/* The cover, dithered, where the visualiser used to be. Square and centred:
+   a stretched sleeve looks wrong in a way people notice without being able to
+   say why. Fades in because a dithered image appearing instantly reads as a
+   flash of noise. */
+.albumart {
+  display: block;
+  /* Capped, not full-bleed: a square that tracks the column width becomes
+     enormous on a wide screen and pushes the controls off the card. A record
+     sleeve has a size. */
+  width: min(100%, 300px);
+  aspect-ratio: 1;
+  margin: 0 auto;
+  image-rendering: pixelated;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+  background: var(--surface-2);
+}
+.albumart--ready {
+  opacity: 1;
+}
+/* The stage is the frame around it, so it stops claiming a fixed band of
+   height it no longer needs for a canvas visualiser. */
+.audio-stage {
+  min-height: 0;
+}
+.audio-stage__content {
+  pointer-events: none;
+}
+.audio-stage__content > * {
+  pointer-events: auto;
+}
+
+
+/* The stage wraps the sleeve rather than reserving a band for a canvas that
+   is no longer there. */
+.room__center .audio-stage {
+  min-height: 0;
+  padding: var(--space-5);
+}
+.room__center .player-wrap {
+  flex: none;
 }
