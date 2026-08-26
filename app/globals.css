@@ -3721,6 +3721,18 @@ a:hover {
   mask-position: center top, right center, center bottom, left center;
 }
 
+/* The frames reach a few pixels past their own box so the middle of a stroke
+   has somewhere to wander. A surface with margins absorbs that; .pl runs edge
+   to edge on a phone, so its bleed lands outside the viewport and the page
+   gains a 3px sideways scroll - measured on /friends at 390 and 430, and gone
+   when the overlay is disabled. Only the sides are pulled in: the top and
+   bottom keep their slack, and the left and right strokes give up four pixels
+   of wander, which is less than the width of the line they are drawn with. */
+.pl::before {
+  left: 0;
+  right: 0;
+}
+
 /* The one place the hand presses faster: the jam you are already in. The same
    pen at the same weight and reach, only travelling further across the edge, so
    it packs in more turns. Painted --ink because that is the border this control
