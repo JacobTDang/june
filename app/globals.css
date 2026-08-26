@@ -108,11 +108,12 @@
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
-  /* Where the theme reveal grows from. The toggle overwrites these on the
-     root before starting the transition; these defaults only matter if the
-     theme changes some other way, and must stay valid or the whole clip-path
-     declaration is dropped and the reveal never runs. */
-  --reveal-x: 50%;
+  /* Where the theme reveal grows from: the top-right corner, where the toggle
+     is. The toggle overwrites only --reveal-r, with the exact distance to the
+     opposite corner; this default overshoots so the reveal still covers the
+     screen if it is ever left to CSS alone. All must stay valid, or the whole
+     clip-path declaration is dropped and the reveal never runs at all. */
+  --reveal-x: 100%;
   --reveal-y: 0%;
   --reveal-r: 150vmax;
   --reveal-ms: 560ms;
