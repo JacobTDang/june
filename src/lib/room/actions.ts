@@ -363,10 +363,13 @@ export async function skipTrack(roomId: string): Promise<void> {
   });
 }
 
-/** Remove a not-yet-played track from the queue. */
+/** Remove a not-yet-played track from the queue. Throws on failure: the row
+ *  leaves the queue on screen the moment it's asked for, so a refused delete
+ *  has to come back here or the two lists quietly diverge. */
 export async function removeQueueItem(itemId: string): Promise<void> {
   const { supabase } = await requireUser();
-  await supabase.from("queue_items").delete().eq("id", itemId);
+  const { error } = await supabase.from("queue_items").delete().eq("id", itemId);
+  if (error) throw new Error(`removeQueueItem failed: ${error.message}`);
 }
 
 /** Reorder the queue to an explicit order (any participant). Rewrites positions
