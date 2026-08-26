@@ -22,6 +22,7 @@ import {
   touchParticipant,
 } from "@/src/lib/room/actions";
 import { visibleParticipants } from "@/src/lib/room/presence";
+import { unreadCount } from "@/src/lib/room/unread";
 import type { RoomState } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { activeDownloadProgress, shouldPollAgain } from "@/src/audio/downloads";
@@ -177,6 +178,18 @@ export function Room({
   // User ids currently connected to the room's realtime channel, or null while
   // presence is unknown (before the first sync, or realtime down).
   const [online, setOnline] = useState<Set<string> | null>(null);
+  /** Which of the rail's two views is showing. The rail holds both so the
+   *  left column can be the artwork alone. */
+  const [railView, setRailView] = useState<"queue" | "chat">("queue");
+  /** Messages in the log, and how many had arrived last time chat was open. */
+  const [chatTotal, setChatTotal] = useState(0);
+  const [chatSeen, setChatSeen] = useState(0);
+  const unread = unreadCount({ total: chatTotal, seen: chatSeen, visible: railView === "chat" });
+  // Opening chat marks everything in it read; so does a message arriving while
+  // it is already open.
+  useEffect(() => {
+    if (railView === "chat") setChatSeen(chatTotal);
+  }, [railView, chatTotal]);
   const mainRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -559,10 +572,37 @@ export function Room({
               />
             )}
           </section>
-          <Chat roomId={initial.id} meId={me.userId} />
         </div>
 
         <aside className="room__rail">
+        {/* One rail, two views. Both stay mounted: chat keeps its scroll
+            position and its messages, and the queue keeps whatever search
+            results are open, so switching costs nothing either way. */}
+        <div className="rail__switch" role="tablist" aria-label="Room panel">
+          <button
+            role="tab"
+            aria-selected={railView === "queue"}
+            className="rail__tab"
+            onClick={() => setRailView("queue")}
+          >
+            Music
+          </button>
+          <button
+            role="tab"
+            aria-selected={railView === "chat"}
+            className="rail__tab"
+            onClick={() => setRailView("chat")}
+          >
+            Chat
+            {unread > 0 && (
+              <span className="rail__badge" aria-label={`${unread} unread`}>
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </button>
+        </div>
+        <div className="rail__stack">
+        <div className="rail__view" data-active={railView === "queue"} aria-hidden={railView !== "queue"}>
         <section className="room__queue">
           <div className="section__head">
             <span className="eyebrow">Up next</span>
@@ -589,7 +629,15 @@ export function Room({
         </section>
 
           <AddMusic roomId={initial.id} />
-
+        </div>
+        <div
+          className="rail__view"
+          data-active={railView === "chat"}
+          aria-hidden={railView !== "chat"}
+        >
+          <Chat roomId={initial.id} meId={me.userId} onCount={setChatTotal} />
+        </div>
+        </div>
         </aside>
       </div>
     </main>

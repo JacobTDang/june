@@ -1436,19 +1436,6 @@ a:hover {
 }
 /* The whole header is the control, so the icon, the label and the chevron all
    toggle rather than only one of them being a target. */
-.chat__toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: 0;
-  margin-bottom: var(--space-5);
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s var(--ease);
-}
 .chat__toggle:hover {
   color: var(--ink);
 }
@@ -1459,27 +1446,11 @@ a:hover {
   font-size: var(--text-micro);
   color: var(--faint);
 }
-.chat__chevron {
-  margin-left: auto;
-  transition: transform 0.2s var(--ease);
-}
-.chat--closed .chat__chevron {
-  transform: rotate(-90deg);
-}
 /* Collapsed: the log and composer go, the header stays. */
-.chat--closed .chat__log,
-.chat--closed .chat__form,
-.chat--closed .chat__error {
-  display: none;
-}
 /* Specific enough to beat `.room__rail .chat { flex: 1 }` — otherwise a
    collapsed chat still reserves the whole rail and the header floats above an
    empty box. */
-.room__rail .chat--closed,
-.chat--closed {
-  flex: 0 0 auto;
-}
-/* A window of about seven messages, then it scrolls inside itself — the same
+.room__rail /* A window of about seven messages, then it scrolls inside itself — the same
    treatment the up-next list gets, so neither list can run the page away. The
    cap holds at every width: on a tall screen the rail would otherwise stretch
    the log to whatever height the screen happened to have. */
@@ -3003,10 +2974,12 @@ a:hover {
 }
 
 
-/* The right rail stacks queue, people, add-music and chat. Each section is a
-   rule-and-content block rather than its own card: four bordered boxes in one
-   column reads as clutter, and the rail already has an edge of its own. */
-.room__rail > * + * {
+/* The rail's sections are rule-and-content blocks rather than separate cards:
+   bordered boxes stacked in one column read as clutter, and the rail already
+   has an edge of its own. Scoped inside the view now — as a rule on the
+   rail's own children it drew a divider and a band of padding between the
+   tabs and the panel they switch. */
+.rail__view > * + * {
   margin-top: var(--space-5);
   padding-top: var(--space-5);
   border-top: 1px solid var(--line);
@@ -3016,6 +2989,11 @@ a:hover {
   background: none;
   border: 0;
   padding: 0;
+  /* Not sticky in here. The queue was its own column once and pinned itself
+     while that column scrolled; sharing a scrolling rail with add-music, it
+     stayed put while search results scrolled underneath it and the two drew
+     on top of each other. */
+  position: static;
 }
 .room__center .add {
   display: none;
@@ -3193,3 +3171,115 @@ a:hover {
   padding: var(--space-4) 0 0;
 }
 
+
+
+/* ---- The rail's two views ----
+   One column carrying either the queue and add-music, or chat. Both stay
+   mounted so switching keeps chat's scroll and any open search results; only
+   which one is visible changes. */
+.rail__switch {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-5);
+}
+.rail__tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0 0 var(--space-3);
+  /* Nudged down so the selected tab's rule lands on the switch's own, rather
+     than a hairline below it. A transform, not a negative margin: this is an
+     optical overlap, and the space scale is for spacing. */
+  transform: translateY(1px);
+  font: inherit;
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s var(--ease);
+}
+.rail__tab:hover {
+  color: var(--muted);
+}
+.rail__tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+/* The two views are stacked on the same grid cell rather than swapped in and
+   out, which is what lets one fade out while the other fades in instead of
+   the column jumping as the DOM changes height. */
+.rail__stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+}
+.rail__view {
+  grid-area: 1 / 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  /* Not focusable while hidden: a tab-stop behind an invisible panel is the
+     kind of thing only keyboard users find, and only by getting lost. */
+  visibility: hidden;
+  transition:
+    opacity 0.22s var(--ease),
+    visibility 0s linear 0.22s;
+}
+.rail__view[data-active="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 0.22s var(--ease),
+    visibility 0s;
+}
+.rail__view .chat {
+  flex: 1;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail__view {
+    transition: none;
+  }
+}
+
+/* Unread marker beside the chat tab. Filled rather than tinted: in a
+   two-colour system an inverted block is how something insists on attention. */
+.rail__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1);
+  background: var(--ink);
+  color: var(--invert-ink);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-body);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+
+/* Chat fills the rail so the composer sits on the bottom edge rather than
+   floating wherever the message list happens to end. */
+.rail__view .chat {
+  height: 100%;
+}
+.rail__view .chat__log {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow-y: auto;
+}
+.rail__view .chat__form {
+  margin-top: auto;
+}

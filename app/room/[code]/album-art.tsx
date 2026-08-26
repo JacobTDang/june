@@ -176,20 +176,37 @@ export function AlbumArt({
     if (!ctx) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-    const graph = getAudioGraph(audio);
-    // No tap available (Safari implements neither captureStream nor the
-    // Firefox-prefixed form on <audio>). The sleeve stays one-bit, which costs
-    // the colour and never the music.
-    if (!graph) return;
-
     let raf = 0;
     let level = 0;
+    let graph = getAudioGraph(audio);
+
+    // The tap can fail simply because it was asked too early: this effect runs
+    // when the *artwork* is ready, which can be before the element has a live
+    // audio track, and capturing a track-less stream throws. So try again when
+    // playback actually starts. A tap that never succeeds (Safari implements
+    // neither captureStream nor the Firefox-prefixed form on <audio>) leaves
+    // the sleeve one-bit, which costs the colour and never the music.
+    function attach() {
+      if (graph) return;
+      graph = getAudioGraph(audio!);
+      if (graph && raf === 0) raf = requestAnimationFrame(frame);
+    }
+    // Both events: `playing` catches a track that starts later, and
+    // `timeupdate` catches one that was already going before this effect ran —
+    // which is the common case, since the artwork finishes dithering after
+    // playback has begun. timeupdate fires a few times a second and attach()
+    // is a no-op once the tap exists.
+    audio.addEventListener("playing", attach);
+    audio.addEventListener("timeupdate", attach);
 
     function frame() {
       const c = ref.current;
       const mono = monoRef.current;
       const colored = coloredRef.current;
-      if (!c || !ctx || !graph || !mono || !colored) return;
+      if (!c || !ctx || !graph || !mono || !colored) {
+        raf = 0;
+        return;
+      }
       const w = c.width;
       const h = c.height;
 
@@ -243,16 +260,19 @@ export function AlbumArt({
       }
       raf = requestAnimationFrame(frame);
     }
-    raf = requestAnimationFrame(frame);
+    if (graph) raf = requestAnimationFrame(frame);
 
     return () => {
+      audio.removeEventListener("playing", attach);
+      audio.removeEventListener("timeupdate", attach);
       cancelAnimationFrame(raf);
       // Leave the sleeve as it was found: plain, and matching what a device
       // that never played would show.
       const c = ref.current;
       const mono = monoRef.current;
       if (c && mono) c.getContext("2d")?.drawImage(mono, 0, 0, c.width, c.height);
-      void graph.context.close();
+      // The context is shared with anything else tapping this element and
+      // outlives this effect; closing it here would silence the next run.
     };
   }, [audioRef, active, ready, src]);
 

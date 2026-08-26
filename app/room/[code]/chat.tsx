@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ChevronDown, MessageCircle, SendHorizontal } from "lucide-react";
+import { SendHorizontal } from "lucide-react";
 import type { RealtimeChannel } from "@supabase/supabase-js";
 import { createClient } from "@/src/lib/supabase/client";
 import { fetchMessages, sendMessage } from "@/src/lib/room/chat";
@@ -31,14 +31,26 @@ function timeLabel(createdAt: number): string {
   return new Date(createdAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 }
 
-export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
+export function Chat({
+  roomId,
+  meId,
+  onCount,
+}: {
+  roomId: string;
+  meId: string;
+  /** Reports how many messages are in the log, so a panel that is hiding this
+   *  one can show an unread count without owning the messages itself. */
+  onCount?: (total: number) => void;
+}) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   // Expanded by default: a collapsed chat that never announces itself is a
   // chat nobody uses. Collapsing is for when the queue matters more.
-  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    onCount?.(messages.length);
+  }, [messages.length, onCount]);
   const logRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const followRef = useRef(true);
@@ -160,22 +172,7 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
   const groups = groupMessages(messages);
 
   return (
-    <section className={open ? "chat" : "chat chat--closed"}>
-      <button
-        className="chat__toggle"
-        onClick={() => setOpen((wasOpen) => !wasOpen)}
-        aria-expanded={open}
-        aria-controls="chat-log"
-      >
-        <MessageCircle size={15} />
-        <span className="eyebrow chat__label">Chat</span>
-        {/* Collapsed, the count is the only sign anything happened. */}
-        {!open && messages.length > 0 && (
-          <span className="chat__count">{messages.length}</span>
-        )}
-        <ChevronDown className="chat__chevron" size={15} aria-hidden />
-      </button>
-
+    <section className="chat">
       <div className="chat__log" id="chat-log" ref={logRef} onScroll={onScroll}>
         {groups.length === 0 ? (
           <p className="muted chat__empty">Say something to the room.</p>
@@ -216,8 +213,8 @@ export function Chat({ roomId, meId }: { roomId: string; meId: string }) {
             }
           }}
           rows={1}
-          placeholder="Message the room"
-          aria-label="Message the room"
+          placeholder="say something touse"
+          aria-label="Say something to the room"
           maxLength={MAX_MESSAGE_LENGTH + 1}
         />
         <button

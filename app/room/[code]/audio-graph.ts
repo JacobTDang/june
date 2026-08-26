@@ -41,7 +41,21 @@ type CaptureCapableAudio = HTMLAudioElement & {
  * never the audio, because playback must never depend on the visualizer
  * working.
  */
+/**
+ * One tap per element, for as long as the element lives.
+ *
+ * A browser allows only a handful of AudioContexts per page, and this used to
+ * build a fresh one on every call — so a component that re-ran its effect a
+ * few times (a new track, a state change) quietly exhausted the budget and
+ * every later call failed the same way a browser without captureStream does.
+ * The tap is a property of the element, so it is cached against it.
+ */
+const taps = new WeakMap<HTMLAudioElement, AudioGraph>();
+
 export function getAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
+  const existing = taps.get(audio);
+  if (existing) return existing;
+
   const captureCapable = audio as CaptureCapableAudio;
   const captureStream = captureCapable.captureStream ?? captureCapable.mozCaptureStream;
   if (typeof captureStream !== "function") {
@@ -56,11 +70,13 @@ export function getAudioGraph(audio: HTMLAudioElement): AudioGraph | null {
     source.connect(analyser);
     // Deliberately never connected to context.destination — see the
     // function doc: this graph is a tap, not a playback path.
-    return {
+    const graph: AudioGraph = {
       context,
       analyser,
       bins: new Uint8Array(analyser.frequencyBinCount),
     };
+    taps.set(audio, graph);
+    return graph;
   } catch {
     // Deliberate best-effort path: AudioContext/tap construction can throw
     // outright in some environments (no Web Audio support, a restrictive
