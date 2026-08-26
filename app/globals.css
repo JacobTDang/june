@@ -110,6 +110,37 @@
   box-sizing: border-box;
 }
 
+/* Dark: the same system with paper and ink swapped. Every value below is the
+   literal inverse of its light counterpart (255 minus each channel), so the
+   contrast relationships the light theme was tuned for carry over exactly and
+   the warm creams come back as the cool darks that are their true opposites.
+
+   One block, not two: the boot script in layout.tsx resolves the stored
+   choice against prefers-color-scheme and stamps a concrete data-theme before
+   first paint, so there is no media-query copy of this palette to keep in
+   sync. With JS off nothing is stamped and the page stays light, which is the
+   design as drawn. */
+:root[data-theme="dark"] {
+  --bg: #0b0c11;
+  --surface: #000000;
+  --surface-2: #11131a;
+  --ink: #eeeeee;
+  --muted: #95979d;
+  --faint: #64676f;
+  --line: #1b1e27;
+  --line-2: #343844;
+
+  --dither-ink: #ffffff;
+  --dither-paper: #000000;
+
+  --invert-bg: #eeeeee;
+  --invert-ink: #0b0c11;
+  --wash: rgba(238, 238, 238, 0.06);
+  --wash-strong: rgba(238, 238, 238, 0.12);
+  --wash-ring: rgba(238, 238, 238, 0.45);
+  --danger: #eeeeee;
+}
+
 html,
 body {
   margin: 0;
@@ -3434,4 +3465,33 @@ a:hover {
   .pl {
     margin-block: var(--space-4);
   }
+}
+
+/* The theme toggle names the theme it will switch to. Both labels ship in the
+   HTML and CSS picks one, so the server can render the button correctly
+   without knowing the viewer's theme. */
+.theme-toggle__to-light {
+  display: none;
+}
+:root[data-theme="dark"] .theme-toggle__to-dark {
+  display: none;
+}
+:root[data-theme="dark"] .theme-toggle__to-light {
+  display: inline;
+}
+
+/* Theme switching is a circular reveal grown from the toggle (see
+   theme-toggle.tsx), so the default cross-fade has to be turned off - left on,
+   the two roots fade through each other and the wipe reads as a smear. The
+   incoming theme sits on top; the outgoing one is what the circle uncovers. */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+::view-transition-old(root) {
+  z-index: 0;
+}
+::view-transition-new(root) {
+  z-index: 1;
 }
