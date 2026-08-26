@@ -1177,6 +1177,25 @@ a:hover {
   padding: 0;
   border-top-color: transparent;
 }
+/* Download progress for the track the room is waiting on. Pinned to the
+   stage's own bottom edge rather than placed inside .audio-stage__status:
+   that strip collapses on :empty, so giving it element children would stop
+   it ever collapsing again. */
+.audio-stage__progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.audio-stage__progress__fill {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.4s var(--ease);
+}
+
 /* Sits at the foot of the card rather than in the flow: in the flow it
    pushes the button it explains off the card's centre, which reads as a
    misaligned button rather than as a centred pair. */
