@@ -499,8 +499,13 @@ export function Room({
   }
 
   return (
-    <main className="room rise">
+    <>
+      {/* A sibling of the room, not a child of it: .rise animates a transform,
+          and a transformed ancestor becomes the containing block for
+          position:fixed descendants — the backdrop measured itself against the
+          room's 1200px box instead of the viewport and painted a strip. */}
       <RoomBackdrop nowPlaying={nowPlaying} />
+      <main className="room rise">
       <FriendToasts meId={me.userId} />
       <div className="room__bar">
         <div className="room__barL">
@@ -596,5 +601,6 @@ export function Room({
         </aside>
       </div>
     </main>
+    </>
   );
 }

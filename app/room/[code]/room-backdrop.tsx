@@ -32,7 +32,9 @@ export function RoomBackdrop({ nowPlaying }: { nowPlaying: RoomNowPlaying | null
   }, []);
 
   const src = artwork && !failed ? artwork : DEFAULT_FIELD;
-  // Artwork is busier than the house field, so it is pushed a little darker —
-  // the paper cards have to stay readable on top of it.
-  return <DitheredField src={src} gamma={src === DEFAULT_FIELD ? 0.85 : 1.05} onFail={onFail} />;
+  // Artwork is lifted, not darkened. Covers skew dark — a Cigarettes After Sex
+  // sleeve dithered at gamma 1.05 came out an almost solid black wall — and
+  // auto-levels can only stretch the range an image already has. Pulling the
+  // midtones up is what gives the lattice something to show.
+  return <DitheredField src={src} gamma={src === DEFAULT_FIELD ? 0.85 : 0.62} onFail={onFail} />;
 }
