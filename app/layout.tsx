@@ -39,8 +39,14 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
+  // suppressHydrationWarning covers exactly one thing: THEME_BOOT sets
+  // data-theme on <html> before React hydrates, so React finds an attribute
+  // the server's HTML never had and reports a mismatch. That mismatch is the
+  // design - the whole point is to theme the page before first paint - and the
+  // flag only silences attribute differences on this one element, never on any
+  // of its children.
   return (
-    <html lang="en" className={geistMono.variable}>
+    <html lang="en" className={geistMono.variable} suppressHydrationWarning>
       <head>
         {/* Runs before first paint so the page never flashes the wrong
             theme. Stamps a concrete theme rather than a choice, which is
