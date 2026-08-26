@@ -73,13 +73,15 @@ function statusText(status: Status): string {
       // (Feature B); playing shows no caption at all.
       return "";
     case "loading":
-      return "Preparing this track…";
+      // Before the server has answered, the honest word is connecting — we do
+      // not yet know whether anything needs downloading at all.
+      return "Connecting…";
     case "preparing":
-      // The percent is the download's own, straight off the job. Without it
-      // a track that is genuinely downloading and one whose job died look
+      // The percent is the download's own, straight off the job. Without it a
+      // track that is genuinely downloading and one whose job died look
       // identical from the sofa.
       return status.percent === null
-        ? "Preparing this track…"
+        ? "Downloading…"
         : `Downloading… ${status.percent}%`;
     case "failed":
       return `${status.reason} — skipping “${status.title}”.`;

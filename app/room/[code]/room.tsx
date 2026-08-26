@@ -559,9 +559,11 @@ export function Room({
                   upNext={queue.slice(0, 2)}
                 />
               ) : (
-                <div className="player-skeleton">
-                  <span className="muted">Syncing…</span>
-                </div>
+                // Holds the player's shape while the clock is sampled, and
+                // says nothing: the wait is under a second, and a labelled
+                // box announcing it is more disruptive than the pause itself.
+                // The artwork fades in when it arrives.
+                <div className="player-skeleton" aria-hidden />
               )}
             </div>
             {nowPlaying && (
