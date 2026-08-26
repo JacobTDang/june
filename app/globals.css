@@ -2765,7 +2765,12 @@ a:hover {
   grid-template-areas:
     "banner  rail"
     "friends rail";
-  align-items: start;
+  /* Stretch, not start: the rail spans both rows, so sizing it to its own
+     content left its bottom edge floating somewhere between the two cards
+     beside it. Stretching makes every card share one baseline and one top,
+     and the column heights resolve from the grid rather than from whichever
+     list happened to be longest. */
+  align-items: stretch;
   gap: var(--space-4);
 }
 .hero--wide .paper {
@@ -2819,11 +2824,26 @@ a:hover {
 .banner__do { justify-self: end; }
 .banner__do .yt-status { margin-top: var(--space-4); }
 
-/* History is the one unbounded list here, so it scrolls inside the rail and
-   the rail keeps the page's height. */
+/* Cards lay themselves out as columns so their content can claim the height
+   the grid gave them instead of pooling slack at the bottom. */
+.hero--wide .hero__friends,
+.hero--wide .hero__history {
+  display: flex;
+  flex-direction: column;
+}
+/* History is the one unbounded list, so it takes the leftover height and
+   scrolls inside it. min-height:0 is what actually lets a flex child shrink
+   below its content — without it the list pushes the card taller instead of
+   scrolling, and the columns stop matching again. */
 .hero--wide .hero__history .home-history {
-  max-height: 46vh;
+  flex: 1;
+  min-height: 0;
   overflow-y: auto;
+}
+/* The page holds one screen: the grid is what is left after the topbar and
+   the page's own vertical padding. */
+.container.hero--wide {
+  min-height: calc(100vh - var(--space-9));
 }
 
 @media (max-width: 900px) {
