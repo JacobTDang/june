@@ -2896,11 +2896,19 @@ a:hover {
 /* The typed line. Reserves its own height so the block beneath it does not
    jump every time the message empties between greetings. */
 .typed {
-  margin: var(--space-3) 0 0;
+  margin: var(--space-5) 0 var(--space-4);
   font-size: var(--text-body);
   color: var(--muted);
-  min-height: calc(var(--text-body) * var(--leading-body));
   line-height: var(--leading-body);
+  /* Two lines' worth, reserved: the longest greeting wraps, and without the
+     room for it the line was clipped mid-sentence — "…she dont use my" and
+     nothing after. Reserving it also stops the block below jumping as
+     messages of different lengths come and go. */
+  min-height: calc(var(--text-body) * var(--leading-body) * 2);
+}
+.typed strong {
+  color: var(--ink);
+  font-weight: var(--weight-strong);
 }
 
 

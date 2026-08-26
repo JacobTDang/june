@@ -61,3 +61,52 @@ export function typewriterFrame(
   }
   return { text: "", index };
 }
+
+/** One run of the typed line, and whether it should be emphasised. */
+export type Segment = { text: string; strong: boolean };
+
+/** Below this many characters a trailing partial is just a letter, not a word
+ *  arriving — bolding it would flicker on almost every message. */
+const MIN_PARTIAL = 3;
+
+/**
+ * Split a line so occurrences of `term` can be set in bold.
+ *
+ * A trailing *incomplete* term counts too. The line is typed one character at
+ * a time and the term sits at the end of these messages, so matching only
+ * whole words would leave it plain until the final keystroke and then snap.
+ * Short prefixes are left alone, or every message ending in "t" would flash.
+ */
+export function emphasise(text: string, term: string): Segment[] {
+  if (text === "" || term === "") return text === "" ? [] : [{ text, strong: false }];
+
+  const haystack = text.toLowerCase();
+  const needle = term.toLowerCase();
+  const out: Segment[] = [];
+  let at = 0;
+
+  const push = (slice: string, strong: boolean) => {
+    if (slice !== "") out.push({ text: slice, strong });
+  };
+
+  for (;;) {
+    const found = haystack.indexOf(needle, at);
+    if (found === -1) break;
+    push(text.slice(at, found), false);
+    push(text.slice(found, found + term.length), true);
+    at = found + term.length;
+  }
+
+  const tail = text.slice(at);
+  // The growing edge: the longest suffix of what is typed that is also a
+  // prefix of the term.
+  for (let len = Math.min(tail.length, term.length - 1); len >= MIN_PARTIAL; len--) {
+    if (tail.slice(-len).toLowerCase() === needle.slice(0, len)) {
+      push(tail.slice(0, tail.length - len), false);
+      push(tail.slice(-len), true);
+      return out;
+    }
+  }
+  push(tail, false);
+  return out;
+}

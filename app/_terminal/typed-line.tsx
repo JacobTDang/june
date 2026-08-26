@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { typewriterFrame, type TypewriterTiming } from "@/src/lib/typewriter";
+import { emphasise, typewriterFrame, type TypewriterTiming } from "@/src/lib/typewriter";
 import { Cursor, Prompt } from "./primitives";
 
 const TIMING: TypewriterTiming = {
@@ -21,7 +21,14 @@ const FRAME_MS = 42;
  * Under prefers-reduced-motion it settles on the first message and stops —
  * text that rewrites itself forever is exactly what that setting is for.
  */
-export function TypedLine({ messages }: { messages: readonly string[] }) {
+export function TypedLine({
+  messages,
+  emphasis,
+}: {
+  messages: readonly string[];
+  /** Word set in bold wherever it appears, including as it is typed. */
+  emphasis?: string;
+}) {
   const [elapsed, setElapsed] = useState(0);
   const [animate, setAnimate] = useState(true);
 
@@ -47,7 +54,11 @@ export function TypedLine({ messages }: { messages: readonly string[] }) {
     // decoration, and announcing it character by character would be hostile.
     <p className="typed" aria-hidden>
       <Prompt />
-      {text}
+      {emphasis
+        ? emphasise(text, emphasis).map((seg, i) =>
+            seg.strong ? <strong key={i}>{seg.text}</strong> : <span key={i}>{seg.text}</span>,
+          )
+        : text}
       <Cursor />
     </p>
   );

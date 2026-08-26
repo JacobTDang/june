@@ -84,7 +84,7 @@ export default async function Home({
               june
             </h1>
           </Reveal>
-          <TypedLine messages={GREETINGS} />
+          <TypedLine messages={GREETINGS} emphasis="touse" />
           <Reveal delay={0.08}>
             <p className="lead">Play the same song, at the same second, with your friends.</p>
           </Reveal>
