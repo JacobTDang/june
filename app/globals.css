@@ -2740,3 +2740,41 @@ a:hover {
   color: var(--muted);
   white-space: nowrap;
 }
+
+/* Signed in, the home is a two-column reading: what you can do on the left,
+   what is happening on the right. Previously a single column that ran past
+   the fold — the action and the context belong on screen together. */
+.container.hero--split {
+  max-width: 1080px;
+  display: grid;
+  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-5);
+}
+.hero--split .hero__main {
+  max-width: none;
+}
+.hero__side {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+}
+/* The play history is unbounded, so it scrolls inside its own card rather
+   than growing the page. The card stays put; the list moves. */
+.hero__side .home-history,
+.hero__side .recent {
+  max-height: 42vh;
+  overflow-y: auto;
+}
+
+@media (max-width: 900px) {
+  .container.hero--split {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .hero__side .home-history,
+  .hero__side .recent {
+    max-height: none;
+    overflow-y: visible;
+  }
+}

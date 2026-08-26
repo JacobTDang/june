@@ -58,8 +58,8 @@ export default async function Home({
         </header>
       )}
 
-      <main className="container hero">
-        <div className="paper">
+      <main className={`container hero${user ? " hero--split" : ""}`}>
+        <div className="paper hero__main">
         {/* The card's own header rule: a bracket, the product mark, and a rule
             that thins out — the same dot vocabulary as the field behind it. */}
         <div className="paper__rule">
@@ -134,7 +134,7 @@ export default async function Home({
         </div>
 
         {user && (
-          <>
+          <div className="hero__side">
             <section className="paper">
               <div className="paper__rule">
                 <Tick corner="tl" />
@@ -149,7 +149,7 @@ export default async function Home({
               </div>
               <RecentPlays />
             </section>
-          </>
+          </div>
         )}
       </main>
     </>
