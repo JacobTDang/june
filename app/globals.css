@@ -3495,9 +3495,42 @@ a:hover {
    theme-toggle.tsx), so the default cross-fade has to be turned off - left on,
    the two roots fade through each other and the wipe reads as a smear. The
    incoming theme sits on top; the outgoing one is what the circle uncovers. */
+/* Stops, not a curve. A circle anchored at a corner covers area as the square
+   of its radius, so growing the radius evenly makes the wipe crawl and then
+   flood once past the middle - measured at 7-13x between its slowest and
+   fastest tenth. These radii are chosen so the screen fills at a near-even
+   rate instead, which brings that to 1.1-1.3x on laptop shapes. Derived in
+   src/lib/reveal.ts, and a test asserts these numbers still match it. */
 @keyframes theme-reveal {
   from {
     clip-path: circle(0 at var(--reveal-x) var(--reveal-y));
+  }
+  10% {
+    clip-path: circle(calc(var(--reveal-r) * 0.236) at var(--reveal-x) var(--reveal-y));
+  }
+  20% {
+    clip-path: circle(calc(var(--reveal-r) * 0.334) at var(--reveal-x) var(--reveal-y));
+  }
+  30% {
+    clip-path: circle(calc(var(--reveal-r) * 0.409) at var(--reveal-x) var(--reveal-y));
+  }
+  40% {
+    clip-path: circle(calc(var(--reveal-r) * 0.473) at var(--reveal-x) var(--reveal-y));
+  }
+  50% {
+    clip-path: circle(calc(var(--reveal-r) * 0.535) at var(--reveal-x) var(--reveal-y));
+  }
+  60% {
+    clip-path: circle(calc(var(--reveal-r) * 0.603) at var(--reveal-x) var(--reveal-y));
+  }
+  70% {
+    clip-path: circle(calc(var(--reveal-r) * 0.674) at var(--reveal-x) var(--reveal-y));
+  }
+  80% {
+    clip-path: circle(calc(var(--reveal-r) * 0.747) at var(--reveal-x) var(--reveal-y));
+  }
+  90% {
+    clip-path: circle(calc(var(--reveal-r) * 0.827) at var(--reveal-x) var(--reveal-y));
   }
   to {
     clip-path: circle(var(--reveal-r) at var(--reveal-x) var(--reveal-y));
