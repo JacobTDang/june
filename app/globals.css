@@ -1065,6 +1065,15 @@ a:hover {
   display: flex;
   flex-direction: column;
 }
+/* The bar's right-hand controls travel together. Loose in the flex row they
+   were spaced apart by justify-content, which on a phone - where the
+   participants drop to their own line - left the theme toggle stranded in the
+   middle of the bar, nowhere near Leave. */
+.room__barR {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .room__bar {
   display: flex;
   align-items: center;
@@ -1456,6 +1465,20 @@ a:hover {
   overflow: hidden auto;
   overscroll-behavior: contain;
 }
+/* The list stays mounted through an empty queue so the last row can animate
+   out rather than being unmounted mid-flight — but an empty one has to take no
+   room at all, or the flex:1 it gets in the rail would hold a blank window
+   above the suggestions. It is only ever empty once nothing is leaving. */
+.queue:empty {
+  display: none;
+}
+/* A removal the server refused. Same treatment as the chat's: stated in the
+   panel that failed, in the colour reserved for saying so. */
+.queue__error {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-meta);
+  color: var(--danger);
+}
 
 /* Add-music sits under the player now. The rail's divider used to provide
    this separation; in the centre column nothing else does. */
@@ -1613,12 +1636,18 @@ a:hover {
   border-radius: var(--r-sm);
   background: var(--bg);
   transition: background 0.15s var(--ease);
-  /* On a touchscreen, let a finger scroll the queue over the rows: the drag
-     lives on the handle, so the rows themselves don't need touch-action: none.
+  /* On a touchscreen, let a finger scroll the queue over the rows: the reorder
+     drag lives on the handle, so the rows themselves don't need
+     touch-action: none. It also draws the line for swipe-to-remove — the
+     browser keeps the vertical axis and hands us the horizontal one, so a
+     sideways drag reaches the row while a scroll never does.
      !important overrides the value motion sets on draggable items. (Trackpad
      and wheel scrolling is unaffected by touch-action and already works via the
      window's overflow-y: auto.) */
   touch-action: pan-y !important;
+  /* A swipe with a mouse shouldn't paint the title blue on the way past. */
+  user-select: none;
+  -webkit-user-select: none;
 }
 .track:hover {
   background: var(--surface);
@@ -3257,6 +3286,16 @@ a:hover {
   }
 }
 
+/* A grid item's automatic minimum is its content's, and the widest thing in
+   here - a track row, or the search field and its button - is wider than a
+   small phone's rail. That floor was inflating the track the two views share,
+   so on a 320px screen the queue and the composer drew straight through the
+   rail's right-hand border and the page scrolled sideways. The rail's width
+   is the column's to decide; what it holds wraps to fit. */
+.rail__view {
+  min-width: 0;
+}
+
 /* Unread marker beside the chat tab. Filled rather than tinted: in a
    two-colour system an inverted block is how something insists on attention. */
 .rail__badge {
@@ -3328,6 +3367,31 @@ a:hover {
   max-height: min(60vh, 455px);
   width: 100%;
   margin-inline: auto;
+}
+
+/* The sleeve is the thing that gives way, not the card. Rigid, it could not:
+   on a short window the column's deficit had nowhere to go but the card's own
+   bounds, and because the card centres its contents the overflow split in two
+   - the eyebrow escaped above the top border and the time row below the
+   bottom one. Lowering the max-height above only moves the window height at
+   which that happens.
+
+   So the deficit is given a path down to the frame. Both of these were
+   `flex: none`, which stopped it one level short: the wrapper could not
+   shrink, so the frame inside it never heard about the shortfall. Shrink
+   only - the max-height above is still the only thing that decides how large
+   the frame may get - and everything else in the column keeps its automatic
+   minimum, so the caption, the controls and the track meta are never the ones
+   squeezed. The frame can afford to be: the art is cover-fitted, so a shorter
+   frame crops the sleeve rather than breaking it, and the floor keeps it a
+   frame rather than a strip. */
+.room__center .player-wrap {
+  flex: 0 1 auto;
+  min-height: 0;
+}
+.room__center .audio-stage {
+  flex: 0 1 auto;
+  min-height: var(--audio-stage-min-h);
 }
 
 
@@ -3570,3 +3634,5 @@ a:hover {
     animation: none;
   }
 }
+
+

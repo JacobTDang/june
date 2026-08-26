@@ -3,7 +3,15 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { X, Link2, UserPlus, GripVertical } from "lucide-react";
-import { Reorder, useDragControls, useReducedMotion } from "motion/react";
+import {
+  AnimatePresence,
+  Reorder,
+  animate,
+  useDragControls,
+  useIsPresent,
+  useMotionValue,
+  useReducedMotion,
+} from "motion/react";
 import { Avatar } from "../../avatar";
 import {
   friendStatesFor,
@@ -22,6 +30,13 @@ import {
   touchParticipant,
 } from "@/src/lib/room/actions";
 import { visibleParticipants } from "@/src/lib/room/presence";
+import {
+  confirmedRemovals,
+  removeById,
+  restoreAt,
+  withoutPending,
+} from "@/src/lib/room/queue-edit";
+import { rowExit, swipeAxis, swipeOffset, swipeRelease } from "@/src/lib/room/swipe";
 import { unreadCount } from "@/src/lib/room/unread";
 import type { RoomState } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
@@ -91,8 +106,9 @@ function useDownloadBar(percent: number | undefined): { percent: number; fading:
   return bar;
 }
 
-/** One draggable queue row. Drag starts from the handle, so the window still
- *  scrolls and rows stay tappable on touch. */
+/** One draggable queue row. Reordering drags from the handle, so the window
+ *  still scrolls and rows stay tappable on touch; a sideways drag anywhere else
+ *  on the row removes it. */
 function QueueRow({
   track,
   reduce,
@@ -112,15 +128,116 @@ function QueueRow({
 }) {
   const controls = useDragControls();
   const bar = useDownloadBar(downloadPercent);
+  // The row rides this under the finger. Reorder.Item takes a caller's x as its
+  // own, so the swipe and the reorder drag (y) share one transform without
+  // fighting, and the exit animation carries on from wherever the finger let go.
+  const x = useMotionValue(0);
+  /** The swipe in progress: null between gestures, and null the moment the
+   *  gesture turns out to belong to the scroller instead. */
+  const swipe = useRef<{
+    pointer: number;
+    startX: number;
+    startY: number;
+    width: number;
+    horizontal: boolean;
+  } | null>(null);
+  /** Set by a swipe so the click that follows it isn't treated as a tap. */
+  const swiped = useRef(false);
+
+  // A row put back after a refused delete comes back mid-departure, wherever
+  // the swipe and the exit animation had carried it. Sit it back down.
+  const present = useIsPresent();
+  useEffect(() => {
+    if (present) x.set(0);
+  }, [present, x]);
+
+  function springBack() {
+    if (reduce) {
+      x.set(0);
+      return;
+    }
+    void animate(x, 0, { type: "spring", stiffness: 600, damping: 45 });
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLLIElement>) {
+    swiped.current = false;
+    // The handle owns reordering and the X owns its tap; a gesture starting on
+    // either of them is not a swipe.
+    if (e.target instanceof Element && e.target.closest("button")) return;
+    if (e.pointerType === "mouse" && e.button !== 0) return;
+    swipe.current = {
+      pointer: e.pointerId,
+      startX: e.clientX,
+      startY: e.clientY,
+      width: e.currentTarget.getBoundingClientRect().width,
+      horizontal: false,
+    };
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLLIElement>) {
+    const gesture = swipe.current;
+    if (!gesture || gesture.pointer !== e.pointerId) return;
+    const dx = e.clientX - gesture.startX;
+    const dy = e.clientY - gesture.startY;
+    if (!gesture.horizontal) {
+      const axis = swipeAxis(dx, dy);
+      if (axis === "undecided") return;
+      if (axis === "vertical") {
+        // Someone is scrolling. Let go of it entirely — this row gets no say
+        // for the rest of the gesture.
+        swipe.current = null;
+        return;
+      }
+      gesture.horizontal = true;
+      // Only now: capturing on the way down would take clicks off the controls.
+      e.currentTarget.setPointerCapture(e.pointerId);
+    }
+    x.set(swipeOffset(dx));
+  }
+
+  function onPointerUp(e: React.PointerEvent<HTMLLIElement>) {
+    const gesture = swipe.current;
+    swipe.current = null;
+    if (!gesture || gesture.pointer !== e.pointerId || !gesture.horizontal) return;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    swiped.current = true;
+    if (swipeRelease(e.clientX - gesture.startX, gesture.width) === "remove") {
+      onRemove();
+      return;
+    }
+    springBack();
+  }
+
+  function onPointerCancel() {
+    // The browser took the gesture for a scroll after all.
+    const gesture = swipe.current;
+    swipe.current = null;
+    if (gesture?.horizontal) springBack();
+  }
+
   return (
     <Reorder.Item
       value={track}
       className="track"
+      style={{ x }}
       dragListener={false}
       dragControls={controls}
       onDragStart={onDragStart}
       onDragEnd={onCommit}
       transition={reduce ? { duration: 0 } : undefined}
+      exit={rowExit(reduce)}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUp}
+      onPointerCancel={onPointerCancel}
+      onClickCapture={(e: React.MouseEvent) => {
+        if (!swiped.current) return;
+        swiped.current = false;
+        e.preventDefault();
+        e.stopPropagation();
+      }}
     >
       <button
         type="button"
@@ -131,8 +248,10 @@ function QueueRow({
         <GripVertical size={15} />
       </button>
       {track.thumbnailUrl ? (
+        // draggable={false}: without it a mouse swipe that starts on the
+        // artwork becomes a native image drag instead.
         // eslint-disable-next-line @next/next/no-img-element
-        <img className="thumb" src={track.thumbnailUrl} alt="" />
+        <img className="thumb" src={track.thumbnailUrl} alt="" draggable={false} />
       ) : (
         <div className="thumb" />
       )}
@@ -175,6 +294,16 @@ export function Room({
   // except while a local reorder is being persisted (so a poll can't revert it).
   const [queue, setQueue] = useState<QueueItem[]>(initial.queue);
   const reorderPending = useRef(false);
+  /** Rows removed here whose delete is still in flight. They keep the row off
+   *  screen until the server's own list agrees, so a poll mid-delete can't put
+   *  it back for a beat. */
+  const removing = useRef<Set<string>>(new Set());
+  /** A delete the server refused, said plainly rather than left to a queue that
+   *  silently disagrees with everyone else's. */
+  const [removeError, setRemoveError] = useState<string | null>(null);
+  /** True while a row is on its way out, so the empty-queue suggestions wait
+   *  for it to land instead of appearing underneath it. */
+  const [exiting, setExiting] = useState(false);
 
   // User ids currently connected to the room's realtime channel, or null while
   // presence is unknown (before the first sync, or realtime down).
@@ -199,8 +328,20 @@ export function Room({
   }, [initial.id]);
 
   useEffect(() => {
-    if (!reorderPending.current) setQueue(state.queue);
+    if (reorderPending.current) return;
+    const pending = removing.current;
+    // Retire the tombstones the server has caught up with, then take the rest
+    // of its list as the truth.
+    for (const id of confirmedRemovals(pending, state.queue)) pending.delete(id);
+    setQueue(withoutPending(state.queue, pending));
   }, [state.queue]);
+
+  // A refused removal explains itself and then gets out of the way.
+  useEffect(() => {
+    if (!removeError) return;
+    const timer = setTimeout(() => setRemoveError(null), 6000);
+    return () => clearTimeout(timer);
+  }, [removeError]);
 
   // Per-videoId download percent for queue rows currently downloading.
   const [downloadProgress, setDownloadProgress] = useState<Map<string, number>>(new Map());
@@ -322,6 +463,34 @@ export function Room({
     };
   }, [state.nowPlaying?.videoId, state.participants.length, queue.length]);
 
+  /**
+   * Remove a track. The row leaves now and the server is told after: waiting on
+   * a round-trip to acknowledge a tap is the delay this is here to kill. The
+   * tombstone in `removing` holds the row off screen until the server's list
+   * agrees, and a refused delete puts it back exactly where it was.
+   */
+  function removeTrack(track: QueueItem) {
+    const { next, removed, index } = removeById(queue, track.id);
+    if (!removed) return;
+    removing.current.add(track.id);
+    setRemoveError(null);
+    setExiting(true);
+    setQueue(next);
+    void removeQueueItem(track.id)
+      .catch((error: unknown) => {
+        removing.current.delete(track.id);
+        setQueue((current) => restoreAt(current, removed, index));
+        setRemoveError(
+          error instanceof Error && error.message
+            ? `Couldn’t remove “${removed.title}” — ${error.message}`
+            : `Couldn’t remove “${removed.title}”.`,
+        );
+      })
+      .finally(() => {
+        void refresh();
+      });
+  }
+
   function commitReorder() {
     reorderPending.current = true;
     void reorderQueue(
@@ -430,8 +599,15 @@ export function Room({
       .catch(() => setOffset(0));
   }, []);
 
-  async function onLeave() {
-    await leaveRoom(initial.id);
+  function onLeave() {
+    // Leaving is immediate: the room is behind you the moment you press it, and
+    // the server call finishes on its own behind the navigation. If it fails
+    // this page is already gone, so there is nowhere here to say so — instead
+    // make the page we land on re-read the server, where the jam card still
+    // offering to take you back is the honest report that you never left.
+    void leaveRoom(initial.id).catch(() => {
+      router.refresh();
+    });
     router.push("/");
   }
 
@@ -540,10 +716,12 @@ export function Room({
               ))}
             </ul>
           </div>
-        <ThemeToggle />
-        <button className="btn btn--sm" onClick={onLeave}>
-          Leave
-        </button>
+        <div className="room__barR">
+          <ThemeToggle />
+          <button className="btn btn--sm" onClick={onLeave}>
+            Leave
+          </button>
+        </div>
       </div>
 
       <div className="room__main" ref={mainRef}>
@@ -611,25 +789,28 @@ export function Room({
           <div className="section__head">
             <span className="eyebrow">Up next</span>
           </div>
-          {queue.length === 0 ? (
-            <QueueSuggestions roomId={initial.id} />
-          ) : (
-            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
+          {/* The list stays mounted even when empty — an empty ul is nothing on
+              screen, and it's what lets the last row animate out instead of
+              being unmounted mid-flight along with its group. */}
+          <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
+            <AnimatePresence initial={false} onExitComplete={() => setExiting(false)}>
               {queue.map((t) => (
                 <QueueRow
                   key={t.id}
                   track={t}
                   reduce={reduce}
                   downloadPercent={downloadProgress.get(t.videoId)}
-                  onRemove={() => void removeQueueItem(t.id)}
+                  onRemove={() => removeTrack(t)}
                   onDragStart={() => {
                     reorderPending.current = true;
                   }}
                   onCommit={commitReorder}
                 />
               ))}
-            </Reorder.Group>
-          )}
+            </AnimatePresence>
+          </Reorder.Group>
+          {removeError && <p className="queue__error">{removeError}</p>}
+          {queue.length === 0 && !exiting && <QueueSuggestions roomId={initial.id} />}
         </section>
 
           <AddMusic roomId={initial.id} />

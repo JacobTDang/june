@@ -520,8 +520,6 @@ export function Player({
       <AlbumArt
         artworkUrl={nowPlaying?.thumbnailUrl ?? null}
         title={nowPlaying?.title ?? null}
-        audioRef={audioRef}
-        active={started && !silent}
       />
       </div>
       <audio

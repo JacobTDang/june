@@ -18,6 +18,9 @@ export type Star = {
   /** Drawn as an outline rather than filled — a few of these keep the field
    *  from reading as a single repeated stamp. */
   outlined: boolean;
+  /** Seeds the wobble, so this star is drawn by its own hand — and drawn the
+   *  same way on every repaint rather than shivering. */
+  seed: number;
 };
 
 export type Asteroid = {
@@ -57,6 +60,7 @@ export function makeStars(
       phase: rand() * Math.PI * 2,
       rate: 0.0006 + rand() * 0.0018,
       outlined: rand() < 0.28,
+      seed: rand() * 1000,
     });
   }
   return stars;
@@ -65,6 +69,107 @@ export function makeStars(
 /** 0..1, where 1 is fully lit. */
 export function starBrightness(star: Star, timeMs: number): number {
   return (Math.sin(star.phase + timeMs * star.rate) + 1) / 2;
+}
+
+/**
+ * Cheap repeatable noise: the one pen everything in the field is drawn with.
+ *
+ * A pure function of a seed and a position along the stroke, on purpose — the
+ * field is repainted every frame, so a wobble that came out of a random number
+ * generator would make the whole sky vibrate. Three sines stacked, so the line
+ * drifts like a wrist rather than jittering like a bad signal. Roughly -1..1.
+ */
+export function wobbleAt(seed: number, t: number): number {
+  return (
+    Math.sin(seed + t * 5.1) * 0.6 +
+    Math.sin(seed * 1.7 + t * 11.3) * 0.3 +
+    Math.sin(seed * 0.3 + t * 23.7) * 0.1
+  );
+}
+
+export type Point = { x: number; y: number };
+
+/**
+ * A sparkle as points around its own centre, in the order the pen visits them:
+ * start at `start`, then for each side pinch in at its `waist` and out to its
+ * `tip`. The last side's tip is `start` again, so the outline closes.
+ */
+export type SparkleShape = {
+  start: Point;
+  sides: { waist: Point; tip: Point }[];
+};
+
+/** North, east, south, west. */
+const ARMS = 4;
+/** How far an arm may run long or short, as a share of the radius. */
+const REACH_WOBBLE = 0.18;
+/** How far an arm may lean off its own quarter, in radians. */
+const LEAN_WOBBLE = 0.16;
+/** How far a side's pinch may sit off the centre, as a share of the radius. */
+const WAIST_WOBBLE = 0.22;
+
+/**
+ * The four-pointed sparkle, drawn by the same hand as the notation.
+ *
+ * Points north, east, south and west with each side pulled in toward the centre
+ * so the arms taper. That concave curve is the whole character of the shape: a
+ * straight-sided version is a diamond, which reads as a gem rather than a
+ * glint.
+ *
+ * Nothing about it is symmetric. Each arm runs its own length and leans off its
+ * quarter, and each side is pinched at its own point rather than all four at
+ * dead centre — the same unevenness `inkLine` gives a staff line, out of the
+ * same `wobbleAt`. Seeded by the star, so it is drawn identically on every
+ * repaint; nudged by `drift`, so it can be drawn *again*, a little differently,
+ * as the star twinkles.
+ *
+ * Points come out relative to the centre — the caller puts them on the page.
+ */
+export function sparkleShape(seed: number, radius: number, drift: number): SparkleShape {
+  const tips: Point[] = [];
+  const waists: Point[] = [];
+  for (let i = 0; i < ARMS; i++) {
+    const at = i / ARMS + drift;
+    const reach = radius * (1 + wobbleAt(seed, at) * REACH_WOBBLE);
+    const angle = (i / ARMS) * Math.PI * 2 - Math.PI / 2 + wobbleAt(seed * 1.31 + 4.2, at) * LEAN_WOBBLE;
+    tips.push({ x: Math.cos(angle) * reach, y: Math.sin(angle) * reach });
+    waists.push({
+      x: wobbleAt(seed * 0.77 + 1.9, at) * radius * WAIST_WOBBLE,
+      y: wobbleAt(seed * 2.13 + 8.4, at) * radius * WAIST_WOBBLE,
+    });
+  }
+  // Side i runs from tip i to the next one, pinched at waist i on the way.
+  const start = tips[0]!;
+  return {
+    start,
+    sides: waists.map((waist, i) => ({ waist, tip: tips[(i + 1) % ARMS]! })),
+  };
+}
+
+/**
+ * How fast the drawing hand drifts, as a fraction of a star's own twinkle.
+ *
+ * Well under it. The point is that the star reads as having been drawn again
+ * as it swells, not that it has a second animation of its own — push this up
+ * and the field starts to shiver, which is exactly what the seeded wobble
+ * exists to prevent.
+ */
+const HAND_RATE = 0.045;
+
+/**
+ * Where this star's drawing hand has drifted to at `timeMs`.
+ *
+ * Fed to `sparkleShape` as its drift, so a twinkling star is redrawn slightly
+ * differently rather than one fixed outline being zoomed in and out — which is
+ * the difference between a drawing and a sticker. Continuous, never stepped: a
+ * star that cut between poses reads as a glitch.
+ *
+ * Offset by the star's own seed, so no two stars are mid-way through the same
+ * stroke, and at t = 0 it settles onto a fixed hand — which is what a
+ * reduced-motion field paints.
+ */
+export function starHand(star: Star, timeMs: number): number {
+  return star.seed * 0.13 + timeMs * star.rate * HAND_RATE;
 }
 
 /**
