@@ -34,10 +34,14 @@ export function AlbumArt({
   active?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
-  const bloomRef = useRef<HTMLCanvasElement>(null);
   const paletteRef = useRef<Swatch[]>([]);
-  /** The same dither, but every lit pixel carrying its own colour from the
-   *  sleeve. Built once per cover; the bloom masks it per frame. */
+  /** Two renderings of the same lattice, built once per cover and composited
+   *  into the visible canvas each frame: one plain, one where every lit pixel
+   *  carries its own colour from the sleeve. */
+  const monoRef = useRef<HTMLCanvasElement | null>(null);
+  /** Scratch surface for cutting the coloured lattice to a disc. Reused rather
+   *  than allocated per frame. */
+  const cutRef = useRef<HTMLCanvasElement | null>(null);
   const coloredRef = useRef<HTMLCanvasElement | null>(null);
   const [ready, setReady] = useState(false);
   const src = highResArtwork(artworkUrl);
@@ -116,6 +120,14 @@ export function AlbumArt({
       frame.data[i * 4 + 2] = v;
       frame.data[i * 4 + 3] = 255;
     }
+    const mono = monoRef.current ?? document.createElement("canvas");
+    monoRef.current = mono;
+    mono.width = w;
+    mono.height = h;
+    mono.getContext("2d")?.putImageData(frame, 0, 0);
+
+    // Plain until the music says otherwise; the frame loop takes over from
+    // here when this device is actually playing.
     ctx.putImageData(frame, 0, 0);
     setReady(true);
   }, [src]);
@@ -153,13 +165,12 @@ export function AlbumArt({
     };
   }, [src, paint]);
 
-  // The bloom: the album's own colours, rising from the centre with the music.
+  // Colour rising through the sleeve with the music, composited straight into
+  // the artwork rather than layered over it — one canvas, so there are no two
+  // surfaces to fall out of alignment.
   useEffect(() => {
-    const canvas = bloomRef.current;
+    const canvas = ref.current;
     const audio = audioRef?.current;
-    // `ready` too: the bloom is part of the artwork, not a layer over the
-    // stage. Without it a track change left colour glowing over an empty
-    // frame until the next cover finished dithering.
     if (!canvas || !audio || !active || !ready) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -167,54 +178,68 @@ export function AlbumArt({
 
     const graph = getAudioGraph(audio);
     // No tap available (Safari implements neither captureStream nor the
-    // Firefox-prefixed form on <audio>). The sleeve simply stays one-bit,
-    // which costs the colour and never the music.
+    // Firefox-prefixed form on <audio>). The sleeve stays one-bit, which costs
+    // the colour and never the music.
     if (!graph) return;
 
     let raf = 0;
     let level = 0;
 
     function frame() {
-      const c = bloomRef.current;
-      if (!c || !ctx || !graph) return;
-      const w = Math.max(1, Math.round(c.clientWidth));
-      const h = Math.max(1, Math.round(c.clientHeight));
-      if (c.width !== w || c.height !== h) {
-        c.width = w;
-        c.height = h;
-      }
+      const c = ref.current;
+      const mono = monoRef.current;
+      const colored = coloredRef.current;
+      if (!c || !ctx || !graph || !mono || !colored) return;
+      const w = c.width;
+      const h = c.height;
 
       graph.analyser.getByteFrequencyData(graph.bins);
-      // Low bins only: the bloom answers to the body of the track rather than
+      // Low bins only: the colour answers to the body of a track rather than
       // to cymbals, which would make it flicker.
       let sum = 0;
       const bass = Math.floor(graph.bins.length * 0.18);
       for (let i = 0; i < bass; i++) sum += graph.bins[i]!;
       const target = sum / (bass * 255);
-      // Eased, because a bloom that tracks every frame exactly reads as
-      // strobing rather than as breathing.
+      // Eased, because tracking every frame exactly reads as strobing rather
+      // than as breathing.
       level += (target - level) * 0.12;
 
-      ctx.clearRect(0, 0, w, h);
-      const colored = coloredRef.current;
-      if (colored && colored.width > 0) {
-        // The coloured lattice, then a radial mask over it: colour reaches out
-        // from the centre as the track swells and pulls back when it eases.
-        ctx.globalCompositeOperation = "source-over";
-        ctx.drawImage(colored, 0, 0, w, h);
+      ctx.globalCompositeOperation = "source-over";
+      ctx.drawImage(mono, 0, 0, w, h);
 
-        const cx = w / 2;
-        const cy = h / 2;
-        const reach = Math.hypot(w, h) * 0.5;
-        const inner = reach * (0.15 + level * 0.55);
-        const mask = ctx.createRadialGradient(cx, cy, inner * 0.2, cx, cy, Math.max(inner, 1));
+      const cx = w / 2;
+      const cy = h / 2;
+      // Reach is half the diagonal, so a radius of one covers the corners.
+      // It sits near full at rest and swells past it: the sleeve should read
+      // as being in colour, with the music moving the edge, rather than as a
+      // small disc floating in a monochrome frame.
+      const reach = Math.hypot(w, h) * 0.5;
+      const radius = Math.max(1, reach * (0.88 + level * 0.5));
+
+      // The coloured lattice, cut to a soft disc, drawn over the plain one.
+      // Composited off-screen first: masking on the visible canvas would eat
+      // the monochrome underneath it.
+      const cut = cutRef.current ?? document.createElement("canvas");
+      cutRef.current = cut;
+      if (cut.width !== w || cut.height !== h) {
+        cut.width = w;
+        cut.height = h;
+      }
+      const cutCtx = cut.getContext("2d");
+      if (cutCtx) {
+        cutCtx.clearRect(0, 0, w, h);
+        cutCtx.globalCompositeOperation = "source-over";
+        cutCtx.drawImage(colored, 0, 0, w, h);
+        const mask = cutCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        // Solid for most of the way out, then a short fade — a long ramp
+        // washes the colour out everywhere instead of holding an edge.
         mask.addColorStop(0, "rgba(0,0,0,1)");
-        mask.addColorStop(0.75, "rgba(0,0,0,0.85)");
+        mask.addColorStop(0.82, "rgba(0,0,0,1)");
         mask.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.globalCompositeOperation = "destination-in";
-        ctx.fillStyle = mask;
-        ctx.fillRect(0, 0, w, h);
-        ctx.globalCompositeOperation = "source-over";
+        cutCtx.globalCompositeOperation = "destination-in";
+        cutCtx.fillStyle = mask;
+        cutCtx.fillRect(0, 0, w, h);
+        ctx.drawImage(cut, 0, 0);
       }
       raf = requestAnimationFrame(frame);
     }
@@ -222,29 +247,21 @@ export function AlbumArt({
 
     return () => {
       cancelAnimationFrame(raf);
-      const c = bloomRef.current;
-      // Clear on the way out: the canvas keeps its last frame otherwise, and
-      // that frame would sit under the next cover as it fades in.
-      if (c) c.getContext("2d")?.clearRect(0, 0, c.width, c.height);
+      // Leave the sleeve as it was found: plain, and matching what a device
+      // that never played would show.
+      const c = ref.current;
+      const mono = monoRef.current;
+      if (c && mono) c.getContext("2d")?.drawImage(mono, 0, 0, c.width, c.height);
       void graph.context.close();
     };
   }, [audioRef, active, ready, src]);
 
   return (
-    <>
-      <canvas
-        ref={ref}
-        className={`albumart${ready ? " albumart--ready" : ""}`}
-        role="img"
-        aria-label={title ? `Cover art for ${title}` : "No track playing"}
-      />
-      {/* Over the dither, multiplied into it: the colour tints the black of
-          the lattice rather than sitting on top as a film. */}
-      <canvas
-        ref={bloomRef}
-        className={`albumart__bloom${ready ? " albumart__bloom--ready" : ""}`}
-        aria-hidden
-      />
-    </>
+    <canvas
+      ref={ref}
+      className={`albumart${ready ? " albumart--ready" : ""}`}
+      role="img"
+      aria-label={title ? `Cover art for ${title}` : "No track playing"}
+    />
   );
 }
