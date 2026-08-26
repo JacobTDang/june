@@ -2,29 +2,10 @@
 
 import { useEffect } from "react";
 import { REVEALING_ATTR } from "@/src/lib/reveal";
-import { STORAGE_KEY, coverRadius, nextTheme, readTheme } from "@/src/lib/theme";
+import { STORAGE_KEY, nextTheme, readTheme } from "@/src/lib/theme";
 import type { Theme } from "@/src/lib/theme";
 
-/**
- * Aim the reveal at the top-right corner of the viewport.
- *
- * Deliberately the corner and not the toggle's own box. Measuring the button
- * made the origin depend on where that button happened to land, which is not
- * the same place on every page or every width - in a narrow room bar it sits
- * mid-row, so the circle grew from the middle of the screen. The corner is one
- * fixed, obvious place, and on a wide screen it is where the button is anyway.
- *
- * Only the radius needs computing: from a corner, the farthest point is the
- * opposite corner, so the sweep covers the screen exactly as it finishes
- * rather than completing off-screen and appearing to stop early.
- */
-function aimReveal(): void {
-  const { innerWidth: w, innerHeight: h } = window;
-  document.documentElement.style.setProperty(
-    "--reveal-r",
-    `${coverRadius(w, 0, w, h)}px`,
-  );
-}
+
 
 /** Paint a theme and tell the browser chrome about it, so the mobile address
  *  bar matches the page instead of staying on last render's colour. */
@@ -76,10 +57,6 @@ export function ThemeToggle() {
           // this page - it just won't be remembered - which beats refusing to
           // change the theme at all.
         }
-
-        // Set before the swap: the CSS animation reads these on the frame the
-        // transition starts.
-        aimReveal();
 
         const start = document.startViewTransition?.bind(document);
         if (!start || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {

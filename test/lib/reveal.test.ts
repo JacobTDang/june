@@ -1,7 +1,12 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { REVEAL_STOPS, coveredFraction } from "../../src/lib/reveal";
+import {
+  CORNER_TO_CORNER_PERCENT,
+  REVEAL_STOPS,
+  coveredFraction,
+  stopPercent,
+} from "../../src/lib/reveal";
 
 /** Viewports to hold the reveal to. The square is deliberate: it is the worst
  *  case for a corner-anchored circle and nobody browses in one, so it is the
@@ -77,6 +82,24 @@ describe("REVEAL_STOPS", () => {
   });
 });
 
+describe("CORNER_TO_CORNER_PERCENT", () => {
+  it("is the diagonal of the box circle() is clipping", () => {
+    // circle() resolves a percentage radius as sqrt(w^2+h^2)/sqrt(2), so
+    // sqrt(2)*100% reaches corner to corner whatever the box turns out to be.
+    // At least that, never less - a rounding error short is a visible sliver.
+    expect(CORNER_TO_CORNER_PERCENT / 100).toBeGreaterThanOrEqual(Math.SQRT2);
+    expect(CORNER_TO_CORNER_PERCENT / 100).toBeLessThan(Math.SQRT2 * 1.002);
+  });
+
+  it("covers the whole viewport from a corner, on any shape", () => {
+    for (const [w, h, label] of VIEWPORTS) {
+      // what the browser resolves the final radius to
+      const r = (CORNER_TO_CORNER_PERCENT / 100) * (Math.hypot(w, h) / Math.SQRT2);
+      expect(coveredFraction(r, w, h), `${label} ${w}x${h}`).toBeCloseTo(1, 3);
+    }
+  });
+});
+
 describe("the stylesheet", () => {
   it("animates the exact stops this module derives", () => {
     // The schedule is baked into CSS so the reveal needs no JS maths, which
@@ -84,11 +107,25 @@ describe("the stylesheet", () => {
     const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
     const block = /@keyframes theme-reveal \{([\s\S]*?)\n\}/.exec(css);
     expect(block, "theme-reveal keyframes missing").not.toBeNull();
-    const found = [...block![1]!.matchAll(/calc\(var\(--reveal-r\) \* ([0-9.]+)\)/g)].map((m) =>
-      Number(m[1]),
-    );
-    // every stop but the last, which is plain var(--reveal-r)
-    expect(found).toEqual(REVEAL_STOPS.slice(0, -1));
-    expect(block![1]).toContain("clip-path: circle(var(--reveal-r)");
+    const found = [...block![1]!.matchAll(/circle\(([0-9.]+)% at/g)].map((m) => Number(m[1]));
+    expect(found).toEqual([0, ...REVEAL_STOPS.map(stopPercent)]);
+  });
+
+  it("holds the clip outside the animation's active phase", () => {
+    // Without a fill mode the clip is `none` before and after, which paints
+    // the incoming theme unclipped - a full-screen flash at the start, and the
+    // final sliver popping in at the end.
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+    const rule = /::view-transition-new\(root\) \{([\s\S]*?)\n\}/.exec(css);
+    expect(rule, "::view-transition-new(root) rule missing").not.toBeNull();
+    expect(rule![1]).toMatch(/animation:[^;]*\bboth\b/);
+  });
+
+  it("never measures the window for the radius", () => {
+    // A radius from innerWidth/innerHeight is measured against a different box
+    // than the one clip-path resolves against; a few pixels short leaves the
+    // far corner uncovered.
+    const css = readFileSync(join(process.cwd(), "app/globals.css"), "utf8");
+    expect(css).not.toContain("--reveal-r");
   });
 });
