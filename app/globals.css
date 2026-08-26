@@ -3412,3 +3412,26 @@ a:hover {
     width: 100%;
   }
 }
+
+/* ============================================================
+   Pages that are one column of content
+   ============================================================
+   Friends, playlists, profile, metrics and a public profile all render into a
+   bare .container or .pl. Those relied on the page background for legibility,
+   and the page background is now a starfield — so each becomes its own sheet
+   of paper, the same way the home and the room already do.
+
+   .hero is excluded: its children are the cards there, and giving the wrapper
+   a surface too would draw a box around a box. */
+.container:not(.hero),
+.pl {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  margin-block: var(--space-5);
+}
+@media (max-width: 640px) {
+  .container:not(.hero),
+  .pl {
+    margin-block: var(--space-4);
+  }
+}
