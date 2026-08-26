@@ -3203,6 +3203,16 @@ a:hover {
   width: 100%;
   height: 100%;
   pointer-events: none;
-  mix-blend-mode: multiply;
-  opacity: 0.9;
+  /* Normal blending, not multiply: this layer is the same lattice in colour,
+     sitting exactly on its monochrome twin, so it replaces those pixels
+     rather than tinting them. */
+  mix-blend-mode: normal;
+  image-rendering: pixelated;
+  /* Fades with the sleeve, on the same curve, so the two arrive and leave
+     together rather than the colour outliving the image it came from. */
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+}
+.albumart__bloom--ready {
+  opacity: 1;
 }

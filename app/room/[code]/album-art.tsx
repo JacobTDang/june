@@ -36,6 +36,9 @@ export function AlbumArt({
   const ref = useRef<HTMLCanvasElement>(null);
   const bloomRef = useRef<HTMLCanvasElement>(null);
   const paletteRef = useRef<Swatch[]>([]);
+  /** The same dither, but every lit pixel carrying its own colour from the
+   *  sleeve. Built once per cover; the bloom masks it per frame. */
+  const coloredRef = useRef<HTMLCanvasElement | null>(null);
   const [ready, setReady] = useState(false);
   const src = highResArtwork(artworkUrl);
 
@@ -66,9 +69,46 @@ export function AlbumArt({
     // Read the palette before dithering: after it there are two colours left.
     paletteRef.current = dominantColors(frame.data, 3);
 
+    // Keep the original pixels: the coloured pass needs each pixel's own
+    // colour, not an average of the whole sleeve.
+    const source = new Uint8ClampedArray(frame.data);
+
     const gray = luminance(frame.data);
     autoLevels(gray, 0.78);
     ditherOrdered(gray, w, h, SCREEN);
+
+    // A second copy of the same lattice, where every lit pixel carries the
+    // colour that pixel actually had. Masked by the bloom rather than washed
+    // over, so the colour is the record's own, pixel for pixel.
+    const colored = coloredRef.current ?? document.createElement("canvas");
+    coloredRef.current = colored;
+    colored.width = w;
+    colored.height = h;
+    const cctx = colored.getContext("2d");
+    if (cctx) {
+      const tinted = cctx.createImageData(w, h);
+      for (let i = 0; i < gray.length; i++) {
+        if (gray[i] === 0) {
+          // Unlit stays transparent so the monochrome dither shows through.
+          tinted.data[i * 4 + 3] = 0;
+          continue;
+        }
+        const r = source[i * 4]!;
+        const g = source[i * 4 + 1]!;
+        const b = source[i * 4 + 2]!;
+        // Push each pixel away from its own grey. A dithered sleeve's lit
+        // pixels are its brighter ones, which are often the least saturated;
+        // without this the colour reads as a dirty white.
+        const mid = (r + g + b) / 3;
+        const boost = 2.1;
+        tinted.data[i * 4] = Math.max(0, Math.min(255, mid + (r - mid) * boost));
+        tinted.data[i * 4 + 1] = Math.max(0, Math.min(255, mid + (g - mid) * boost));
+        tinted.data[i * 4 + 2] = Math.max(0, Math.min(255, mid + (b - mid) * boost));
+        tinted.data[i * 4 + 3] = 255;
+      }
+      cctx.putImageData(tinted, 0, 0);
+    }
+
     for (let i = 0; i < gray.length; i++) {
       const v = gray[i]!;
       frame.data[i * 4] = v;
@@ -117,7 +157,10 @@ export function AlbumArt({
   useEffect(() => {
     const canvas = bloomRef.current;
     const audio = audioRef?.current;
-    if (!canvas || !audio || !active) return;
+    // `ready` too: the bloom is part of the artwork, not a layer over the
+    // stage. Without it a track change left colour glowing over an empty
+    // frame until the next cover finished dithering.
+    if (!canvas || !audio || !active || !ready) return;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
@@ -153,20 +196,25 @@ export function AlbumArt({
       level += (target - level) * 0.12;
 
       ctx.clearRect(0, 0, w, h);
-      const palette = paletteRef.current;
-      if (palette.length > 0 && level > 0.01) {
+      const colored = coloredRef.current;
+      if (colored && colored.width > 0) {
+        // The coloured lattice, then a radial mask over it: colour reaches out
+        // from the centre as the track swells and pulls back when it eases.
+        ctx.globalCompositeOperation = "source-over";
+        ctx.drawImage(colored, 0, 0, w, h);
+
         const cx = w / 2;
         const cy = h / 2;
-        const radius = Math.hypot(w, h) * (0.18 + level * 0.55);
-        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        palette.forEach((swatch, i) => {
-          const stop = i / Math.max(1, palette.length);
-          const alpha = (0.55 - stop * 0.32) * Math.min(1, level * 1.6);
-          glow.addColorStop(stop, `rgba(${swatch.r},${swatch.g},${swatch.b},${alpha})`);
-        });
-        glow.addColorStop(1, "rgba(0,0,0,0)");
-        ctx.fillStyle = glow;
+        const reach = Math.hypot(w, h) * 0.5;
+        const inner = reach * (0.15 + level * 0.55);
+        const mask = ctx.createRadialGradient(cx, cy, inner * 0.2, cx, cy, Math.max(inner, 1));
+        mask.addColorStop(0, "rgba(0,0,0,1)");
+        mask.addColorStop(0.75, "rgba(0,0,0,0.85)");
+        mask.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.globalCompositeOperation = "destination-in";
+        ctx.fillStyle = mask;
         ctx.fillRect(0, 0, w, h);
+        ctx.globalCompositeOperation = "source-over";
       }
       raf = requestAnimationFrame(frame);
     }
@@ -174,9 +222,13 @@ export function AlbumArt({
 
     return () => {
       cancelAnimationFrame(raf);
+      const c = bloomRef.current;
+      // Clear on the way out: the canvas keeps its last frame otherwise, and
+      // that frame would sit under the next cover as it fades in.
+      if (c) c.getContext("2d")?.clearRect(0, 0, c.width, c.height);
       void graph.context.close();
     };
-  }, [audioRef, active, src]);
+  }, [audioRef, active, ready, src]);
 
   return (
     <>
@@ -188,7 +240,11 @@ export function AlbumArt({
       />
       {/* Over the dither, multiplied into it: the colour tints the black of
           the lattice rather than sitting on top as a film. */}
-      <canvas ref={bloomRef} className="albumart__bloom" aria-hidden />
+      <canvas
+        ref={bloomRef}
+        className={`albumart__bloom${ready ? " albumart__bloom--ready" : ""}`}
+        aria-hidden
+      />
     </>
   );
 }
