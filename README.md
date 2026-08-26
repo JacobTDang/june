@@ -5,7 +5,9 @@ A jam room for music — friends join by code and listen to the same queue,
 
 ![june home screen](docs/screenshots/home.png)
 
-![june room](docs/screenshots/room.png)
+![june room, playing a track](docs/screenshots/room.jpg)
+
+![the room's queue and search](docs/screenshots/queue.png)
 
 ## How it works
 
