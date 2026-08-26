@@ -3283,3 +3283,15 @@ a:hover {
 .rail__view .chat__form {
   margin-top: auto;
 }
+
+
+/* Nothing in the music view shrinks below its content. These are flex items in
+   a column that is often over-full, and with min-height:0 allowing them past
+   their content and overflow visible by default, the queue compressed to a
+   single line while its suggestions carried on painting straight over
+   add-music. The rail scrolls; its contents keep their size. */
+.rail__view .room__queue,
+.rail__view .add {
+  flex: none;
+  min-height: auto;
+}
