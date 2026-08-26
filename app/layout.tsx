@@ -15,10 +15,13 @@ const geistMono = Geist_Mono({
  *  would load after first paint, which is the flash this exists to prevent.
  *  Each source is read in its own try so a browser that refuses localStorage
  *  still gets the system preference rather than falling all the way back. */
-const THEME_BOOT = `(function(){var d=false;
-try{d=matchMedia("(prefers-color-scheme: dark)").matches}catch(e){}
-try{var r=localStorage.getItem("june:theme");if(r==="dark"){d=true}else if(r==="light"){d=false}}catch(e){}
-document.documentElement.dataset.theme=d?"dark":"light"})()`;
+/** Kept as a string because it has to be inlined, not imported: a module
+ *  would load after first paint, which is the flash this exists to prevent.
+ *  Dark unless light was explicitly chosen, matching readTheme in
+ *  src/lib/theme.ts - the two must agree or the page flips after hydration. */
+const THEME_BOOT = `(function(){var t="dark";
+try{if(localStorage.getItem("june:theme")==="light"){t="light"}}catch(e){}
+document.documentElement.dataset.theme=t})()`;
 
 export const metadata = {
   title: "june",
@@ -28,14 +31,11 @@ export const metadata = {
 export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
-  // Follows the OS for the first paint; the toggle rewrites this tag when a
-  // viewer picks a theme explicitly. The old single dark value was left over
-  // from the pre-monochrome UI and matched nothing.
-  themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#f4f3ee" },
-    { media: "(prefers-color-scheme: dark)", color: "#0b0c11" },
-  ],
-  colorScheme: "light dark",
+  // Matches the default theme; the toggle rewrites this tag when a viewer
+  // picks light. The old value was left over from the pre-monochrome UI and
+  // matched nothing.
+  themeColor: "#0b0c11",
+  colorScheme: "dark light",
 };
 
 export default function RootLayout({ children }: { children: ReactNode }) {

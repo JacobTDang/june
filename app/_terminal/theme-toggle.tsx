@@ -1,26 +1,31 @@
 "use client";
 
 import { useEffect } from "react";
-import {
-  STORAGE_KEY,
-  coverRadius,
-  nextChoice,
-  readChoice,
-  resolveTheme,
-} from "@/src/lib/theme";
+import { STORAGE_KEY, coverRadius, nextTheme, readTheme } from "@/src/lib/theme";
 import type { Theme } from "@/src/lib/theme";
 
 /** Long enough to read as a sweep, short enough not to sit in the way. */
-const REVEAL_MS = 520;
+const REVEAL_MS = 560;
+/**
+ * Linear, so the edge sweeps at one constant speed and never appears to stall.
+ *
+ * Measured across ten even samples, largest step over smallest: linear 1.0,
+ * ease-in-out 7.6, cubic-bezier(0.4,0,0.2,1) 40.3. The ease-out curve shipped
+ * first was worse again - 44% of the way across in the first 80ms, so the
+ * circle was already huge on the first painted frame and never looked like it
+ * came from the button, then it crawled through its last tenth for a third of
+ * a second, which is what reads as a pause. Easing a radius also lies twice
+ * over, since the area it covers grows as the square of it.
+ */
+const REVEAL_EASING = "linear";
 
 /** Paint a theme and tell the browser chrome about it, so the mobile address
  *  bar matches the page instead of staying on last render's colour. */
 function apply(theme: Theme): void {
   document.documentElement.dataset.theme = theme;
-  // The layout ships two media-scoped theme-color tags so a browser with no
-  // JS still matches the OS. Once we know the actual theme those are stale:
-  // collapse them to one unscoped tag, since a browser takes the first tag
-  // whose media matches and we want ours to be the one that does.
+  // The layout's tag carries the default theme. Rewrite it to whatever is
+  // actually on screen, and drop any duplicate so the browser cannot pick a
+  // different one - it takes the first tag whose media matches.
   const color = theme === "dark" ? "#0b0c11" : "#f4f3ee";
   const metas = [...document.querySelectorAll('meta[name="theme-color"]')];
   for (const extra of metas.slice(1)) extra.remove();
@@ -32,7 +37,7 @@ function apply(theme: Theme): void {
 }
 
 function current(): Theme {
-  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+  return document.documentElement.dataset.theme === "light" ? "light" : "dark";
 }
 
 /**
@@ -48,17 +53,7 @@ export function ThemeToggle() {
   useEffect(() => {
     // The boot script set data-theme but cannot tidy the metadata tags, which
     // React had not rendered yet at that point.
-    apply(current());
-
-    // While no explicit choice is stored the page keeps following the OS, so
-    // switching the system theme moves june with it in the same instant.
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => {
-      if (readChoice(localStorage.getItem(STORAGE_KEY)) !== "system") return;
-      apply(resolveTheme("system", mq.matches));
-    };
-    mq.addEventListener("change", onChange);
-    return () => mq.removeEventListener("change", onChange);
+    apply(readTheme(safeRead()));
   }, []);
 
   return (
@@ -66,10 +61,9 @@ export function ThemeToggle() {
       type="button"
       className="btn btn--sm theme-toggle"
       onClick={(event) => {
-        const choice = nextChoice(current());
-        const theme = resolveTheme(choice, false);
+        const theme = nextTheme(current());
         try {
-          localStorage.setItem(STORAGE_KEY, choice);
+          localStorage.setItem(STORAGE_KEY, theme);
         } catch {
           // Private mode can refuse to store. The switch still applies for
           // this page - it just won't be remembered - which beats refusing to
@@ -100,7 +94,7 @@ export function ThemeToggle() {
               },
               {
                 duration: REVEAL_MS,
-                easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+                easing: REVEAL_EASING,
                 pseudoElement: "::view-transition-new(root)",
               },
             );
@@ -116,4 +110,13 @@ export function ThemeToggle() {
       <span className="theme-toggle__to-light">Light</span>
     </button>
   );
+}
+
+function safeRead(): string | null {
+  try {
+    return localStorage.getItem(STORAGE_KEY);
+  } catch {
+    // Storage can be blocked outright; the default theme still applies.
+    return null;
+  }
 }

@@ -1,49 +1,44 @@
 import { describe, expect, it } from "vitest";
 import {
+  DEFAULT_THEME,
   STORAGE_KEY,
   coverRadius,
-  nextChoice,
-  readChoice,
-  resolveTheme,
+  nextTheme,
+  readTheme,
 } from "../../src/lib/theme";
 
-describe("resolveTheme", () => {
-  it("follows the system when nothing has been chosen", () => {
-    expect(resolveTheme("system", true)).toBe("dark");
-    expect(resolveTheme("system", false)).toBe("light");
-  });
-
-  it("lets an explicit choice win over the system", () => {
-    // Someone who picked light on a dark-mode laptop meant it.
-    expect(resolveTheme("light", true)).toBe("light");
-    expect(resolveTheme("dark", false)).toBe("dark");
+describe("DEFAULT_THEME", () => {
+  it("is dark, which is what june looks like out of the box", () => {
+    expect(DEFAULT_THEME).toBe("dark");
   });
 });
 
-describe("readChoice", () => {
-  it("reads the two explicit choices back", () => {
-    expect(readChoice("light")).toBe("light");
-    expect(readChoice("dark")).toBe("dark");
+describe("readTheme", () => {
+  it("reads an explicit choice back", () => {
+    expect(readTheme("light")).toBe("light");
+    expect(readTheme("dark")).toBe("dark");
   });
 
-  it("falls back to system for anything unrecognised", () => {
+  it("defaults to dark when nothing has been chosen", () => {
+    expect(readTheme(null)).toBe("dark");
+  });
+
+  it("falls back to the default for anything unrecognised", () => {
     // localStorage is shared, user-writable, and survives deploys - a stale or
     // hand-edited value must not leave the page with no theme at all.
-    expect(readChoice(null)).toBe("system");
-    expect(readChoice("")).toBe("system");
-    expect(readChoice("solarized")).toBe("system");
-    expect(readChoice("DARK")).toBe("system");
-  });
-
-  it("accepts an explicit system choice", () => {
-    expect(readChoice("system")).toBe("system");
+    expect(readTheme("")).toBe("dark");
+    expect(readTheme("solarized")).toBe("dark");
+    expect(readTheme("LIGHT")).toBe("dark");
+    // "system" was a choice in an earlier cut; anyone still holding it gets
+    // the default rather than an unhandled state.
+    expect(readTheme("system")).toBe("dark");
   });
 });
 
-describe("nextChoice", () => {
+describe("nextTheme", () => {
   it("flips to the opposite of what is on screen", () => {
-    expect(nextChoice("light")).toBe("dark");
-    expect(nextChoice("dark")).toBe("light");
+    expect(nextTheme("light")).toBe("dark");
+    expect(nextTheme("dark")).toBe("light");
   });
 });
 

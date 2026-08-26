@@ -1,33 +1,36 @@
 :root {
   /* One locked system: paper and ink. The page itself is a dithered
-     black-and-white field; everything readable sits on paper above it. */
-  --bg: #f4f3ee; /* paper — the card the UI lives on */
-  --surface: #ffffff; /* panel — a sheet on the paper */
-  --surface-2: #eeece5; /* recessed: inputs, wells */
-  --ink: #111111;
-  --muted: #6a6862;
-  --faint: #9b9890;
-  --line: #e4e1d8;
-  --line-2: #cbc7bb;
+     field; everything readable sits on paper above it. Dark is the base,
+     because that is what june looks like out of the box - light lives in
+     the [data-theme="light"] block below and is opted into. A viewer whose
+     boot script never runs still lands here, on the default. */
+  --bg: #0b0c11; /* paper — the card the UI lives on */
+  --surface: #000000; /* panel — a sheet on the paper */
+  --surface-2: #11131a; /* recessed: inputs, wells */
+  --ink: #eeeeee;
+  --muted: #95979d;
+  --faint: #64676f;
+  --line: #1b1e27;
+  --line-2: #343844;
 
   /* The dithered field behind everything. Pure, because a 1-bit screen has
      exactly two values and any third would show as a seam. */
-  --dither-ink: #000000;
-  --dither-paper: #ffffff;
+  --dither-ink: #ffffff;
+  --dither-paper: #000000;
 
   /* No accent hue. Emphasis is inversion — a filled block, a reversed label,
      a blinking cursor — which is how a terminal has always done it. Amber
      used to carry live/progress/focus; those now read as --ink on --paper
      flipped, so the system stays two colours under any state. */
-  --invert-bg: #111111;
-  --invert-ink: #f4f3ee;
+  --invert-bg: #eeeeee;
+  --invert-ink: #0b0c11;
   /* Ink at low opacity: the two-colour equivalent of a tinted highlight.
      Declared as a token because these were previously rgba literals of the
      old amber, which no amount of replacing var(--accent) could catch. */
-  --wash: rgba(17, 17, 17, 0.06);
-  --wash-strong: rgba(17, 17, 17, 0.12);
-  --wash-ring: rgba(17, 17, 17, 0.45);
-  --danger: #111111; /* form, not colour: danger is stated, not tinted */
+  --wash: rgba(238, 238, 238, 0.06);
+  --wash-strong: rgba(238, 238, 238, 0.12);
+  --wash-ring: rgba(238, 238, 238, 0.45);
+  --danger: #eeeeee; /* form, not colour: danger is stated, not tinted */
 
   /* Square. A terminal has no rounded corners. */
   --r: 0px;
@@ -110,35 +113,33 @@
   box-sizing: border-box;
 }
 
-/* Dark: the same system with paper and ink swapped. Every value below is the
-   literal inverse of its light counterpart (255 minus each channel), so the
-   contrast relationships the light theme was tuned for carry over exactly and
-   the warm creams come back as the cool darks that are their true opposites.
+/* Light: the same system with paper and ink swapped back. Each pair is a
+   literal inversion of the other (255 minus each channel), so the contrast
+   relationships hold either way round and the cool darks return as the warm
+   creams that are their true opposites.
 
-   One block, not two: the boot script in layout.tsx resolves the stored
-   choice against prefers-color-scheme and stamps a concrete data-theme before
-   first paint, so there is no media-query copy of this palette to keep in
-   sync. With JS off nothing is stamped and the page stays light, which is the
-   design as drawn. */
-:root[data-theme="dark"] {
-  --bg: #0b0c11;
-  --surface: #000000;
-  --surface-2: #11131a;
-  --ink: #eeeeee;
-  --muted: #95979d;
-  --faint: #64676f;
-  --line: #1b1e27;
-  --line-2: #343844;
+   One block, not two: the boot script in layout.tsx stamps data-theme before
+   first paint, so there is no prefers-color-scheme copy of this palette to
+   keep in sync. */
+:root[data-theme="light"] {
+  --bg: #f4f3ee;
+  --surface: #ffffff;
+  --surface-2: #eeece5;
+  --ink: #111111;
+  --muted: #6a6862;
+  --faint: #9b9890;
+  --line: #e4e1d8;
+  --line-2: #cbc7bb;
 
-  --dither-ink: #ffffff;
-  --dither-paper: #000000;
+  --dither-ink: #000000;
+  --dither-paper: #ffffff;
 
-  --invert-bg: #eeeeee;
-  --invert-ink: #0b0c11;
-  --wash: rgba(238, 238, 238, 0.06);
-  --wash-strong: rgba(238, 238, 238, 0.12);
-  --wash-ring: rgba(238, 238, 238, 0.45);
-  --danger: #eeeeee;
+  --invert-bg: #111111;
+  --invert-ink: #f4f3ee;
+  --wash: rgba(17, 17, 17, 0.06);
+  --wash-strong: rgba(17, 17, 17, 0.12);
+  --wash-ring: rgba(17, 17, 17, 0.45);
+  --danger: #111111;
 }
 
 html,
@@ -3470,20 +3471,22 @@ a:hover {
 /* The theme toggle names the theme it will switch to. Both labels ship in the
    HTML and CSS picks one, so the server can render the button correctly
    without knowing the viewer's theme. */
-.theme-toggle__to-light {
+.theme-toggle__to-dark {
   display: none;
 }
-:root[data-theme="dark"] .theme-toggle__to-dark {
-  display: none;
-}
-:root[data-theme="dark"] .theme-toggle__to-light {
+:root[data-theme="light"] .theme-toggle__to-dark {
   display: inline;
+}
+:root[data-theme="light"] .theme-toggle__to-light {
+  display: none;
 }
 
 /* Theme switching is a circular reveal grown from the toggle (see
    theme-toggle.tsx), so the default cross-fade has to be turned off - left on,
    the two roots fade through each other and the wipe reads as a smear. The
    incoming theme sits on top; the outgoing one is what the circle uncovers. */
+::view-transition-group(root),
+::view-transition-image-pair(root),
 ::view-transition-old(root),
 ::view-transition-new(root) {
   animation: none;

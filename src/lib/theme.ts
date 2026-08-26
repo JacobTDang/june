@@ -1,28 +1,25 @@
-/** What the viewer has asked for. "system" is the default: no choice made. */
-export type ThemeChoice = "light" | "dark" | "system";
 /** What actually gets painted. */
 export type Theme = "light" | "dark";
 
 /** Namespaced so it cannot collide with the other june keys in localStorage. */
 export const STORAGE_KEY = "june:theme";
 
-/** The theme to paint, given the stored choice and what the OS is asking for. */
-export function resolveTheme(choice: ThemeChoice, prefersDark: boolean): Theme {
-  if (choice === "system") return prefersDark ? "dark" : "light";
-  return choice;
-}
+/** june is dark out of the box; light is something you opt into. */
+export const DEFAULT_THEME: Theme = "dark";
 
 /**
- * A stored value read back as a choice. localStorage is user-writable and
- * survives deploys, so anything unrecognised has to degrade to "system"
- * rather than leave the page with no theme at all.
+ * The theme to paint, from whatever localStorage holds.
+ *
+ * Anything unrecognised falls back to the default rather than throwing or
+ * leaving the page unthemed: localStorage is user-writable, survives deploys,
+ * and may still hold values from an earlier cut of this feature.
  */
-export function readChoice(raw: string | null): ThemeChoice {
-  return raw === "light" || raw === "dark" || raw === "system" ? raw : "system";
+export function readTheme(raw: string | null): Theme {
+  return raw === "light" || raw === "dark" ? raw : DEFAULT_THEME;
 }
 
 /** Toggling is explicit: flip away from whatever is currently on screen. */
-export function nextChoice(current: Theme): ThemeChoice {
+export function nextTheme(current: Theme): Theme {
   return current === "dark" ? "light" : "dark";
 }
 
