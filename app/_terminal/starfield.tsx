@@ -2,6 +2,7 @@
 
 import { useEffect, useRef } from "react";
 import { withAlpha } from "@/src/visual/palette";
+import { isRevealing } from "@/src/lib/reveal";
 import {
   isSpent,
   makeStars,
@@ -185,7 +186,7 @@ export function Starfield() {
       // draw() schedules the next frame itself, so drop the pending one to
       // avoid running two loops.
       cancelAnimationFrame(raf);
-      draw(performance.now());
+      draw(performance.now(), true);
     });
     themeWatch.observe(document.documentElement, {
       attributes: true,
@@ -215,9 +216,16 @@ export function Starfield() {
       staves = makeStaves(Math.max(60, Math.round((w * h) / 9000)), w, h, Math.random);
     }
 
-    function draw(now: number) {
+    /** `force` paints even mid-reveal: the theme-change repaint below has to
+     *  land before the browser snapshots the page, or the revealed half shows
+     *  the old palette. Everything else yields - see isRevealing. */
+    function draw(now: number, force = false) {
       const c = ref.current;
       if (!c || !ctx) return;
+      if (!force && isRevealing()) {
+        if (!reduced) raf = requestAnimationFrame(draw);
+        return;
+      }
       const dt = last === 0 ? 16 : Math.min(now - last, 64);
       last = now;
       if (started === 0) started = now;
