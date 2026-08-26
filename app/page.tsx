@@ -5,7 +5,8 @@ import { getMyRoom } from "@/src/lib/room/actions";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
 import { Avatar } from "./avatar";
-import { Cursor, DotRule, Prompt, Tick } from "./_terminal/primitives";
+import { DotRule, Prompt, Tick } from "./_terminal/primitives";
+import { TypedLine } from "./_terminal/typed-line";
 import { FriendsInJam } from "./friends-in-jam";
 import { RecentPlays } from "./recent-plays";
 import { Reveal } from "./reveal";
@@ -13,6 +14,16 @@ import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
 import { CreateJamButton } from "./create-jam-button";
 import { JoinJamForm } from "./join-jam-form";
+
+/** Lines the page types out under the wordmark. In-jokes for the people who
+ *  actually use this — june is invite-only and this is the room's voice. */
+const GREETINGS = [
+  "welcome back touse",
+  "why is jacob so touse",
+  "ester ur bouse jk",
+  "chris i hope ur having fun in tawain",
+  "carolyn never seeing this cuz she dont use my frikin app",
+];
 
 export default async function Home({
   searchParams,
@@ -72,9 +83,9 @@ export default async function Home({
             <h1 className="display">
               <Prompt />
               june
-              <Cursor />
             </h1>
           </Reveal>
+          <TypedLine messages={GREETINGS} />
           <Reveal delay={0.08}>
             <p className="lead">Play the same song, at the same second, with your friends.</p>
           </Reveal>

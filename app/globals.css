@@ -2800,7 +2800,13 @@ a:hover {
 .hero--wide .hero__banner .paper__rule--foot {
   grid-column: 1 / -1;
 }
-.banner__id { min-width: 0; }
+.banner__id {
+  min-width: 0;
+  /* Top-aligned: the wordmark now leads a sequence (mark, typed line, lead)
+     that reads downward, and centring it in a band sized by the taller action
+     stack pushed the whole sequence low. */
+  align-self: start;
+}
 .banner__do { justify-self: end; }
 .banner__do .yt-status { margin-top: var(--space-4); }
 
@@ -2837,4 +2843,14 @@ a:hover {
 .home-jams__note a {
   color: var(--ink);
   text-decoration: underline;
+}
+
+/* The typed line. Reserves its own height so the block beneath it does not
+   jump every time the message empties between greetings. */
+.typed {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-body);
+  color: var(--muted);
+  min-height: calc(var(--text-body) * var(--leading-body));
+  line-height: var(--leading-body);
 }
