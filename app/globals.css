@@ -1288,7 +1288,10 @@ a:hover {
   display: grid;
   grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(310px, 350px);
   gap: var(--space-6);
-  align-items: start;
+  /* Stretch, not start: each column now carries its own paper, and sizing
+     them to their own content left three cards ending at three different
+     heights against the field behind them. */
+  align-items: stretch;
   /* Claim the height the .room column leaves over, so the rails have real
      room to distribute instead of hugging their content at the top. */
   flex: 1;
@@ -2920,4 +2923,67 @@ a:hover {
 .hero--wide .home-jams {
   margin-top: 0;
   max-width: none;
+}
+
+/* ============================================================
+   Room surfaces
+   ============================================================
+   Every one of these relied on the page background for legibility. With the
+   dithered field behind the app there is no page background to inherit, so
+   each column carries its own paper — the same rule the home follows. */
+.room__bar {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  padding: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.room__queue,
+.room__rail,
+.room__center .stage,
+.room__center .add {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  padding: var(--space-5);
+}
+.room__center {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* The stage already carries its own surface for the player card; the wrapper
+   only needs to hold it, not paint behind it twice. */
+.room__center .stage {
+  padding: var(--space-4);
+}
+.room__main {
+  gap: var(--space-4);
+}
+
+
+/* The centre column holds two cards. The slack goes to Add Music, not the
+   stage: the stage is a fixed-shape player, while Add Music is where search
+   results land and can use the room. Giving it to the stage instead ate the
+   whole column and pushed Add Music off the bottom of the page. */
+.room__center .add {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.room__center .add .add__results,
+.room__center .add .add__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* The chat log claims what is left of the rail instead of the rail hugging
+   its messages. */
+.room__rail {
+  display: flex;
+  flex-direction: column;
+}
+.room__rail .chat {
+  flex: 1;
+  min-height: 0;
 }
