@@ -109,13 +109,12 @@
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 
   /* Where the theme reveal grows from: the top-right corner, where the toggle
-     is. The toggle overwrites only --reveal-r, with the exact distance to the
-     opposite corner; this default overshoots so the reveal still covers the
-     screen if it is ever left to CSS alone. All must stay valid, or the whole
-     clip-path declaration is dropped and the reveal never runs at all. */
+     is. Both must stay valid, or the whole clip-path declaration is dropped
+     and the reveal never runs at all. The radius is not here - it is stated in
+     the keyframes as a percentage of the box being clipped, which is the only
+     way to be sure it reaches the far corner. */
   --reveal-x: 100%;
   --reveal-y: 0%;
-  --reveal-r: 150vmax;
   --reveal-ms: 560ms;
 }
 
@@ -3503,37 +3502,37 @@ a:hover {
    src/lib/reveal.ts, and a test asserts these numbers still match it. */
 @keyframes theme-reveal {
   from {
-    clip-path: circle(0 at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(0% at var(--reveal-x) var(--reveal-y));
   }
   10% {
-    clip-path: circle(calc(var(--reveal-r) * 0.236) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(33.39% at var(--reveal-x) var(--reveal-y));
   }
   20% {
-    clip-path: circle(calc(var(--reveal-r) * 0.334) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(47.26% at var(--reveal-x) var(--reveal-y));
   }
   30% {
-    clip-path: circle(calc(var(--reveal-r) * 0.409) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(57.87% at var(--reveal-x) var(--reveal-y));
   }
   40% {
-    clip-path: circle(calc(var(--reveal-r) * 0.473) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(66.93% at var(--reveal-x) var(--reveal-y));
   }
   50% {
-    clip-path: circle(calc(var(--reveal-r) * 0.535) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(75.7% at var(--reveal-x) var(--reveal-y));
   }
   60% {
-    clip-path: circle(calc(var(--reveal-r) * 0.603) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(85.32% at var(--reveal-x) var(--reveal-y));
   }
   70% {
-    clip-path: circle(calc(var(--reveal-r) * 0.674) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(95.37% at var(--reveal-x) var(--reveal-y));
   }
   80% {
-    clip-path: circle(calc(var(--reveal-r) * 0.747) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(105.7% at var(--reveal-x) var(--reveal-y));
   }
   90% {
-    clip-path: circle(calc(var(--reveal-r) * 0.827) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(117.02% at var(--reveal-x) var(--reveal-y));
   }
   to {
-    clip-path: circle(var(--reveal-r) at var(--reveal-x) var(--reveal-y));
+    clip-path: circle(141.5% at var(--reveal-x) var(--reveal-y));
   }
 }
 
@@ -3544,19 +3543,25 @@ a:hover {
    canvas and a large DOM. The animation now starts on the same frame the
    browser starts the transition, from coordinates set before it began. */
 ::view-transition-new(root) {
-  animation: theme-reveal var(--reveal-ms) linear;
+  /* `both` matters as much as the timing: without a fill mode the clip is
+     `none` outside the animation's active phase, which renders the incoming
+     theme completely unclipped - observed on production as a full-screen
+     flash before the circle appeared, and as the last sliver popping in
+     once the animation ended. */
+  animation: theme-reveal var(--reveal-ms) linear both;
   mix-blend-mode: normal;
   z-index: 1;
 }
 /* The outgoing page just sits there and gets covered. Its default cross-fade
-   would show through the incoming one and read as a smear. */
-::view-transition-group(root),
-::view-transition-image-pair(root),
+   would show through the incoming one and read as a smear.
+
+   Only the old root is silenced. The group and image-pair keep their own
+   animations: those are the browser's bookkeeping for the transition, and
+   cancelling them was overreach on my part - the transition's lifetime is
+   derived from the animations running on its pseudo-elements. */
 ::view-transition-old(root) {
   animation: none;
   mix-blend-mode: normal;
-}
-::view-transition-old(root) {
   z-index: 0;
 }
 

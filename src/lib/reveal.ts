@@ -52,6 +52,30 @@ export function coveredFraction(r: number, w: number, h: number): number {
  * are duplicated into the theme-reveal keyframes in globals.css so the reveal
  * needs no JS maths at runtime; a test asserts the two still agree.
  */
+/**
+ * Radius, in CSS percent, that reaches from one corner of the reference box to
+ * the opposite one.
+ *
+ * `circle()` resolves a percentage radius as sqrt(w^2 + h^2) / sqrt(2), so
+ * sqrt(2) * 100% is exactly the diagonal. Stating it this way rather than
+ * measuring the window in JS is the point: the clip resolves against the view
+ * transition's snapshot box, and window.innerWidth/innerHeight are not always
+ * the same thing - scrollbars and dvh both drive them apart. A radius even a
+ * few pixels short leaves a sliver of the old theme in the far corner, and
+ * with the animation over, that sliver vanishes in one frame. That is the
+ * snap at the very end.
+ *
+ * Rounded up from sqrt(2) * 100 rather than to it: overshooting by 0.06% is
+ * invisible, and falling a rounding error short is the exact failure this
+ * constant exists to prevent.
+ */
+export const CORNER_TO_CORNER_PERCENT = 141.5;
+
+/** Each stop as the CSS percentage the keyframes actually use. */
+export function stopPercent(fraction: number): number {
+  return Math.round(fraction * CORNER_TO_CORNER_PERCENT * 100) / 100;
+}
+
 export const REVEAL_STOPS: number[] = [
   0.236, 0.334, 0.409, 0.473, 0.535, 0.603, 0.674, 0.747, 0.827, 1,
 ];
