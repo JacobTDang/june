@@ -107,6 +107,15 @@
   --font-sans: var(--font-mono-stack);
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
+
+  /* Where the theme reveal grows from. The toggle overwrites these on the
+     root before starting the transition; these defaults only matter if the
+     theme changes some other way, and must stay valid or the whole clip-path
+     declaration is dropped and the reveal never runs. */
+  --reveal-x: 50%;
+  --reveal-y: 0%;
+  --reveal-r: 150vmax;
+  --reveal-ms: 560ms;
 }
 
 * {
@@ -3485,16 +3494,40 @@ a:hover {
    theme-toggle.tsx), so the default cross-fade has to be turned off - left on,
    the two roots fade through each other and the wipe reads as a smear. The
    incoming theme sits on top; the outgoing one is what the circle uncovers. */
+@keyframes theme-reveal {
+  from {
+    clip-path: circle(0 at var(--reveal-x) var(--reveal-y));
+  }
+  to {
+    clip-path: circle(var(--reveal-r) at var(--reveal-x) var(--reveal-y));
+  }
+}
+
+/* Declared here rather than driven from JS on purpose. Attaching the reveal
+   with Element.animate() after transition.ready resolves puts a variable gap
+   between the browser starting the transition and the circle existing - short
+   on an empty page, long enough to see on a real one with React, a repainting
+   canvas and a large DOM. The animation now starts on the same frame the
+   browser starts the transition, from coordinates set before it began. */
+::view-transition-new(root) {
+  animation: theme-reveal var(--reveal-ms) linear;
+  mix-blend-mode: normal;
+  z-index: 1;
+}
+/* The outgoing page just sits there and gets covered. Its default cross-fade
+   would show through the incoming one and read as a smear. */
 ::view-transition-group(root),
 ::view-transition-image-pair(root),
-::view-transition-old(root),
-::view-transition-new(root) {
+::view-transition-old(root) {
   animation: none;
   mix-blend-mode: normal;
 }
 ::view-transition-old(root) {
   z-index: 0;
 }
-::view-transition-new(root) {
-  z-index: 1;
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) {
+    animation: none;
+  }
 }

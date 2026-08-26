@@ -4,20 +4,22 @@ import { useEffect } from "react";
 import { STORAGE_KEY, coverRadius, nextTheme, readTheme } from "@/src/lib/theme";
 import type { Theme } from "@/src/lib/theme";
 
-/** Long enough to read as a sweep, short enough not to sit in the way. */
-const REVEAL_MS = 560;
 /**
- * Linear, so the edge sweeps at one constant speed and never appears to stall.
+ * Point the reveal at the button and let CSS run it.
  *
- * Measured across ten even samples, largest step over smallest: linear 1.0,
- * ease-in-out 7.6, cubic-bezier(0.4,0,0.2,1) 40.3. The ease-out curve shipped
- * first was worse again - 44% of the way across in the first 80ms, so the
- * circle was already huge on the first painted frame and never looked like it
- * came from the button, then it crawled through its last tenth for a third of
- * a second, which is what reads as a pause. Easing a radius also lies twice
- * over, since the area it covers grows as the square of it.
+ * The animation itself lives in globals.css so it starts on the same frame
+ * the browser starts the transition. Driving it from here with
+ * Element.animate() after transition.ready meant the circle only existed once
+ * a promise resolved, and how late that was depended on how much work the
+ * page had to do first - which is why it behaved differently on a real page
+ * than on a test one.
  */
-const REVEAL_EASING = "linear";
+function aimReveal(x: number, y: number): void {
+  const style = document.documentElement.style;
+  style.setProperty("--reveal-x", `${x}px`);
+  style.setProperty("--reveal-y", `${y}px`);
+  style.setProperty("--reveal-r", `${coverRadius(x, y, window.innerWidth, window.innerHeight)}px`);
+}
 
 /** Paint a theme and tell the browser chrome about it, so the mobile address
  *  bar matches the page instead of staying on last render's colour. */
@@ -73,8 +75,7 @@ export function ThemeToggle() {
         // Grow the new theme out of the button that asked for it. Measured
         // before the swap, because applying the theme is what moves the page.
         const box = event.currentTarget.getBoundingClientRect();
-        const x = box.left + box.width / 2;
-        const y = box.top + box.height / 2;
+        aimReveal(box.left + box.width / 2, box.top + box.height / 2);
 
         const start = document.startViewTransition?.bind(document);
         if (!start || window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
@@ -83,27 +84,7 @@ export function ThemeToggle() {
           apply(theme);
           return;
         }
-
-        const transition = start(() => apply(theme));
-        void transition.ready
-          .then(() => {
-            const r = coverRadius(x, y, window.innerWidth, window.innerHeight);
-            document.documentElement.animate(
-              {
-                clipPath: [`circle(0px at ${x}px ${y}px)`, `circle(${r}px at ${x}px ${y}px)`],
-              },
-              {
-                duration: REVEAL_MS,
-                easing: REVEAL_EASING,
-                pseudoElement: "::view-transition-new(root)",
-              },
-            );
-          })
-          .catch(() => {
-            // ready rejects when the browser skips the transition - a second
-            // click landing mid-reveal, say. The theme has already been
-            // applied by the callback, so there is nothing to recover.
-          });
+        start(() => apply(theme));
       }}
     >
       <span className="theme-toggle__to-dark">Dark</span>
