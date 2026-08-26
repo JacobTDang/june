@@ -184,6 +184,9 @@ export function AlbumArt({
 
     let raf = 0;
     let level = 0;
+    let lobe = 0;
+    let edge = 0;
+    let spin = 0;
     let graph = getAudioGraph(audio);
 
     // The tap can fail simply because it was asked too early: this effect runs
@@ -217,15 +220,28 @@ export function AlbumArt({
       const h = c.height;
 
       graph.analyser.getByteFrequencyData(graph.bins);
-      // Low bins only: the colour answers to the body of a track rather than
-      // to cymbals, which would make it flicker.
-      let sum = 0;
-      const bass = Math.floor(graph.bins.length * 0.18);
-      for (let i = 0; i < bass; i++) sum += graph.bins[i]!;
-      const target = sum / (bass * 255);
-      // Eased, because tracking every frame exactly reads as strobing rather
-      // than as breathing.
-      level += (target - level) * 0.12;
+      const bins = graph.bins;
+      // Three bands, not one average. A single number is why the colour only
+      // breathed: everything moved together, so the shape never changed. Split
+      // apart they disagree — bass swells the field, mids swing the lobes,
+      // treble bites the edge — and the disagreement is the motion.
+      const lowEnd = Math.floor(bins.length * 0.12);
+      const midEnd = Math.floor(bins.length * 0.42);
+      let low = 0;
+      let middle = 0;
+      let high = 0;
+      for (let i = 0; i < lowEnd; i++) low += bins[i]!;
+      for (let i = lowEnd; i < midEnd; i++) middle += bins[i]!;
+      for (let i = midEnd; i < bins.length; i++) high += bins[i]!;
+      const lowT = low / (lowEnd * 255);
+      const midT = middle / ((midEnd - lowEnd) * 255);
+      const highT = high / ((bins.length - midEnd) * 255);
+
+      // Fast to rise, slow to fall, so a kick reads as a hit and not a wobble.
+      level += (lowT - level) * (lowT > level ? 0.5 : 0.05);
+      lobe += (midT - lobe) * 0.2;
+      edge += (highT - edge) * 0.38;
+      spin += 0.008 + lowT * 0.05;
 
       ctx.globalCompositeOperation = "source-over";
       ctx.drawImage(mono, 0, 0, w, h);
@@ -237,11 +253,7 @@ export function AlbumArt({
       // as being in colour, with the music moving the edge, rather than as a
       // small disc floating in a monochrome frame.
       const reach = Math.hypot(w, h) * 0.5;
-      const radius = Math.max(1, reach * (0.88 + level * 0.5));
 
-      // The coloured lattice, cut to a soft disc, drawn over the plain one.
-      // Composited off-screen first: masking on the visible canvas would eat
-      // the monochrome underneath it.
       const cut = cutRef.current ?? document.createElement("canvas");
       cutRef.current = cut;
       if (cut.width !== w || cut.height !== h) {
@@ -253,15 +265,35 @@ export function AlbumArt({
         cutCtx.clearRect(0, 0, w, h);
         cutCtx.globalCompositeOperation = "source-over";
         cutCtx.drawImage(colored, 0, 0, w, h);
-        const mask = cutCtx.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        // Solid for most of the way out, then a short fade — a long ramp
-        // washes the colour out everywhere instead of holding an edge.
-        mask.addColorStop(0, "rgba(0,0,0,1)");
-        mask.addColorStop(0.82, "rgba(0,0,0,1)");
-        mask.addColorStop(1, "rgba(0,0,0,0)");
+
+        // A wide base the bass swells...
         cutCtx.globalCompositeOperation = "destination-in";
-        cutCtx.fillStyle = mask;
+        const base = cutCtx.createRadialGradient(
+          cx, cy, 0, cx, cy, Math.max(1, reach * (0.72 + level * 0.55)),
+        );
+        base.addColorStop(0, "rgba(0,0,0,1)");
+        base.addColorStop(0.72, "rgba(0,0,0,1)");
+        base.addColorStop(1, "rgba(0,0,0,0)");
+        cutCtx.fillStyle = base;
         cutCtx.fillRect(0, 0, w, h);
+
+        // ...then bitten into from outside, so the rim is ragged and moving
+        // rather than a clean circle. The bites counter-rotate at a rate the
+        // bass sets, and the treble decides how deep they cut.
+        cutCtx.globalCompositeOperation = "destination-out";
+        for (let i = 0; i < 3; i++) {
+          const angle = spin * (i % 2 === 0 ? 1 : -1.45) + (i * Math.PI * 2) / 3;
+          const dist = reach * (0.66 + lobe * 0.55);
+          const bx = cx + Math.cos(angle) * dist;
+          const by = cy + Math.sin(angle) * dist;
+          const br = Math.max(1, reach * (0.3 + edge * 0.5));
+          const bite = cutCtx.createRadialGradient(bx, by, 0, bx, by, br);
+          bite.addColorStop(0, "rgba(0,0,0,0.95)");
+          bite.addColorStop(1, "rgba(0,0,0,0)");
+          cutCtx.fillStyle = bite;
+          cutCtx.fillRect(0, 0, w, h);
+        }
+        cutCtx.globalCompositeOperation = "source-over";
         ctx.drawImage(cut, 0, 0);
       }
       raf = requestAnimationFrame(frame);
