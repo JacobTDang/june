@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { autoLevels, bayerMatrix, ditherOrdered, luminance } from "@/src/visual/dither";
+import { dominantColors, type Swatch } from "@/src/visual/palette";
 import { highResArtwork } from "@/src/audio/artwork";
+import { getAudioGraph } from "./audio-graph";
 
 const SCREEN = bayerMatrix(4);
 
@@ -17,11 +19,23 @@ const SCREEN = bayerMatrix(4);
 export function AlbumArt({
   artworkUrl,
   title,
+  audioRef,
+  active,
 }: {
   artworkUrl: string | null;
   title: string | null;
+  /** The element the room plays through. Passed as the ref rather than its
+   *  current value: a ref does not re-render when it fills, so reading
+   *  `.current` during render hands this component null on the first pass and
+   *  never corrects it. */
+  audioRef?: React.RefObject<HTMLAudioElement | null>;
+  /** Whether this device is actually making sound. A muted device has nothing
+   *  to visualise and should not open an AudioContext at all. */
+  active?: boolean;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
+  const bloomRef = useRef<HTMLCanvasElement>(null);
+  const paletteRef = useRef<Swatch[]>([]);
   const [ready, setReady] = useState(false);
   const src = highResArtwork(artworkUrl);
 
@@ -49,6 +63,9 @@ export function AlbumArt({
       console.warn(`[album art] cannot read pixels from ${src} (no CORS headers?)`);
       return;
     }
+    // Read the palette before dithering: after it there are two colours left.
+    paletteRef.current = dominantColors(frame.data, 3);
+
     const gray = luminance(frame.data);
     autoLevels(gray, 0.78);
     ditherOrdered(gray, w, h, SCREEN);
@@ -96,12 +113,82 @@ export function AlbumArt({
     };
   }, [src, paint]);
 
+  // The bloom: the album's own colours, rising from the centre with the music.
+  useEffect(() => {
+    const canvas = bloomRef.current;
+    const audio = audioRef?.current;
+    if (!canvas || !audio || !active) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    const graph = getAudioGraph(audio);
+    // No tap available (Safari implements neither captureStream nor the
+    // Firefox-prefixed form on <audio>). The sleeve simply stays one-bit,
+    // which costs the colour and never the music.
+    if (!graph) return;
+
+    let raf = 0;
+    let level = 0;
+
+    function frame() {
+      const c = bloomRef.current;
+      if (!c || !ctx || !graph) return;
+      const w = Math.max(1, Math.round(c.clientWidth));
+      const h = Math.max(1, Math.round(c.clientHeight));
+      if (c.width !== w || c.height !== h) {
+        c.width = w;
+        c.height = h;
+      }
+
+      graph.analyser.getByteFrequencyData(graph.bins);
+      // Low bins only: the bloom answers to the body of the track rather than
+      // to cymbals, which would make it flicker.
+      let sum = 0;
+      const bass = Math.floor(graph.bins.length * 0.18);
+      for (let i = 0; i < bass; i++) sum += graph.bins[i]!;
+      const target = sum / (bass * 255);
+      // Eased, because a bloom that tracks every frame exactly reads as
+      // strobing rather than as breathing.
+      level += (target - level) * 0.12;
+
+      ctx.clearRect(0, 0, w, h);
+      const palette = paletteRef.current;
+      if (palette.length > 0 && level > 0.01) {
+        const cx = w / 2;
+        const cy = h / 2;
+        const radius = Math.hypot(w, h) * (0.18 + level * 0.55);
+        const glow = ctx.createRadialGradient(cx, cy, 0, cx, cy, radius);
+        palette.forEach((swatch, i) => {
+          const stop = i / Math.max(1, palette.length);
+          const alpha = (0.55 - stop * 0.32) * Math.min(1, level * 1.6);
+          glow.addColorStop(stop, `rgba(${swatch.r},${swatch.g},${swatch.b},${alpha})`);
+        });
+        glow.addColorStop(1, "rgba(0,0,0,0)");
+        ctx.fillStyle = glow;
+        ctx.fillRect(0, 0, w, h);
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    raf = requestAnimationFrame(frame);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      void graph.context.close();
+    };
+  }, [audioRef, active, src]);
+
   return (
-    <canvas
-      ref={ref}
-      className={`albumart${ready ? " albumart--ready" : ""}`}
-      role="img"
-      aria-label={title ? `Cover art for ${title}` : "No track playing"}
-    />
+    <>
+      <canvas
+        ref={ref}
+        className={`albumart${ready ? " albumart--ready" : ""}`}
+        role="img"
+        aria-label={title ? `Cover art for ${title}` : "No track playing"}
+      />
+      {/* Over the dither, multiplied into it: the colour tints the black of
+          the lattice rather than sitting on top as a film. */}
+      <canvas ref={bloomRef} className="albumart__bloom" aria-hidden />
+    </>
   );
 }

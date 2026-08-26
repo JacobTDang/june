@@ -507,7 +507,12 @@ export function Player({
   return (
     <>
       <div className="audio-stage">
-      <AlbumArt artworkUrl={nowPlaying?.thumbnailUrl ?? null} title={nowPlaying?.title ?? null} />
+      <AlbumArt
+        artworkUrl={nowPlaying?.thumbnailUrl ?? null}
+        title={nowPlaying?.title ?? null}
+        audioRef={audioRef}
+        active={started && !silent}
+      />
       </div>
       <audio
         ref={audioRef}

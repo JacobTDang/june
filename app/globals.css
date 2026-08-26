@@ -3192,3 +3192,17 @@ a:hover {
 .stage__controls .empty {
   padding: var(--space-4) 0 0;
 }
+
+/* The colour bloom over the dithered sleeve. Screen blending so it lifts the
+   lattice's white dots into colour rather than laying a film over the whole
+   frame — the artwork stays legible underneath and the colour reads as coming
+   from inside it. */
+.albumart__bloom {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  mix-blend-mode: multiply;
+  opacity: 0.9;
+}
