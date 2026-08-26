@@ -1079,14 +1079,11 @@ a:hover {
 .player-wrap {
   position: relative;
 }
+/* Space, not a placeholder. It used to draw a bordered panel with "Syncing…"
+   in it, which read as a piece of UI that had failed to load rather than as a
+   moment before one arrived. */
 .player-skeleton {
   min-height: 120px;
-  border-radius: var(--r);
-  background: var(--surface);
-  border: 1px solid var(--line);
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 .audio-stage {
   --audio-stage-min-h: 160px;
@@ -3125,7 +3122,9 @@ a:hover {
   image-rendering: pixelated;
   opacity: 0;
   transition: opacity 0.3s var(--ease);
-  background: var(--surface-2);
+  /* No fill behind it: a grey square standing in for the sleeve is another
+     rectangle that reads as broken UI. The art fades up from nothing. */
+  background: none;
 }
 .albumart--ready {
   opacity: 1;
