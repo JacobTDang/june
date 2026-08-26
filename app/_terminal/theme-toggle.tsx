@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
+import { REVEALING_ATTR } from "@/src/lib/reveal";
 import { STORAGE_KEY, coverRadius, nextTheme, readTheme } from "@/src/lib/theme";
 import type { Theme } from "@/src/lib/theme";
 
@@ -87,7 +88,16 @@ export function ThemeToggle() {
           apply(theme);
           return;
         }
-        start(() => apply(theme));
+        // Tell the canvases to stand down for the duration. They are behind
+        // the transition's snapshots and cannot be seen, but they can still
+        // starve a clip-path animation, which has no compositor fast path.
+        const de = document.documentElement;
+        de.setAttribute(REVEALING_ATTR, "");
+        const transition = start(() => apply(theme));
+        const revive = () => de.removeAttribute(REVEALING_ATTR);
+        // finished rejects on a skipped transition; the canvases have to come
+        // back either way, or the room quietly stops animating.
+        transition.finished.then(revive, revive);
       }}
     >
       <span className="theme-toggle__to-dark">Dark</span>

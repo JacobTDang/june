@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { isRevealing } from "@/src/lib/reveal";
 import { autoLevels, bayerMatrix, ditherOrdered, luminance } from "@/src/visual/dither";
 import { dominantColors, type Swatch } from "@/src/visual/palette";
 import { highResArtwork } from "@/src/audio/artwork";
@@ -209,6 +210,11 @@ export function AlbumArt({
     audio.addEventListener("timeupdate", attach);
 
     function frame() {
+      if (isRevealing()) {
+        // Invisible right now, and the reveal needs the main thread more.
+        raf = requestAnimationFrame(frame);
+        return;
+      }
       const c = ref.current;
       const mono = monoRef.current;
       const colored = coloredRef.current;
