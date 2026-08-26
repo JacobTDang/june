@@ -7,10 +7,14 @@ import {
   isSpent,
   makeStars,
   makeStaves,
+  sparkleShape,
   spawnAsteroid,
   starBrightness,
+  starHand,
   stepAsteroid,
+  wobbleAt,
   type Asteroid,
+  type SparkleShape,
   type Star,
   type Stave,
 } from "@/src/visual/starfield";
@@ -23,37 +27,26 @@ const MAX_STARS = 700;
 const ASTEROID_EVERY_MS = 5200;
 
 /**
- * The sky behind the app: stars that twinkle, and the occasional asteroid.
+ * Lay a sparkle down on the canvas.
  *
- * Drawn as hard dots with no anti-aliasing on the stars, so it belongs to the
- * same one-bit world as the rest of the interface rather than looking like a
- * glossy screensaver.
- *
- * Under prefers-reduced-motion the field is painted once and left alone — the
- * stars are still there, they simply stop moving.
- */
-/**
- * The four-pointed sparkle: points north, east, south and west, with the sides
- * pulled in toward the centre so the arms taper.
- *
- * The concave curve is the whole character of the shape — a straight-sided
- * version is a diamond, which reads as a gem rather than a glint. Each side is
- * a quadratic with its control point at the centre, which is what pinches the
- * waist.
+ * The shape itself — uneven arms, an off-centre waist — is `sparkleShape`'s
+ * job, and comes out of the same `wobbleAt` that makes a staff line look drawn
+ * with a pen. All this does is walk it: start at a point, then pinch in at each
+ * waist and back out to the next point.
  */
 function sparkle(
   ctx: CanvasRenderingContext2D,
   x: number,
   y: number,
+  shape: SparkleShape,
   r: number,
   outlined: boolean,
 ) {
   ctx.beginPath();
-  ctx.moveTo(x, y - r);
-  ctx.quadraticCurveTo(x, y, x + r, y);
-  ctx.quadraticCurveTo(x, y, x, y + r);
-  ctx.quadraticCurveTo(x, y, x - r, y);
-  ctx.quadraticCurveTo(x, y, x, y - r);
+  ctx.moveTo(x + shape.start.x, y + shape.start.y);
+  for (const { waist, tip } of shape.sides) {
+    ctx.quadraticCurveTo(x + waist.x, y + waist.y, x + tip.x, y + tip.y);
+  }
   ctx.closePath();
   if (outlined && r > 3) {
     ctx.lineWidth = 1;
@@ -61,16 +54,6 @@ function sparkle(
   } else {
     ctx.fill();
   }
-}
-
-/** Cheap repeatable noise, so a stave wobbles the same way on every repaint
- *  instead of shivering. */
-function wobbleAt(seed: number, t: number): number {
-  return (
-    Math.sin(seed + t * 5.1) * 0.6 +
-    Math.sin(seed * 1.7 + t * 11.3) * 0.3 +
-    Math.sin(seed * 0.3 + t * 23.7) * 0.1
-  );
 }
 
 /**
@@ -155,6 +138,16 @@ function drawStave(ctx: CanvasRenderingContext2D, s: Stave) {
   ctx.restore();
 }
 
+/**
+ * The sky behind the app: stars that twinkle, and the occasional asteroid.
+ *
+ * Drawn as hard dots with no anti-aliasing on the stars, so it belongs to the
+ * same one-bit world as the rest of the interface rather than looking like a
+ * glossy screensaver.
+ *
+ * Under prefers-reduced-motion the field is painted once and left alone — the
+ * stars are still there, they simply stop moving.
+ */
 export function Starfield() {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -212,8 +205,10 @@ export function Starfield() {
       c.height = h;
       stars = makeStars(Math.min(MAX_STARS, Math.round((w * h) / 1e6 * DENSITY)), w, h, Math.random);
       // A ceiling, not a quota: placement drops any stave that cannot find clear
-      // space, so this asks for more than will fit and takes what lands.
-      staves = makeStaves(Math.max(60, Math.round((w * h) / 9000)), w, h, Math.random);
+      // space, so this asks and takes what lands. Kept sparse on purpose — the
+      // notation is texture behind the app, and at this spacing nearly every
+      // fragment finds room, so what is asked for is close to what is drawn.
+      staves = makeStaves(Math.max(13, Math.round((w * h) / 36000)), w, h, Math.random);
     }
 
     /** `force` paints even mid-reveal: the theme-change repaint below has to
@@ -250,7 +245,13 @@ export function Starfield() {
         const lit = reduced ? 0.7 : starBrightness(star, elapsed);
         const r = star.size * (0.45 + lit * 0.85);
         if (r < 0.6) continue;
-        sparkle(ctx, star.x, star.y, r, star.outlined);
+        // The outline is redrawn as it swells rather than zoomed: the hand
+        // drifts alongside the twinkle, so what the eye reads is successive
+        // drawings of the same star and not one shape being scaled. Held at
+        // its opening pose when the field is still — the wobble is shape, not
+        // motion, so a reduced-motion star is drawn but does not move.
+        const hand = starHand(star, reduced ? 0 : elapsed);
+        sparkle(ctx, star.x, star.y, sparkleShape(star.seed, r, hand), r, star.outlined);
       }
 
       if (!reduced) {
