@@ -21,6 +21,12 @@
      flipped, so the system stays two colours under any state. */
   --invert-bg: #111111;
   --invert-ink: #f4f3ee;
+  /* Ink at low opacity: the two-colour equivalent of a tinted highlight.
+     Declared as a token because these were previously rgba literals of the
+     old amber, which no amount of replacing var(--accent) could catch. */
+  --wash: rgba(17, 17, 17, 0.06);
+  --wash-strong: rgba(17, 17, 17, 0.12);
+  --wash-ring: rgba(17, 17, 17, 0.45);
   --danger: #111111; /* form, not colour: danger is stated, not tinted */
 
   /* Square. A terminal has no rounded corners. */
@@ -166,7 +172,7 @@ a:hover {
 }
 
 ::selection {
-  background: rgba(242, 181, 82, 0.26);
+  background: var(--wash-strong);
 }
 
 :focus-visible {
@@ -371,7 +377,7 @@ a:hover {
   padding: var(--space-4) var(--space-4);
   border: 1px solid var(--ink);
   border-radius: var(--r);
-  background: rgba(242, 181, 82, 0.08);
+  background: var(--wash);
   color: var(--ink);
   text-decoration: none;
   transition:
@@ -379,7 +385,7 @@ a:hover {
     transform 0.15s var(--ease);
 }
 .resume:hover {
-  background: rgba(242, 181, 82, 0.14);
+  background: var(--wash-strong);
   transform: translateY(-1px);
 }
 .resume__dot {
@@ -1652,7 +1658,7 @@ a:hover {
   bottom: 2px;
   height: 2px;
   border-radius: 2px;
-  background: rgba(242, 181, 82, 0.18);
+  background: var(--wash-strong);
   overflow: hidden;
   opacity: 1;
   transition: opacity 0.6s var(--ease);
@@ -2369,13 +2375,13 @@ a:hover {
 /* ---- Motion ---- */
 @keyframes livePulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(242, 181, 82, 0.5);
+    box-shadow: 0 0 0 0 var(--wash-ring);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(242, 181, 82, 0);
+    box-shadow: 0 0 0 6px rgba(17, 17, 17, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(242, 181, 82, 0);
+    box-shadow: 0 0 0 0 rgba(17, 17, 17, 0);
   }
 }
 @keyframes fadeUp {
@@ -2516,7 +2522,7 @@ a:hover {
   background: var(--surface-2);
 }
 .lab-track--on {
-  background: rgba(242, 181, 82, 0.1);
+  background: var(--wash);
 }
 .lab-track__art {
   flex-shrink: 0;
@@ -2749,10 +2755,13 @@ a:hover {
      same width, and a rail beside them for listening history. The left edge of
      banner and friends line up, which is what makes the page read as one
      block rather than three stacked cards. */
-  max-width: 1180px;
+  max-width: 1300px;
   margin-inline: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 330px);
+  /* The rail was 330px, which truncated most track titles — "Everything Has
+     Changed (Tay…" is not a useful thing to read. Wide enough for a real
+     title now, and a fraction rather than a cap so it grows with the page. */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.62fr);
   grid-template-areas:
     "banner  rail"
     "friends rail";
