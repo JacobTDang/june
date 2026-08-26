@@ -144,3 +144,39 @@ describe("makeStaves", () => {
     expect(makeStaves(6, 900, 600, seeded(14))).toEqual(makeStaves(6, 900, 600, seeded(14)));
   });
 });
+
+describe("staves do not overlap", () => {
+  /** What a drawn stave actually occupies: the five lines, plus stems and
+   *  ledger lines reaching above and below them. */
+  function box(s: ReturnType<typeof makeStaves>[number]) {
+    const reach = s.spacing * 4;
+    return { x1: s.x, x2: s.x + s.width, y1: s.y - reach, y2: s.y + reach };
+  }
+  const overlaps = (a: ReturnType<typeof box>, b: ReturnType<typeof box>) =>
+    a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+
+  it("never places two staves on top of each other", () => {
+    // Two fragments of notation crossing reads as a printing error rather
+    // than as texture.
+    for (const seed of [21, 22, 23, 24]) {
+      const staves = makeStaves(40, 1400, 900, seeded(seed));
+      for (let i = 0; i < staves.length; i++) {
+        for (let j = i + 1; j < staves.length; j++) {
+          expect(overlaps(box(staves[i]!), box(staves[j]!))).toBe(false);
+        }
+      }
+    }
+  });
+
+  it("returns fewer than asked rather than forcing an overlap", () => {
+    // A small field cannot hold many staves. Dropping the ones that will not
+    // fit is right; cramming them in is not.
+    const staves = makeStaves(200, 500, 400, seeded(25));
+    expect(staves.length).toBeLessThan(200);
+    expect(staves.length).toBeGreaterThan(0);
+  });
+
+  it("still fills a large field generously", () => {
+    expect(makeStaves(40, 2200, 1400, seeded(26)).length).toBeGreaterThan(18);
+  });
+});

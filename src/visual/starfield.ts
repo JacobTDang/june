@@ -138,6 +138,37 @@ export type Note = {
  * own cards sit, and notation behind a card is just noise the reader has to
  * see past.
  */
+/** Attempts to find clear space before a stave is given up on. Bounded so a
+ *  crowded field cannot spin: dropping a fragment is cheaper than looping. */
+const PLACEMENT_TRIES = 24;
+
+/** Vertical reach of a drawn stave in multiples of its line spacing — five
+ *  lines plus the stems and ledger lines that run past them. */
+const STAVE_REACH = 4;
+
+type Box = { x1: number; x2: number; y1: number; y2: number };
+
+function boxOf(x: number, y: number, width: number, spacing: number): Box {
+  const reach = spacing * STAVE_REACH;
+  return { x1: x, x2: x + width, y1: y - reach, y2: y + reach };
+}
+
+function hits(a: Box, b: Box): boolean {
+  return a.x1 < b.x2 && b.x1 < a.x2 && a.y1 < b.y2 && b.y1 < a.y2;
+}
+
+/**
+ * Scatter staff fragments across the field, none of them touching.
+ *
+ * Placed away from the vertical middle band on purpose: that is where the
+ * app's cards sit, and notation behind a card is just noise the reader has to
+ * see past.
+ *
+ * Positions are rejection-sampled against what is already down. Two fragments
+ * of notation crossing reads as a printing error rather than as texture, so a
+ * stave that cannot find clear space is dropped instead — the count is a
+ * ceiling, not a quota.
+ */
 export function makeStaves(
   count: number,
   width: number,
@@ -145,8 +176,28 @@ export function makeStaves(
   rand: () => number,
 ): Stave[] {
   const staves: Stave[] = [];
+  const taken: Box[] = [];
+
   for (let i = 0; i < count; i++) {
     const spacing = 5 + rand() * 4;
+    const w = 80 + rand() * 210;
+
+    let placed: { x: number; y: number } | null = null;
+    for (let attempt = 0; attempt < PLACEMENT_TRIES; attempt++) {
+      const leftSide = rand() < 0.5;
+      const x = leftSide
+        ? rand() * (width * STAVE_EDGE_BAND)
+        : width * (1 - STAVE_EDGE_BAND) + rand() * (width * STAVE_EDGE_BAND - w * 0.25);
+      const y = rand() * height;
+      const box = boxOf(x, y, w, spacing);
+      if (!taken.some((other) => hits(box, other))) {
+        taken.push(box);
+        placed = { x, y };
+        break;
+      }
+    }
+    if (!placed) continue;
+
     const noteCount = 3 + Math.floor(rand() * 5);
     const notes: Note[] = [];
     for (let n = 0; n < noteCount; n++) {
@@ -156,14 +207,10 @@ export function makeStaves(
         open: rand() < 0.25,
       });
     }
-    // Left or right third, never the middle: the cards live there.
-    const leftSide = rand() < 0.5;
-    const w = 80 + rand() * 210;
+
     staves.push({
-      x: leftSide
-        ? rand() * (width * STAVE_EDGE_BAND)
-        : width * (1 - STAVE_EDGE_BAND) + rand() * (width * STAVE_EDGE_BAND - w * 0.25),
-      y: rand() * height,
+      x: placed.x,
+      y: placed.y,
       width: w,
       spacing,
       tilt: (rand() - 0.5) * 0.14,

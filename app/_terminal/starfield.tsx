@@ -182,7 +182,9 @@ export function Starfield() {
       c.width = w;
       c.height = h;
       stars = makeStars(Math.min(MAX_STARS, Math.round((w * h) / 1e6 * DENSITY)), w, h, Math.random);
-      staves = makeStaves(Math.max(34, Math.round((w * h) / 18000)), w, h, Math.random);
+      // A ceiling, not a quota: placement drops any stave that cannot find clear
+      // space, so this asks for more than will fit and takes what lands.
+      staves = makeStaves(Math.max(60, Math.round((w * h) / 9000)), w, h, Math.random);
     }
 
     function draw(now: number) {
