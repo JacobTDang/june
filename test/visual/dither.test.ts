@@ -1,10 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  autoLevels,
-  bayerMatrix,
-  ditherOrdered,
-  luminance,
-} from "../../src/visual/dither";
+import { autoLevels, bayerMatrix, ditherOrdered, luminance } from "../../src/visual/dither";
 
 /** A w×h field of one constant value in 0..1. */
 function flat(w: number, h: number, v: number): Float32Array {
