@@ -2744,46 +2744,77 @@ a:hover {
 /* Signed in, the home is a two-column reading: what you can do on the left,
    what is happening on the right. Previously a single column that ran past
    the fold — the action and the context belong on screen together. */
-.container.hero--split {
-  /* Left-aligned rather than centred: the field is the subject and the page
-     sits on it, so it reads better anchored to one edge than floated in the
-     middle with equal margins on both sides. */
-  max-width: 1000px;
+.container.hero--wide {
+  /* Two tracks: a main column carrying the banner and the friends panel at the
+     same width, and a rail beside them for listening history. The left edge of
+     banner and friends line up, which is what makes the page read as one
+     block rather than three stacked cards. */
+  max-width: 1180px;
   margin-inline: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 330px);
+  grid-template-areas:
+    "banner  rail"
+    "friends rail";
   align-items: start;
   gap: var(--space-4);
 }
-/* Both columns fill their track. .paper caps its width and centres itself,
-   which is right for the lone signed-out card and wrong inside a grid — it
-   was adding ~80px of dead space between the columns on top of the gap. */
-.hero--split .hero__main,
-.hero--split .hero__side .paper {
+.hero--wide .paper {
   max-width: none;
   margin-inline: 0;
 }
-.hero__side {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-5);
-  min-width: 0;
+.hero--wide .hero__banner { grid-area: banner; }
+.hero--wide .hero__friends { grid-area: friends; }
+.hero--wide .hero__history { grid-area: rail; }
+
+/* The banner sets identity against action rather than stacking them, which
+   left two thirds of its width empty. */
+.hero--wide .hero__banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  column-gap: var(--space-7);
+  padding: var(--space-5) var(--space-6);
 }
-/* The play history is unbounded, so it scrolls inside its own card rather
-   than growing the page. The card stays put; the list moves. */
-.hero__side .home-history,
-.hero__side .recent {
-  max-height: 42vh;
+.hero--wide .hero__banner .paper__rule,
+.hero--wide .hero__banner .paper__rule--foot {
+  grid-column: 1 / -1;
+}
+.banner__id { min-width: 0; }
+.banner__do { justify-self: end; }
+.banner__do .yt-status { margin-top: var(--space-4); }
+
+/* History is the one unbounded list here, so it scrolls inside the rail and
+   the rail keeps the page's height. */
+.hero--wide .hero__history .home-history {
+  max-height: 46vh;
   overflow-y: auto;
 }
 
 @media (max-width: 900px) {
-  .container.hero--split {
+  .container.hero--wide {
     grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "banner" "friends" "rail";
   }
-  .hero__side .home-history,
-  .hero__side .recent {
+  .hero--wide .hero__banner {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-5);
+  }
+  .banner__do { justify-self: start; }
+  .hero--wide .hero__history .home-history {
     max-height: none;
     overflow-y: visible;
   }
+}
+
+/* The friends panel keeps its place whether or not anyone is jamming, so the
+   home does not reflow as friends come and go. An empty panel points at the
+   thing that would fix it rather than just stating the absence. */
+.home-jams__note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-meta);
+}
+.home-jams__note a {
+  color: var(--ink);
+  text-decoration: underline;
 }

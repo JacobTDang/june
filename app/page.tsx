@@ -58,8 +58,8 @@ export default async function Home({
         </header>
       )}
 
-      <main className={`container hero${user ? " hero--split" : ""}`}>
-        <div className="paper hero__main">
+      <main className={`container hero${user ? " hero--wide" : ""}`}>
+        <div className="paper hero__banner">
         {/* The card's own header rule: a bracket, the product mark, and a rule
             that thins out — the same dot vocabulary as the field behind it. */}
         <div className="paper__rule">
@@ -67,16 +67,18 @@ export default async function Home({
           <span className="paper__mark">JUNE</span>
           <DotRule />
         </div>
-        <Reveal>
-          <h1 className="display">
-            <Prompt />
-            june
-            <Cursor />
-          </h1>
-        </Reveal>
-        <Reveal delay={0.08}>
-          <p className="lead">Play the same song, at the same second, with your friends.</p>
-        </Reveal>
+        <div className="banner__id">
+          <Reveal>
+            <h1 className="display">
+              <Prompt />
+              june
+              <Cursor />
+            </h1>
+          </Reveal>
+          <Reveal delay={0.08}>
+            <p className="lead">Play the same song, at the same second, with your friends.</p>
+          </Reveal>
+        </div>
 
         {!user ? (
           <Reveal delay={0.16}>
@@ -95,7 +97,7 @@ export default async function Home({
             </div>
           </Reveal>
         ) : (
-          <Reveal delay={0.16}>
+          <Reveal delay={0.16} className="banner__do">
             <div className="lobby">
               {currentRoom && (
                 <a href={`/room/${encodeURIComponent(currentRoom)}`} className="resume">
@@ -134,22 +136,22 @@ export default async function Home({
         </div>
 
         {user && (
-          <div className="hero__side">
-            <section className="paper">
+          <>
+            <section className="paper hero__friends">
               <div className="paper__rule">
                 <Tick corner="tl" />
                 <DotRule />
               </div>
               <FriendsInJam />
             </section>
-            <section className="paper">
+            <section className="paper hero__history">
               <div className="paper__rule">
                 <Tick corner="tl" />
                 <DotRule />
               </div>
               <RecentPlays />
             </section>
-          </div>
+          </>
         )}
       </main>
     </>

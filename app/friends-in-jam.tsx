@@ -4,18 +4,24 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Avatar } from "./avatar";
 import { getFriendsInJams, type FriendInJam } from "@/src/lib/friends/actions";
+import { friendsPanelState } from "@/src/lib/friends/panel";
 
 /** Home-screen prompt: friends who are in a jam right now, with a Join button. */
 export function FriendsInJam() {
   const router = useRouter();
   const [friends, setFriends] = useState<FriendInJam[]>([]);
+  // Separate from the list itself: an empty list before the first answer
+  // means "unknown", not "nobody".
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     let alive = true;
     const load = () => {
       void getFriendsInJams()
         .then((f) => {
-          if (alive) setFriends(f);
+          if (!alive) return;
+          setFriends(f);
+          setLoaded(true);
         })
         .catch(() => {});
     };
@@ -27,11 +33,18 @@ export function FriendsInJam() {
     };
   }, []);
 
-  if (friends.length === 0) return null;
+  const state = friendsPanelState(loaded, friends.length);
 
   return (
     <div className="home-jams">
       <div className="eyebrow">Friends in a jam</div>
+      {state === "loading" && <p className="faint home-jams__note">Checking…</p>}
+      {state === "empty" && (
+        <p className="faint home-jams__note">
+          Nobody&rsquo;s in a jam right now. <a href="/friends">Find friends</a>
+        </p>
+      )}
+      {state === "list" && (
       <ul className="home-jams__list">
         {friends.map((f) => (
           <li key={f.userId} className="home-jam">
@@ -61,6 +74,7 @@ export function FriendsInJam() {
           </li>
         ))}
       </ul>
+      )}
     </div>
   );
 }
