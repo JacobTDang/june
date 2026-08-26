@@ -3295,3 +3295,50 @@ a:hover {
   flex: none;
   min-height: auto;
 }
+
+
+/* The rail is a flex column; its default gap was stacking on top of the
+   switch's own margin and opening a band of nothing between the tabs and the
+   panel they switch. One source of spacing, not two. */
+.room__rail {
+  gap: 0;
+}
+.rail__switch {
+  margin-bottom: var(--space-4);
+}
+
+/* Square, so the whole sleeve is visible rather than cropped to a letterbox.
+   Chat moved to the rail, so this column is the artwork alone and can afford
+   the height; capped so it still fits a short window. */
+.room__center .audio-stage {
+  aspect-ratio: 1;
+  height: auto;
+  /* Leaves room for the controls and the track meta beneath it: at 72vh the
+     square pushed both off the bottom of the shell. */
+  max-height: min(52vh, 430px);
+  width: 100%;
+  margin-inline: auto;
+}
+
+
+/* The queue is unbounded — a room can hold as many tracks as people care to
+   add — so it scrolls within about five rows rather than growing the rail
+   until everything below it is pushed off the page. The row height is the
+   scale's, so the window tracks the row rather than being a magic pixel
+   count that drifts when a row changes. */
+.rail__view .queue {
+  max-height: calc(var(--space-10) * 2.7);
+  overflow-y: auto;
+  /* Keeps the scrollbar off the rows themselves. */
+  padding-right: var(--space-1);
+}
+
+
+/* The player card fills its column so its bottom edge lands on the rail's.
+   The column already stretched; the card inside it stopped at its content and
+   left the two looking misaligned even though their columns were not. The
+   artwork keeps its cap — the slack goes below the track meta. */
+.room__center .stage {
+  flex: 1;
+  min-height: 0;
+}
