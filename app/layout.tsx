@@ -1,14 +1,13 @@
 import "./globals.css";
 import type { ReactNode } from "react";
 import type { Viewport } from "next";
-import { Fraunces } from "next/font/google";
-import { WavesBackground } from "./character-wave";
+import { Geist_Mono } from "next/font/google";
+import { Starfield } from "./_terminal/starfield";
 
-const fraunces = Fraunces({
+const geistMono = Geist_Mono({
   subsets: ["latin"],
-  weight: ["400", "500", "600"],
-  style: ["normal", "italic"],
-  variable: "--font-fraunces",
+  variable: "--font-mono",
+  weight: ["400", "500", "700"],
   display: "swap",
 });
 
@@ -26,9 +25,9 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={fraunces.variable}>
+    <html lang="en" className={geistMono.variable}>
       <body>
-        <WavesBackground />
+        <Starfield />
         {children}
       </body>
     </html>

@@ -5,6 +5,8 @@ import { getMyRoom } from "@/src/lib/room/actions";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
 import { Avatar } from "./avatar";
+import { DotRule, Prompt, Tick } from "./_terminal/primitives";
+import { TypedLine } from "./_terminal/typed-line";
 import { FriendsInJam } from "./friends-in-jam";
 import { RecentPlays } from "./recent-plays";
 import { Reveal } from "./reveal";
@@ -12,6 +14,16 @@ import { SignInButton } from "./sign-in-button";
 import { ConnectYouTubeButton } from "./connect-youtube-button";
 import { CreateJamButton } from "./create-jam-button";
 import { JoinJamForm } from "./join-jam-form";
+
+/** Lines the page types out under the wordmark. In-jokes for the people who
+ *  actually use this — june is invite-only and this is the room's voice. */
+const GREETINGS = [
+  "welcome back touse",
+  "why is jacob so touse",
+  "ester ur bouse jk",
+  "chris i hope ur having fun in tawain",
+  "carolyn never seeing this cuz she dont use my frikin app",
+];
 
 export default async function Home({
   searchParams,
@@ -57,13 +69,26 @@ export default async function Home({
         </header>
       )}
 
-      <main className="container hero">
-        <Reveal>
-          <h1 className="display">june</h1>
-        </Reveal>
-        <Reveal delay={0.08}>
-          <p className="lead">Play the same song, at the same second, with your friends.</p>
-        </Reveal>
+      <main className={`container hero${user ? " hero--wide" : ""}`}>
+        <div className="paper hero__banner">
+        {/* The card's own header rule: a bracket, the product mark, and a rule
+            that thins out — the same dot vocabulary as the field behind it. */}
+        <div className="paper__rule">
+          <Tick corner="tl" />
+          <DotRule />
+        </div>
+        <div className="banner__id">
+          <Reveal>
+            <h1 className="display">
+              <Prompt />
+              june
+            </h1>
+          </Reveal>
+          <TypedLine messages={GREETINGS} emphasis="touse" />
+          <Reveal delay={0.08}>
+            <p className="lead">Play the same song, at the same second, with your friends.</p>
+          </Reveal>
+        </div>
 
         {!user ? (
           <Reveal delay={0.16}>
@@ -82,7 +107,7 @@ export default async function Home({
             </div>
           </Reveal>
         ) : (
-          <Reveal delay={0.16}>
+          <Reveal delay={0.16} className="banner__do">
             <div className="lobby">
               {currentRoom && (
                 <a href={`/room/${encodeURIComponent(currentRoom)}`} className="resume">
@@ -112,10 +137,31 @@ export default async function Home({
                 </>
               )}
             </div>
-
-            <FriendsInJam />
-            <RecentPlays />
           </Reveal>
+        )}
+          <div className="paper__rule paper__rule--foot">
+            <Tick corner="bl" />
+            <DotRule flip />
+          </div>
+        </div>
+
+        {user && (
+          <>
+            <section className="paper hero__friends">
+              <div className="paper__rule">
+                <Tick corner="tl" />
+                <DotRule />
+              </div>
+              <FriendsInJam />
+            </section>
+            <section className="paper hero__history">
+              <div className="paper__rule">
+                <Tick corner="tl" />
+                <DotRule />
+              </div>
+              <RecentPlays />
+            </section>
+          </>
         )}
       </main>
     </>

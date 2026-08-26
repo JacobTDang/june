@@ -22,6 +22,7 @@ import {
   touchParticipant,
 } from "@/src/lib/room/actions";
 import { visibleParticipants } from "@/src/lib/room/presence";
+import { unreadCount } from "@/src/lib/room/unread";
 import type { RoomState } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
 import { activeDownloadProgress, shouldPollAgain } from "@/src/audio/downloads";
@@ -177,6 +178,18 @@ export function Room({
   // User ids currently connected to the room's realtime channel, or null while
   // presence is unknown (before the first sync, or realtime down).
   const [online, setOnline] = useState<Set<string> | null>(null);
+  /** Which of the rail's two views is showing. The rail holds both so the
+   *  left column can be the artwork alone. */
+  const [railView, setRailView] = useState<"queue" | "chat">("queue");
+  /** Messages in the log, and how many had arrived last time chat was open. */
+  const [chatTotal, setChatTotal] = useState(0);
+  const [chatSeen, setChatSeen] = useState(0);
+  const unread = unreadCount({ total: chatTotal, seen: chatSeen, visible: railView === "chat" });
+  // Opening chat marks everything in it read; so does a message arriving while
+  // it is already open.
+  useEffect(() => {
+    if (railView === "chat") setChatSeen(chatTotal);
+  }, [railView, chatTotal]);
   const mainRef = useRef<HTMLDivElement>(null);
 
   const refresh = useCallback(async () => {
@@ -498,7 +511,8 @@ export function Room({
   }
 
   return (
-    <main className="room rise">
+    <>
+      <main className="room rise">
       <FriendToasts meId={me.userId} />
       <div className="room__bar">
         <div className="room__barL">
@@ -511,37 +525,26 @@ export function Room({
             {copied ? "Copied" : initial.id.replace(/-/g, " · ")}
           </button>
         </div>
+          <div className="room__who">
+            <ul className="people">
+              {participants.map((p) => (
+                <li key={p.userId} className="person">
+                  <Avatar name={p.name} url={p.avatarUrl} size={28} />
+                  <span className="person__name">
+                    {p.name}
+                    {p.userId === me.userId ? " · you" : ""}
+                  </span>
+                  {participantAction(p.userId, p.name)}
+                </li>
+              ))}
+            </ul>
+          </div>
         <button className="btn btn--sm" onClick={onLeave}>
           Leave
         </button>
       </div>
 
       <div className="room__main" ref={mainRef}>
-        <section className="room__queue">
-          <div className="section__head">
-            <span className="eyebrow">Up next</span>
-          </div>
-          {queue.length === 0 ? (
-            <QueueSuggestions roomId={initial.id} />
-          ) : (
-            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
-              {queue.map((t) => (
-                <QueueRow
-                  key={t.id}
-                  track={t}
-                  reduce={reduce}
-                  downloadPercent={downloadProgress.get(t.videoId)}
-                  onRemove={() => void removeQueueItem(t.id)}
-                  onDragStart={() => {
-                    reorderPending.current = true;
-                  }}
-                  onCommit={commitReorder}
-                />
-              ))}
-            </Reorder.Group>
-          )}
-        </section>
-
         <div className="room__center">
           <section className="stage">
             <div className="section__head">
@@ -569,33 +572,75 @@ export function Room({
               />
             )}
           </section>
-          <AddMusic roomId={initial.id} />
         </div>
 
         <aside className="room__rail">
-          <section className="room__people">
-            <div className="section__head">
-              <span className="eyebrow">In the room</span>
-            </div>
-            <ul className="people">
-              {participants.map((p) => (
-                <li key={p.userId} className="person">
-                  <Avatar name={p.name} url={p.avatarUrl} size={28} />
-                  <span className="person__name">
-                    {p.name}
-                    {p.userId === me.userId ? " · you" : ""}
-                  </span>
-                  {participantAction(p.userId, p.name)}
-                </li>
+        {/* One rail, two views. Both stay mounted: chat keeps its scroll
+            position and its messages, and the queue keeps whatever search
+            results are open, so switching costs nothing either way. */}
+        <div className="rail__switch" role="tablist" aria-label="Room panel">
+          <button
+            role="tab"
+            aria-selected={railView === "queue"}
+            className="rail__tab"
+            onClick={() => setRailView("queue")}
+          >
+            Music
+          </button>
+          <button
+            role="tab"
+            aria-selected={railView === "chat"}
+            className="rail__tab"
+            onClick={() => setRailView("chat")}
+          >
+            Chat
+            {unread > 0 && (
+              <span className="rail__badge" aria-label={`${unread} unread`}>
+                {unread > 9 ? "9+" : unread}
+              </span>
+            )}
+          </button>
+        </div>
+        <div className="rail__stack">
+        <div className="rail__view" data-active={railView === "queue"} aria-hidden={railView !== "queue"}>
+        <section className="room__queue">
+          <div className="section__head">
+            <span className="eyebrow">Up next</span>
+          </div>
+          {queue.length === 0 ? (
+            <QueueSuggestions roomId={initial.id} />
+          ) : (
+            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
+              {queue.map((t) => (
+                <QueueRow
+                  key={t.id}
+                  track={t}
+                  reduce={reduce}
+                  downloadPercent={downloadProgress.get(t.videoId)}
+                  onRemove={() => void removeQueueItem(t.id)}
+                  onDragStart={() => {
+                    reorderPending.current = true;
+                  }}
+                  onCommit={commitReorder}
+                />
               ))}
-            </ul>
-          </section>
+            </Reorder.Group>
+          )}
+        </section>
 
-          <div className="rule" />
-
-          <Chat roomId={initial.id} meId={me.userId} />
+          <AddMusic roomId={initial.id} />
+        </div>
+        <div
+          className="rail__view"
+          data-active={railView === "chat"}
+          aria-hidden={railView !== "chat"}
+        >
+          <Chat roomId={initial.id} meId={me.userId} onCount={setChatTotal} />
+        </div>
+        </div>
         </aside>
       </div>
     </main>
+    </>
   );
 }

@@ -1,29 +1,43 @@
 :root {
-  /* One locked system: near-monochrome, warm near-black, a single amber accent. */
-  --bg: #100f12;
-  --surface: #171619;
-  --surface-2: #1e1d21;
-  --ink: #f1efe9;
-  --muted: #8b8790;
-  --faint: #57545c;
-  --line: rgba(255, 255, 255, 0.08);
-  --line-2: rgba(255, 255, 255, 0.15);
+  /* One locked system: paper and ink. The page itself is a dithered
+     black-and-white field; everything readable sits on paper above it. */
+  --bg: #f4f3ee; /* paper — the card the UI lives on */
+  --surface: #ffffff; /* panel — a sheet on the paper */
+  --surface-2: #eeece5; /* recessed: inputs, wells */
+  --ink: #111111;
+  --muted: #6a6862;
+  --faint: #9b9890;
+  --line: #e4e1d8;
+  --line-2: #cbc7bb;
 
-  /* Accent used only on: primary action, live signal, progress, focus. */
-  --accent: #f2b552;
-  --accent-ink: #20170a;
-  --accent-hi: #f7c069;
-  --danger: #e78a7a;
+  /* The dithered field behind everything. Pure, because a 1-bit screen has
+     exactly two values and any third would show as a seam. */
+  --dither-ink: #000000;
+  --dither-paper: #ffffff;
 
-  /* One radius. No pills. */
-  --r: 8px;
-  --r-sm: 6px;
+  /* No accent hue. Emphasis is inversion — a filled block, a reversed label,
+     a blinking cursor — which is how a terminal has always done it. Amber
+     used to carry live/progress/focus; those now read as --ink on --paper
+     flipped, so the system stays two colours under any state. */
+  --invert-bg: #111111;
+  --invert-ink: #f4f3ee;
+  /* Ink at low opacity: the two-colour equivalent of a tinted highlight.
+     Declared as a token because these were previously rgba literals of the
+     old amber, which no amount of replacing var(--accent) could catch. */
+  --wash: rgba(17, 17, 17, 0.06);
+  --wash-strong: rgba(17, 17, 17, 0.12);
+  --wash-ring: rgba(17, 17, 17, 0.45);
+  --danger: #111111; /* form, not colour: danger is stated, not tinted */
+
+  /* Square. A terminal has no rounded corners. */
+  --r: 0px;
+  --r-sm: 0px;
 
   /* Type scale. Six steps, named for the job rather than the size, so a
      component picks a role and inherits the rhythm. The root is 15px, so a
      step is roughly 1.13x — tight, because this is a dense app UI where the
      hierarchy is carried by weight and colour as much as by size. */
-  --text-root: 15px;
+  --text-root: 14px;
   --text-micro: 0.68rem; /* uppercase labels, badges, timestamps */
   --text-meta: 0.78rem; /* handles, counts, secondary lines */
   --text-body: 0.88rem; /* default: list titles, buttons, inputs */
@@ -83,8 +97,11 @@
   --weight-medium: 500;
   --weight-strong: 600;
 
-  --font-display: var(--font-fraunces), Georgia, "Times New Roman", serif;
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  /* One family, three roles. Mono throughout is the identity, so display and
+     body differ by weight and tracking rather than by typeface. */
+  --font-mono-stack: var(--font-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  --font-display: var(--font-mono-stack);
+  --font-sans: var(--font-mono-stack);
 
   --ease: cubic-bezier(0.22, 1, 0.36, 1);
 }
@@ -98,13 +115,24 @@ body {
   margin: 0;
   padding: 0;
   min-height: 100%;
-  background: var(--bg);
+  /* Transparent on purpose: the dithered field is the page's ground, and a
+     background here would paint straight over it. */
+  background: transparent;
   color: var(--ink);
   font-family: var(--font-sans);
   font-size: var(--text-root);
   letter-spacing: var(--track-body);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* The root background is painted beneath everything, including the field's
+   canvas — so it is the surface that shows before the canvas has drawn, and
+   in any gap it leaves. */
+html {
+  /* Paper behind the starfield: the stars are ink on the page, not lights in
+     the dark, so the ground matches what the canvas paints. */
+  background: var(--bg);
 }
 
 main,
@@ -142,15 +170,15 @@ a {
   transition: color 0.15s var(--ease);
 }
 a:hover {
-  color: var(--accent);
+  color: var(--ink);
 }
 
 ::selection {
-  background: rgba(242, 181, 82, 0.26);
+  background: var(--wash-strong);
 }
 
 :focus-visible {
-  outline: 2px solid var(--accent);
+  outline: 2px solid var(--ink);
   outline-offset: 2px;
   border-radius: var(--r-sm);
 }
@@ -186,11 +214,16 @@ a:hover {
   margin: 0 auto;
   padding: var(--space-fluid-hero) var(--space-6) var(--space-9);
 }
+/* Was a single centred card; now a stack of them, so it flows from the top
+   with the cards spaced rather than one box stretched to the viewport. */
 .container.hero {
-  min-height: 86vh;
   display: flex;
   flex-direction: column;
-  justify-content: center;
+  gap: var(--space-5);
+  justify-content: flex-start;
+  /* Signed out there is one card and it should sit in the field, not at the
+     top of it; signed in the stack is long enough to want the top. */
+  min-height: 60vh;
   padding-top: var(--space-7);
 }
 .display {
@@ -240,14 +273,18 @@ a:hover {
   transform: translateY(1px);
 }
 .btn--primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--invert-ink);
   font-weight: var(--weight-strong);
 }
+/* No hue to brighten, so hover flips the fill instead: a filled button
+   becomes an outlined one and back. Inversion is the only state change a
+   two-colour system has, and it reads instantly. */
 .btn--primary:hover {
-  background: var(--accent-hi);
-  border-color: var(--accent-hi);
+  background: var(--surface);
+  border-color: var(--ink);
+  color: var(--ink);
 }
 .btn--lg {
   padding: var(--space-4) var(--space-5);
@@ -290,16 +327,21 @@ a:hover {
 }
 
 /* ---- Home: top account bar + lobby ---- */
+/* A paper strip across the top. It used to float transparent over the page,
+   which was fine on a flat dark background and illegible over a dithered one:
+   the account controls sat directly on the lattice. Sticky rather than
+   absolute so it stays available down a long page. */
 .topbar {
-  position: absolute;
+  position: sticky;
   top: 0;
-  left: 0;
-  right: 0;
   display: flex;
   justify-content: flex-end;
   align-items: center;
-  padding: var(--space-5) var(--space-6);
-  z-index: 2;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface);
+  border-bottom: 1px solid var(--line-2);
+  z-index: 5;
 }
 .account {
   display: flex;
@@ -335,9 +377,9 @@ a:hover {
   gap: var(--space-4);
   width: 100%;
   padding: var(--space-4) var(--space-4);
-  border: 1px solid var(--accent);
+  border: 1px solid var(--ink);
   border-radius: var(--r);
-  background: rgba(242, 181, 82, 0.08);
+  background: var(--wash);
   color: var(--ink);
   text-decoration: none;
   transition:
@@ -345,14 +387,14 @@ a:hover {
     transform 0.15s var(--ease);
 }
 .resume:hover {
-  background: rgba(242, 181, 82, 0.14);
+  background: var(--wash-strong);
   transform: translateY(-1px);
 }
 .resume__dot {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink);
   flex-shrink: 0;
   animation: livePulse 2.6s var(--ease) infinite;
 }
@@ -377,7 +419,7 @@ a:hover {
   font-size: var(--text-body);
 }
 .resume__go {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: var(--weight-strong);
   font-size: var(--text-body);
   flex-shrink: 0;
@@ -736,7 +778,7 @@ a:hover {
   color: var(--faint);
 }
 .profile__hint--ok {
-  color: var(--accent);
+  color: var(--ink);
 }
 .profile__hint--error {
   color: var(--danger);
@@ -835,7 +877,7 @@ a:hover {
 }
 .meter__fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--ink);
   border-radius: 999px;
   transition: width 0.4s var(--ease);
 }
@@ -870,7 +912,7 @@ a:hover {
 }
 .brk__fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--ink);
   border-radius: 999px;
 }
 .brk__val {
@@ -896,7 +938,7 @@ a:hover {
 .spark__bar {
   width: 100%;
   max-width: 2.5rem;
-  background: var(--accent);
+  background: var(--ink);
   border-radius: 4px 4px 0 0;
   min-height: 2px;
 }
@@ -972,8 +1014,13 @@ a:hover {
 .room {
   max-width: 1200px;
   margin: 0 auto;
-  padding: 0 var(--space-6) var(--space-7);
-  min-height: 100dvh;
+  padding: 0 var(--space-6) var(--space-6);
+  /* height, not min-height: the room is an app shell that holds the viewport.
+     With min-height a loaded playlist grew the page past the bottom and the
+     columns ran off the end of it. Anything unbounded scrolls inside its own
+     region instead. */
+  height: 100dvh;
+  overflow: hidden;
   display: flex;
   flex-direction: column;
 }
@@ -1004,7 +1051,7 @@ a:hover {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--accent);
+  background: var(--ink);
   animation: livePulse 2.6s var(--ease) infinite;
 }
 .code {
@@ -1240,7 +1287,7 @@ a:hover {
 }
 .progress__fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--ink);
   transition: width 0.5s linear;
 }
 .now__times {
@@ -1265,9 +1312,16 @@ a:hover {
    shared top baseline across the section headers. */
 .room__main {
   display: grid;
-  grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(310px, 350px);
+  /* Two columns: the music on the left at the size it deserves, and
+     everything you do to it on the right. The old three-column split gave the
+     stage the middle third — the smallest share of the page for the thing the
+     room exists for. */
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
   gap: var(--space-6);
-  align-items: start;
+  /* Stretch, not start: each column now carries its own paper, and sizing
+     them to their own content left three cards ending at three different
+     heights against the field behind them. */
+  align-items: stretch;
   /* Claim the height the .room column leaves over, so the rails have real
      room to distribute instead of hugging their content at the top. */
   flex: 1;
@@ -1382,19 +1436,6 @@ a:hover {
 }
 /* The whole header is the control, so the icon, the label and the chevron all
    toggle rather than only one of them being a target. */
-.chat__toggle {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  width: 100%;
-  padding: 0;
-  margin-bottom: var(--space-5);
-  border: 0;
-  background: transparent;
-  color: var(--muted);
-  cursor: pointer;
-  transition: color 0.15s var(--ease);
-}
 .chat__toggle:hover {
   color: var(--ink);
 }
@@ -1405,27 +1446,11 @@ a:hover {
   font-size: var(--text-micro);
   color: var(--faint);
 }
-.chat__chevron {
-  margin-left: auto;
-  transition: transform 0.2s var(--ease);
-}
-.chat--closed .chat__chevron {
-  transform: rotate(-90deg);
-}
 /* Collapsed: the log and composer go, the header stays. */
-.chat--closed .chat__log,
-.chat--closed .chat__form,
-.chat--closed .chat__error {
-  display: none;
-}
 /* Specific enough to beat `.room__rail .chat { flex: 1 }` — otherwise a
    collapsed chat still reserves the whole rail and the header floats above an
    empty box. */
-.room__rail .chat--closed,
-.chat--closed {
-  flex: 0 0 auto;
-}
-/* A window of about seven messages, then it scrolls inside itself — the same
+.room__rail /* A window of about seven messages, then it scrolls inside itself — the same
    treatment the up-next list gets, so neither list can run the page away. The
    cap holds at every width: on a tall screen the rail would otherwise stretch
    the log to whatever height the screen happened to have. */
@@ -1463,7 +1488,7 @@ a:hover {
 /* Your own name carries the accent — the only colour in the log, so you can
    find yourself without reading names. */
 .chat__group--me .chat__name {
-  color: var(--accent);
+  color: var(--ink);
 }
 .chat__time {
   font-size: var(--text-micro);
@@ -1513,7 +1538,7 @@ a:hover {
   padding: var(--space-3) var(--space-4);
 }
 .chat__form .btn:hover:not(:disabled) {
-  color: var(--accent);
+  color: var(--ink);
 }
 .chat__form .btn:disabled {
   color: var(--faint);
@@ -1637,7 +1662,7 @@ a:hover {
   bottom: 2px;
   height: 2px;
   border-radius: 2px;
-  background: rgba(242, 181, 82, 0.18);
+  background: var(--wash-strong);
   overflow: hidden;
   opacity: 1;
   transition: opacity 0.6s var(--ease);
@@ -1648,7 +1673,7 @@ a:hover {
 }
 .track__progress__fill {
   height: 100%;
-  background: var(--accent);
+  background: var(--ink);
   border-radius: inherit;
   transition: width 0.3s var(--ease);
 }
@@ -1706,7 +1731,7 @@ a:hover {
 }
 .ftoast__bar {
   height: 100%;
-  background: var(--accent);
+  background: var(--ink);
   transform-origin: left center;
 }
 
@@ -1768,7 +1793,7 @@ a:hover {
   right: 0;
   bottom: -1px;
   height: 2px;
-  background: var(--accent);
+  background: var(--ink);
 }
 /* One bar, not a field beside a button: the wrapper carries the field's
    chrome and the action sits inside it, so the pair reads as a single
@@ -1805,11 +1830,11 @@ a:hover {
   color: var(--ink);
 }
 .add__search .btn--primary {
-  color: var(--accent);
+  color: var(--ink);
   font-weight: var(--weight-strong);
 }
 .add__search .btn--primary:hover {
-  color: var(--accent-hi);
+  color: var(--ink);
 }
 .add__search .btn:disabled {
   color: var(--faint);
@@ -1890,9 +1915,9 @@ a:hover {
     border-color 0.15s var(--ease);
 }
 .add__btn:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: var(--accent-ink);
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--invert-ink);
 }
 .add__btn:disabled {
   opacity: 0.4;
@@ -1917,7 +1942,7 @@ a:hover {
     background 0.15s var(--ease);
 }
 .add__artistchip:hover:not(:disabled) {
-  border-color: var(--accent);
+  border-color: var(--ink);
   background: var(--surface-2);
 }
 .add__artistchip:disabled {
@@ -2040,10 +2065,10 @@ a:hover {
   color: var(--faint);
 }
 .sound__lyrics[aria-pressed="true"] .sound__beta {
-  border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+  border-color: var(--line-2);
 }
 .sound__lyrics[aria-pressed="true"] {
-  color: var(--accent);
+  color: var(--ink);
   border-color: var(--line);
 }
 
@@ -2265,7 +2290,7 @@ a:hover {
   color: var(--muted);
 }
 .pl__back:hover {
-  color: var(--accent);
+  color: var(--ink);
 }
 .pl__head {
   display: flex;
@@ -2354,13 +2379,13 @@ a:hover {
 /* ---- Motion ---- */
 @keyframes livePulse {
   0% {
-    box-shadow: 0 0 0 0 rgba(242, 181, 82, 0.5);
+    box-shadow: 0 0 0 0 var(--wash-ring);
   }
   70% {
-    box-shadow: 0 0 0 6px rgba(242, 181, 82, 0);
+    box-shadow: 0 0 0 6px rgba(17, 17, 17, 0);
   }
   100% {
-    box-shadow: 0 0 0 0 rgba(242, 181, 82, 0);
+    box-shadow: 0 0 0 0 rgba(17, 17, 17, 0);
   }
 }
 @keyframes fadeUp {
@@ -2501,7 +2526,7 @@ a:hover {
   background: var(--surface-2);
 }
 .lab-track--on {
-  background: rgba(242, 181, 82, 0.1);
+  background: var(--wash);
 }
 .lab-track__art {
   flex-shrink: 0;
@@ -2612,7 +2637,717 @@ a:hover {
   color: var(--ink);
 }
 .lab-bar__play {
-  background: var(--accent) !important;
-  color: var(--accent-ink) !important;
+  background: var(--ink) !important;
+  color: var(--invert-ink) !important;
   padding-left: 1px;
+}
+
+/* ============================================================
+   Terminal vocabulary
+   ============================================================ */
+
+/* Corner brackets. Drawn with two borders rather than a box so a region reads
+   as bracketed rather than boxed — the paper stays the surface. */
+.tick {
+  width: 9px;
+  height: 9px;
+  display: inline-block;
+  flex: none;
+}
+.tick--tl { border-left: 1px solid var(--ink); border-top: 1px solid var(--ink); }
+.tick--tr { border-right: 1px solid var(--ink); border-top: 1px solid var(--ink); }
+.tick--bl { border-left: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+.tick--br { border-right: 1px solid var(--ink); border-bottom: 1px solid var(--ink); }
+
+/* A rule made of dots that fade along its length. Same dot vocabulary as the
+   dithered field, so the divider belongs to the page rather than sitting on
+   top of it. */
+.dotrule {
+  flex: 1;
+  height: 7px;
+  min-width: 40px;
+  background-image: radial-gradient(var(--ink) 38%, transparent 39%);
+  background-size: 3px 3px;
+  -webkit-mask-image: linear-gradient(90deg, transparent 45%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 45%, #000 100%);
+}
+.dotrule--flip {
+  -webkit-mask-image: linear-gradient(90deg, #000 0%, transparent 55%);
+  mask-image: linear-gradient(90deg, #000 0%, transparent 55%);
+}
+
+.acheck {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* The block cursor. Sized from the current line so it sits with the text it
+   follows rather than being pinned to one heading size. */
+.cursor {
+  display: inline-block;
+  width: 0.55em;
+  height: 1.05em;
+  background: var(--ink);
+  vertical-align: -0.16em;
+  animation: cursor-blink 1.1s steps(1) infinite;
+}
+@keyframes cursor-blink {
+  50% { opacity: 0; }
+}
+
+/* No margin: in a monospace system the correct gap is one character cell, so
+   the space character in the markup does it exactly. */
+.prompt {
+  color: var(--faint);
+  font-weight: var(--weight-regular, 400);
+}
+
+/* The dithered field itself: a canvas pinned behind everything, click-through,
+   and never animated. image-rendering matters — a 1-bit lattice that the
+   browser smooths turns into grey mush. */
+.dither-field {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  pointer-events: none;
+  background: var(--dither-paper);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cursor { animation: none; }
+}
+
+/* The paper the UI sits on. Opaque and hard-edged so it holds against either
+   tonal extreme of the dithered field behind it — legibility comes from the
+   structure, not from hoping the backdrop stays light. */
+/* The card hugs its content rather than filling the frame: the dithered field
+   is the subject, and the paper is a note laid on top of it. Its centring is
+   the frame's job (.container.hero), not its own. */
+.paper {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  padding: var(--space-6);
+  width: 100%;
+  max-width: 460px;
+  margin-inline: auto;
+}
+.paper__rule {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+.paper__rule--foot {
+  margin: var(--space-4) 0 0;
+}
+.paper__mark {
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-label, 0.22em);
+  text-transform: uppercase;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* Signed in, the home is a two-column reading: what you can do on the left,
+   what is happening on the right. Previously a single column that ran past
+   the fold — the action and the context belong on screen together. */
+.container.hero--wide {
+  /* Two tracks: a main column carrying the banner and the friends panel at the
+     same width, and a rail beside them for listening history. The left edge of
+     banner and friends line up, which is what makes the page read as one
+     block rather than three stacked cards. */
+  max-width: 1300px;
+  margin-inline: 0 auto;
+  display: grid;
+  /* The rail was 330px, which truncated most track titles — "Everything Has
+     Changed (Tay…" is not a useful thing to read. Wide enough for a real
+     title now, and a fraction rather than a cap so it grows with the page. */
+  grid-template-columns: minmax(0, 1fr) minmax(360px, 0.62fr);
+  grid-template-areas:
+    "banner  rail"
+    "friends rail";
+  /* Stretch, not start: the rail spans both rows, so sizing it to its own
+     content left its bottom edge floating somewhere between the two cards
+     beside it. Stretching makes every card share one baseline and one top,
+     and the column heights resolve from the grid rather than from whichever
+     list happened to be longest. */
+  align-items: stretch;
+  gap: var(--space-4);
+}
+.hero--wide .paper {
+  max-width: none;
+  margin-inline: 0;
+}
+.hero--wide .hero__banner { grid-area: banner; }
+.hero--wide .hero__friends { grid-area: friends; }
+.hero--wide .hero__history { grid-area: rail; }
+
+/* The banner sets identity against action rather than stacking them, which
+   left two thirds of its width empty.
+   Centred, not bottom-aligned: the wordmark is much shorter than the action
+   stack, so aligning their bottoms pinned it low and pooled all the slack in
+   one place above it. Centring splits that slack above and below, which is
+   what reads as balance. */
+.hero--wide .hero__banner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  column-gap: var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+}
+/* 34ch is a comfortable measure for a sans and a cramped one for a mono at
+   the same count — it wrapped after four words and left the column looking
+   empty beside it. */
+.hero--wide .banner__id .lead {
+  max-width: 46ch;
+  margin-top: var(--space-4);
+}
+/* The action stack sets its own width so the two blocks meet nearer the
+   middle instead of hugging opposite edges. */
+.hero--wide .banner__do {
+  width: min(320px, 100%);
+}
+/* Everything in the stack spans its full width, so the resume card, the
+   primary button and the join row share one left and one right edge.
+   .lobby is align-items:flex-start by default, which let each child shrink to
+   its own content — the button ended up half the width of the row above it
+   for no reason a reader could see. The button also sits inside a .stack
+   wrapper, so both have to stretch or the inner one still collapses. */
+.hero--wide .banner__do .lobby {
+  align-items: stretch;
+  max-width: none;
+  margin-top: 0;
+  gap: var(--space-5);
+}
+.hero--wide .banner__do .lobby > *,
+.hero--wide .banner__do .stack {
+  width: 100%;
+}
+.hero--wide .banner__do .stack {
+  align-items: stretch;
+}
+.hero--wide .banner__do .btn--lg {
+  width: 100%;
+  justify-content: center;
+}
+.hero--wide .hero__banner .paper__rule,
+.hero--wide .hero__banner .paper__rule--foot {
+  grid-column: 1 / -1;
+}
+.banner__id {
+  min-width: 0;
+  /* Top-aligned: the wordmark now leads a sequence (mark, typed line, lead)
+     that reads downward, and centring it in a band sized by the taller action
+     stack pushed the whole sequence low. */
+  align-self: start;
+}
+.banner__do { justify-self: end; }
+.banner__do .yt-status { margin-top: var(--space-4); }
+
+/* Cards lay themselves out as columns so their content can claim the height
+   the grid gave them instead of pooling slack at the bottom. */
+.hero--wide .hero__friends,
+.hero--wide .hero__history {
+  display: flex;
+  flex-direction: column;
+}
+/* History is the one unbounded list, so it takes the leftover height and
+   scrolls inside it. min-height:0 is what actually lets a flex child shrink
+   below its content — without it the list pushes the card taller instead of
+   scrolling, and the columns stop matching again. */
+.hero--wide .hero__history .home-history {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+/* The page holds one screen: the grid is what is left after the topbar and
+   the page's own vertical padding. */
+.container.hero--wide {
+  min-height: calc(100vh - var(--space-9));
+}
+
+@media (max-width: 900px) {
+  .container.hero--wide {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "banner" "friends" "rail";
+  }
+  .hero--wide .hero__banner {
+    grid-template-columns: minmax(0, 1fr);
+    row-gap: var(--space-5);
+  }
+  .banner__do { justify-self: start; }
+  .hero--wide .hero__history .home-history {
+    max-height: none;
+    overflow-y: visible;
+  }
+}
+
+/* The friends panel keeps its place whether or not anyone is jamming, so the
+   home does not reflow as friends come and go. An empty panel points at the
+   thing that would fix it rather than just stating the absence. */
+.home-jams__note {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-meta);
+}
+.home-jams__note a {
+  color: var(--ink);
+  text-decoration: underline;
+}
+
+/* The typed line. Reserves its own height so the block beneath it does not
+   jump every time the message empties between greetings. */
+.typed {
+  margin: var(--space-5) 0 var(--space-4);
+  font-size: var(--text-body);
+  color: var(--muted);
+  line-height: var(--leading-body);
+  /* Two lines' worth, reserved: the longest greeting wraps, and without the
+     room for it the line was clipped mid-sentence — "…she dont use my" and
+     nothing after. Reserving it also stops the block below jumping as
+     messages of different lengths come and go. */
+  min-height: calc(var(--text-body) * var(--leading-body) * 2);
+}
+.typed strong {
+  color: var(--ink);
+  font-weight: var(--weight-strong);
+}
+
+
+/* These panels were built to follow other content on the old page, so they
+   carry their own top margin. Inside a card they sit directly under its rule,
+   and that margin stacked with the rule's to put ~56px of nothing between the
+   bracket and the heading. */
+.hero--wide .home-history,
+.hero--wide .home-jams {
+  margin-top: 0;
+  max-width: none;
+}
+
+/* ============================================================
+   Room surfaces
+   ============================================================
+   Every one of these relied on the page background for legibility. With the
+   dithered field behind the app there is no page background to inherit, so
+   each column carries its own paper — the same rule the home follows. */
+.room__bar {
+  background: var(--surface);
+  border: 1px solid var(--line-2);
+  border-bottom: 1px solid var(--line-2);
+  padding: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+.room__queue,
+.room__rail,
+.room__center .stage,
+.room__center .add {
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  padding: var(--space-5);
+}
+.room__center {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+/* The stage already carries its own surface for the player card; the wrapper
+   only needs to hold it, not paint behind it twice. */
+.room__center .stage {
+  padding: var(--space-4);
+}
+.room__main {
+  gap: var(--space-4);
+}
+
+
+/* The chat log claims what is left of the rail instead of the rail hugging
+   its messages. */
+.room__rail {
+  display: flex;
+  flex-direction: column;
+}
+.room__rail .chat {
+  flex: 1;
+  min-height: 0;
+}
+
+
+/* The rail's sections are rule-and-content blocks rather than separate cards:
+   bordered boxes stacked in one column read as clutter, and the rail already
+   has an edge of its own. Scoped inside the view now — as a rule on the
+   rail's own children it drew a divider and a band of padding between the
+   tabs and the panel they switch. */
+.rail__view > * + * {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.room__rail .add,
+.room__rail .room__queue {
+  background: none;
+  border: 0;
+  padding: 0;
+  /* Not sticky in here. The queue was its own column once and pinned itself
+     while that column scrolled; sharing a scrolling rail with add-music, it
+     stayed put while search results scrolled underneath it and the two drew
+     on top of each other. */
+  position: static;
+}
+.room__center .add {
+  display: none;
+}
+@media (max-width: 980px) {
+  .room__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* Nothing in the room grows the page. min-height:0 on each level is what lets
+   a flex child shrink below its content so the scroll lands on the region
+   that owns the list, rather than on the document. */
+.room__main {
+  min-height: 0;
+}
+.room__center,
+.room__rail {
+  min-height: 0;
+}
+.room__rail {
+  overflow-y: auto;
+}
+.room__rail .add__results,
+.room__rail .add__body,
+.room__rail .queue {
+  overflow-y: visible;
+}
+
+
+/* Who is here belongs with the live signal, not filed under a heading halfway
+   down a rail: it is the same fact as "this room is live". A row, so it reads
+   left to right alongside the code rather than as a list. */
+.room__who {
+  margin-left: auto;
+  margin-right: var(--space-5);
+  min-width: 0;
+}
+.room__who .people {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-4);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  overflow-x: auto;
+}
+.room__who .person {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  white-space: nowrap;
+  padding: 0;
+  border: 0;
+}
+.room__who .person__name {
+  font-size: var(--text-meta);
+  color: var(--muted);
+}
+
+
+/* The player card is sized, not stretched: a fixed-shape thing does not get
+   better by being taller. Chat takes the height underneath it, which is the
+   part of the column that actually benefits from room. */
+/* ---- Centre column: the sleeve, then chat ----
+   One rule for the stage rather than the five that had accumulated. They
+   contradicted each other: `flex: 1` sets flex-basis to 0, which makes the
+   flex algorithm size the item and the `height` below it inert — the frame
+   collapsed to its old 160px band no matter what height was set. */
+.room__center .stage {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.room__center .player-wrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.room__center .audio-stage {
+  flex: none;
+  padding: 0;
+  overflow: hidden;
+  /* The sleeve is the thing worth looking at, so the frame takes the larger
+     share of the column and chat takes what is left. */
+  /* Tuned to fit beside the now-playing meta and chat's floor: at 50vh the
+     three together ran past the bottom of the shell and cut the composer. */
+  height: clamp(230px, 38vh, 430px);
+  min-height: 0;
+}
+.room__center .chat {
+  /* A floor, so a short window cannot squeeze it to a single line where the
+     log and the composer stop being usable together. */
+  min-height: 150px;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  padding: var(--space-5);
+}
+.room__center .chat__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* The old layout pinned this from a measured variable; in a flex column it
+     takes what is left instead. */
+  height: auto;
+  max-height: none;
+}
+
+/* The cover, dithered, where the visualiser used to be. Square and centred:
+   a stretched sleeve looks wrong in a way people notice without being able to
+   say why. Fades in because a dithered image appearing instantly reads as a
+   flash of noise. */
+.albumart {
+  /* Absolute, so the canvas cannot contribute to the height of the frame it is
+     measuring. In flow, setting canvas.width/height changed the element's
+     intrinsic size, which grew the parent, which grew the canvas — the art
+     appeared to zoom in forever. Out of flow there is no loop to have. */
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  opacity: 0;
+  transition: opacity 0.3s var(--ease);
+  background: var(--surface-2);
+}
+.albumart--ready {
+  opacity: 1;
+}
+.audio-stage__content {
+  pointer-events: none;
+}
+.audio-stage__content > * {
+  pointer-events: auto;
+}
+
+
+
+
+
+
+/* The controls sit under the artwork rather than over it. Overlaying a button
+   on a dithered cover fought the image for the same pixels and made both
+   harder to read; beneath, each gets its own space. */
+.stage__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) 0;
+  text-align: center;
+}
+.stage__controls:empty {
+  padding: 0;
+}
+.stage__controls .audio-stage__progress {
+  position: static;
+  width: 100%;
+}
+.stage__controls .audio-stage__status {
+  position: static;
+  max-height: none;
+  border-top: 0;
+  padding: 0;
+  bottom: auto;
+}
+.stage__controls .empty {
+  padding: var(--space-4) 0 0;
+}
+
+
+
+/* ---- The rail's two views ----
+   One column carrying either the queue and add-music, or chat. Both stay
+   mounted so switching keeps chat's scroll and any open search results; only
+   which one is visible changes. */
+.rail__switch {
+  display: flex;
+  gap: var(--space-5);
+  border-bottom: 1px solid var(--line);
+  margin-bottom: var(--space-5);
+}
+.rail__tab {
+  appearance: none;
+  background: none;
+  border: 0;
+  padding: 0 0 var(--space-3);
+  /* Nudged down so the selected tab's rule lands on the switch's own, rather
+     than a hairline below it. A transform, not a negative margin: this is an
+     optical overlap, and the space scale is for spacing. */
+  transform: translateY(1px);
+  font: inherit;
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+  color: var(--faint);
+  cursor: pointer;
+  border-bottom: 1px solid transparent;
+  transition: color 0.2s var(--ease);
+}
+.rail__tab:hover {
+  color: var(--muted);
+}
+.rail__tab[aria-selected="true"] {
+  color: var(--ink);
+  border-bottom-color: var(--ink);
+}
+/* The two views are stacked on the same grid cell rather than swapped in and
+   out, which is what lets one fade out while the other fades in instead of
+   the column jumping as the DOM changes height. */
+.rail__stack {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: grid;
+}
+.rail__view {
+  grid-area: 1 / 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  opacity: 0;
+  pointer-events: none;
+  /* Not focusable while hidden: a tab-stop behind an invisible panel is the
+     kind of thing only keyboard users find, and only by getting lost. */
+  visibility: hidden;
+  transition:
+    opacity 0.22s var(--ease),
+    visibility 0s linear 0.22s;
+}
+.rail__view[data-active="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  visibility: visible;
+  transition:
+    opacity 0.22s var(--ease),
+    visibility 0s;
+}
+.rail__view .chat {
+  flex: 1;
+  min-height: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .rail__view {
+    transition: none;
+  }
+}
+
+/* Unread marker beside the chat tab. Filled rather than tinted: in a
+   two-colour system an inverted block is how something insists on attention. */
+.rail__badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 15px;
+  height: 15px;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-1);
+  background: var(--ink);
+  color: var(--invert-ink);
+  font-size: var(--text-micro);
+  letter-spacing: var(--track-body);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+
+/* Chat fills the rail so the composer sits on the bottom edge rather than
+   floating wherever the message list happens to end. */
+.rail__view .chat {
+  height: 100%;
+}
+.rail__view .chat__log {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+  max-height: none;
+  overflow-y: auto;
+}
+.rail__view .chat__form {
+  margin-top: auto;
+}
+
+
+/* Nothing in the music view shrinks below its content. These are flex items in
+   a column that is often over-full, and with min-height:0 allowing them past
+   their content and overflow visible by default, the queue compressed to a
+   single line while its suggestions carried on painting straight over
+   add-music. The rail scrolls; its contents keep their size. */
+.rail__view .room__queue,
+.rail__view .add {
+  flex: none;
+  min-height: auto;
+}
+
+
+/* The rail is a flex column; its default gap was stacking on top of the
+   switch's own margin and opening a band of nothing between the tabs and the
+   panel they switch. One source of spacing, not two. */
+.room__rail {
+  gap: 0;
+}
+.rail__switch {
+  margin-bottom: var(--space-4);
+}
+
+/* Square, so the whole sleeve is visible rather than cropped to a letterbox.
+   Chat moved to the rail, so this column is the artwork alone and can afford
+   the height; capped so it still fits a short window. */
+.room__center .audio-stage {
+  aspect-ratio: 1;
+  height: auto;
+  /* The controls and the track meta need roughly 150px beneath this. At 66vh
+     the card overflowed its own column at both ends — the eyebrow clipped at
+     the top and the time row at the bottom — so the ceiling stays here and the
+     card's centring takes up the slack instead. */
+  max-height: min(60vh, 455px);
+  width: 100%;
+  margin-inline: auto;
+}
+
+
+/* The queue is unbounded — a room can hold as many tracks as people care to
+   add — so it scrolls within about five rows rather than growing the rail
+   until everything below it is pushed off the page. The row height is the
+   scale's, so the window tracks the row rather than being a magic pixel
+   count that drifts when a row changes. */
+.rail__view .queue {
+  max-height: calc(var(--space-10) * 2.7);
+  overflow-y: auto;
+  /* Keeps the scrollbar off the rows themselves. */
+  padding-right: var(--space-1);
+}
+
+
+/* The player card fills its column so its bottom edge lands on the rail's.
+   The column already stretched; the card inside it stopped at its content and
+   left the two looking misaligned even though their columns were not. The
+   artwork keeps its cap — the slack goes below the track meta. */
+.room__center .stage {
+  flex: 1;
+  min-height: 0;
+}
+
+
+/* The card fills the column, so its contents sit in the middle of it rather
+   than hugging the top with the slack pooled underneath the meta. */
+.room__center .stage {
+  justify-content: center;
 }

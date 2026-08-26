@@ -17,7 +17,7 @@ import { shouldSkipPreparing } from "@/src/audio/preparing";
 import { trackDownloadState, type TrackDownloadState } from "@/src/audio/downloads";
 import { createClient } from "@/src/lib/supabase/client";
 import { Lyrics } from "./lyrics";
-import { PixelVisualizer, type VisualizerMode } from "./pixel-visualizer";
+import { AlbumArt } from "./album-art";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
 const DRIFT_THRESHOLD_S = 1.2;
@@ -92,18 +92,6 @@ function statusText(status: Status): string {
   }
 }
 
-function visualizerMode(status: Status): VisualizerMode {
-  switch (status.kind) {
-    case "playing":
-      return "reactive";
-    case "loading":
-    case "preparing":
-    case "unreachable":
-      return "pulse";
-    default:
-      return "idle";
-  }
-}
 
 export function Player({
   roomId,
@@ -519,12 +507,13 @@ export function Player({
   return (
     <>
       <div className="audio-stage">
-      <PixelVisualizer
-        audio={audioRef.current}
-        // Nothing to react to when this device isn't the one playing.
-        mode={silent ? "idle" : visualizerMode(status)}
+      <AlbumArt
         artworkUrl={nowPlaying?.thumbnailUrl ?? null}
+        title={nowPlaying?.title ?? null}
+        audioRef={audioRef}
+        active={started && !silent}
       />
+      </div>
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
@@ -534,7 +523,7 @@ export function Player({
         onPlay={syncPlaybackState}
         onPause={syncPlaybackState}
       />
-      <div className="audio-stage__content">
+      <div className="stage__controls">
         {nowPlaying === null && (
           <div className="empty">
             <div className="empty__title">Your room is ready.</div>
@@ -576,7 +565,6 @@ export function Player({
             {nowPlaying !== null ? statusText(status) : ""}
           </p>
         )}
-      </div>
       </div>
 
       {/* Under the card, ahead of the track meta and the chat. Button first,
