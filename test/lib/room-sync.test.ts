@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { playbackCorrection } from "../../src/lib/room/sync";
+import { playbackCorrection, trackHasEnded } from "../../src/lib/room/sync";
 
 const base = { durationMs: 275000, driftThresholdSeconds: 1.2 };
 
@@ -43,5 +43,46 @@ describe("playbackCorrection", () => {
       kind: "seek",
       toSeconds: 100,
     });
+  });
+});
+
+describe("trackHasEnded", () => {
+  const durationMs = 252_000;
+
+  it("is false while the track is still running", () => {
+    expect(
+      trackHasEnded({ startedAt: 1_000_000, durationMs, nowMs: 1_000_000 + 100_000 }),
+    ).toBe(false);
+  });
+
+  it("is true once the shared clock passes the duration", () => {
+    expect(
+      trackHasEnded({ startedAt: 1_000_000, durationMs, nowMs: 1_000_000 + durationMs }),
+    ).toBe(true);
+  });
+
+  it("stays true long after the end, which is the stuck-room case", () => {
+    expect(
+      trackHasEnded({ startedAt: 1_000_000, durationMs, nowMs: 1_000_000 + 442_819 }),
+    ).toBe(true);
+  });
+
+  it("is false when the clock has not started", () => {
+    // A pending track has no elapsed time to run out - advancing it here
+    // would skip a track nobody has heard.
+    expect(trackHasEnded({ startedAt: null, durationMs, nowMs: 9_999_999 })).toBe(false);
+  });
+
+  it("is false when a bad offset puts the clock before the start", () => {
+    expect(
+      trackHasEnded({ startedAt: 1_000_000, durationMs, nowMs: 900_000 }),
+    ).toBe(false);
+  });
+
+  it("is false for a track with no known duration", () => {
+    // Duration 0 would otherwise read as "already over" and skip instantly.
+    expect(trackHasEnded({ startedAt: 1_000_000, durationMs: 0, nowMs: 1_000_001 })).toBe(
+      false,
+    );
   });
 });

@@ -9,7 +9,7 @@ import {
   shouldPlayHere,
   type PlaybackMode,
 } from "@/src/lib/room/playback-mode";
-import { playbackCorrection } from "@/src/lib/room/sync";
+import { playbackCorrection, trackHasEnded } from "@/src/lib/room/sync";
 import { VOLUME_STORAGE_KEY, readVolume, volumeLevel } from "@/src/lib/room/volume";
 import type { QueueTrack, RoomNowPlaying } from "@/src/lib/room/types";
 import { createAudioServer, type AudioServer } from "@/src/audio/client";
@@ -21,6 +21,9 @@ import { AlbumArt } from "./album-art";
 
 /** Re-seek if the local player drifts more than this from the shared clock. */
 const DRIFT_THRESHOLD_S = 1.2;
+/** How often to ask whether the room's clock has run the track out. Matches
+ *  the old drift cadence, which is what this check used to ride on. */
+const END_CHECK_MS = 2000;
 /** How often to re-check the link while a track is still downloading. */
 const PREPARING_POLL_MS = 3000;
 /** How often to retry when mp3server is unreachable. */
@@ -323,29 +326,38 @@ export function Player({
     };
   }, [started, trackKey, roomId, mode]);
 
-  // Drift correction + end-of-track fallback, same policy as before.
+  // The room's clock runs the track out whether or not anything is playing
+  // it. Kept apart from drift correction and deliberately ungated: drift
+  // needs a started, sourced, unpaused element, and a track that ran out
+  // while every listener was paused, silent, or just looking at the page
+  // used to sit on screen at full elapsed time until somebody tapped in.
+  // advanceTrack compare-and-sets on the track it was handed, so every
+  // listener firing this at once still advances exactly one track.
   useEffect(() => {
-    if (!started) return;
+    const id = setInterval(() => {
+      const np = nowPlayingRef.current;
+      if (!np) return;
+      if (
+        trackHasEnded({
+          startedAt: np.startedAt,
+          durationMs: np.durationMs,
+          nowMs: Date.now() + offsetRef.current,
+        })
+      ) {
+        void advanceTrack(roomId, np.videoId);
+      }
+    }, END_CHECK_MS);
+    return () => clearInterval(id);
+  }, [roomId]);
+
+  // Drift correction only - ending is handled above.
+  useEffect(() => {
+    if (!started || mode === "silent") return;
     const id = setInterval(() => {
       const audio = audioRef.current;
       const np = nowPlayingRef.current;
       if (!np || np.startedAt === null) return;
       const expectedSeconds = (Date.now() + offsetRef.current - np.startedAt) / 1000;
-
-      // Following silently: there's no element to correct, but the track
-      // still has to end. Without this, a room where every device chose
-      // "listen in" would sit on a finished track forever, since the advance
-      // normally rides on the playing device's clock check.
-      if (mode === "silent") {
-        const action = playbackCorrection({
-          expectedSeconds,
-          actualSeconds: expectedSeconds,
-          durationMs: np.durationMs,
-          driftThresholdSeconds: DRIFT_THRESHOLD_S,
-        });
-        if (action.kind === "advance") void advanceTrack(roomId, np.videoId);
-        return;
-      }
 
       if (!audio) return;
       if (currentVideo.current !== np.videoId || !audio.src) return;
@@ -362,10 +374,6 @@ export function Player({
         durationMs: np.durationMs,
         driftThresholdSeconds: DRIFT_THRESHOLD_S,
       });
-      if (action.kind === "advance") {
-        void advanceTrack(roomId, np.videoId);
-        return;
-      }
       if (action.kind === "seek") audio.currentTime = action.toSeconds;
     }, 2000);
     return () => clearInterval(id);
