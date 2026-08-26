@@ -125,9 +125,6 @@ export default async function Home({
                 </>
               )}
             </div>
-
-            <FriendsInJam />
-            <RecentPlays />
           </Reveal>
         )}
           <div className="paper__rule paper__rule--foot">
@@ -135,6 +132,25 @@ export default async function Home({
             <DotRule flip />
           </div>
         </div>
+
+        {user && (
+          <>
+            <section className="paper">
+              <div className="paper__rule">
+                <Tick corner="tl" />
+                <DotRule />
+              </div>
+              <FriendsInJam />
+            </section>
+            <section className="paper">
+              <div className="paper__rule">
+                <Tick corner="tl" />
+                <DotRule />
+              </div>
+              <RecentPlays />
+            </section>
+          </>
+        )}
       </main>
     </>
   );
