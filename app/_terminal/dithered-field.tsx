@@ -43,12 +43,14 @@ export function DitheredField({
       const img = image.current;
       if (!canvas || !img || cancelled) return;
 
-      // Cap the pixel count rather than the dimensions: a wide window and a
-      // tall one should cost the same, and a 4K display should not pay 4× to
-      // render a texture nobody inspects that closely.
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-      const w = Math.max(1, Math.round(canvas.clientWidth * ratio));
-      const h = Math.max(1, Math.round(canvas.clientHeight * ratio));
+      // One buffer pixel per CSS pixel, always. A dither must never be scaled:
+      // nearest-neighbour resampling of a 1-bit lattice drops and doubles rows
+      // of dots, which is what tore the field apart. Measured on a 2.2 dpr
+      // screen, capping the ratio at 1.5 left the buffer 1.501× the box —
+      // fractional, so every cell landed between pixels. Matching the box
+      // exactly means there is nothing to resample.
+      const w = Math.max(1, Math.round(canvas.clientWidth));
+      const h = Math.max(1, Math.round(canvas.clientHeight));
       canvas.width = w;
       canvas.height = h;
 
@@ -102,8 +104,7 @@ export function DitheredField({
     const observer = new ResizeObserver(() => {
       const canvas = ref.current;
       if (!canvas) return;
-      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
-      const want = Math.round(canvas.clientWidth * ratio);
+      const want = Math.round(canvas.clientWidth);
       // Repaint only on a real change: the observer fires for the resize our
       // own paint causes, and reacting to that would loop.
       if (want === canvas.width) return;

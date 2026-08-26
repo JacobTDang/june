@@ -3070,3 +3070,32 @@ a:hover {
   font-size: var(--text-meta);
   color: var(--muted);
 }
+
+
+/* The player card is sized, not stretched: a fixed-shape thing does not get
+   better by being taller. Chat takes the height underneath it, which is the
+   part of the column that actually benefits from room. */
+.room__center .stage {
+  flex: none;
+}
+.room__center .audio-stage {
+  min-height: 0;
+}
+.room__center .chat {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  border: 1px solid var(--line-2);
+  padding: var(--space-5);
+}
+.room__center .chat__log {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  /* The old layout pinned this from a measured variable; in a flex column it
+     takes what is left instead. */
+  height: auto;
+  max-height: none;
+}
