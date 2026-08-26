@@ -34,6 +34,7 @@ import {
   confirmedRemovals,
   removeById,
   restoreAt,
+  skipLocally,
   withoutPending,
 } from "@/src/lib/room/queue-edit";
 import { rowExit, swipeAxis, swipeOffset, swipeRelease } from "@/src/lib/room/swipe";
@@ -491,6 +492,29 @@ export function Room({
       });
   }
 
+  /**
+   * Skip on screen first, then tell the server.
+   *
+   * The server action alone left the room looking like it had not heard the
+   * tap: the track only changed when a realtime event or the next poll
+   * arrived. This makes the same move locally - promote the next track,
+   * pending, and drop it from the queue - so the server's reply confirms what
+   * is already there instead of being the thing that starts it.
+   */
+  function onSkip() {
+    const [next] = queue;
+    const { nowPlaying: promoted, queue: rest } = skipLocally(queue);
+    // Same tombstone the remove path uses. Without it the promoted track sits
+    // in the queue and in the player at once: this device drops it locally,
+    // then the server's list arrives still carrying it and puts it back.
+    if (next) removing.current.add(next.id);
+    setState((current) => ({ ...current, nowPlaying: promoted }));
+    setQueue(rest);
+    void skipTrack(initial.id).finally(() => {
+      void refresh();
+    });
+  }
+
   function commitReorder() {
     reorderPending.current = true;
     void reorderQueue(
@@ -598,6 +622,13 @@ export function Room({
       .then(setOffset)
       .catch(() => setOffset(0));
   }, []);
+
+  // Home is fetched before it is asked for, so pressing Leave moves rather
+  // than pausing on the room while the next page is rendered. The server call
+  // was already off the critical path; this is the rest of the wait.
+  useEffect(() => {
+    router.prefetch("/");
+  }, [router]);
 
   function onLeave() {
     // Leaving is immediate: the room is behind you the moment you press it, and
@@ -750,7 +781,7 @@ export function Room({
               <NowPlaying
                 nowPlaying={nowPlaying}
                 offset={offset ?? 0}
-                onSkip={() => void skipTrack(initial.id)}
+                onSkip={onSkip}
               />
             )}
           </section>

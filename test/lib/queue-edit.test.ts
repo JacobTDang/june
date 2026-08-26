@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
+import type { QueueTrack } from "../../src/lib/room/types";
 import {
   confirmedRemovals,
   removeById,
+  skipLocally,
   restoreAt,
   withoutPending,
 } from "../../src/lib/room/queue-edit";
@@ -81,5 +83,58 @@ describe("confirmedRemovals", () => {
 
   it("names none when nothing is pending", () => {
     expect(confirmedRemovals([], queue())).toEqual([]);
+  });
+});
+
+describe("skipLocally", () => {
+  const track = (id: string): QueueTrack => ({
+    id,
+    videoId: `v-${id}`,
+    title: id,
+    durationMs: 1000,
+  });
+
+  it("promotes the next track and drops it from the queue", () => {
+    const { nowPlaying, queue } = skipLocally([track("a"), track("b")]);
+    expect(nowPlaying?.videoId).toBe("v-a");
+    expect(queue.map((t) => t.id)).toEqual(["b"]);
+  });
+
+  it("promotes it pending, with no clock", () => {
+    // The server promotes the next track without starting its clock — that
+    // happens once a listener confirms the track is downloadable. Guessing a
+    // start time here would put this device seconds ahead of the room.
+    expect(skipLocally([track("a")]).nowPlaying?.startedAt).toBeNull();
+  });
+
+  it("carries the track's own details across", () => {
+    const rich: QueueTrack = {
+      id: "a",
+      videoId: "v",
+      title: "Song",
+      artist: "Band",
+      durationMs: 4321,
+      thumbnailUrl: "http://art",
+      addedByName: "jacob",
+    };
+    const { nowPlaying } = skipLocally([rich]);
+    expect(nowPlaying).toMatchObject({
+      videoId: "v",
+      title: "Song",
+      artist: "Band",
+      durationMs: 4321,
+      thumbnailUrl: "http://art",
+      addedByName: "jacob",
+    });
+  });
+
+  it("empties the room when nothing is queued", () => {
+    expect(skipLocally([])).toEqual({ nowPlaying: null, queue: [] });
+  });
+
+  it("leaves the original queue alone", () => {
+    const original = [track("a"), track("b")];
+    skipLocally(original);
+    expect(original.map((t) => t.id)).toEqual(["a", "b"]);
   });
 });
