@@ -3162,3 +3162,33 @@ a:hover {
 
 
 
+
+
+/* The controls sit under the artwork rather than over it. Overlaying a button
+   on a dithered cover fought the image for the same pixels and made both
+   harder to read; beneath, each gets its own space. */
+.stage__controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5) 0;
+  text-align: center;
+}
+.stage__controls:empty {
+  padding: 0;
+}
+.stage__controls .audio-stage__progress {
+  position: static;
+  width: 100%;
+}
+.stage__controls .audio-stage__status {
+  position: static;
+  max-height: none;
+  border-top: 0;
+  padding: 0;
+  bottom: auto;
+}
+.stage__controls .empty {
+  padding: var(--space-4) 0 0;
+}

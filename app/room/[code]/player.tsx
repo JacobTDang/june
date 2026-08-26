@@ -508,6 +508,7 @@ export function Player({
     <>
       <div className="audio-stage">
       <AlbumArt artworkUrl={nowPlaying?.thumbnailUrl ?? null} title={nowPlaying?.title ?? null} />
+      </div>
       <audio
         ref={audioRef}
         crossOrigin="anonymous"
@@ -517,7 +518,7 @@ export function Player({
         onPlay={syncPlaybackState}
         onPause={syncPlaybackState}
       />
-      <div className="audio-stage__content">
+      <div className="stage__controls">
         {nowPlaying === null && (
           <div className="empty">
             <div className="empty__title">Your room is ready.</div>
@@ -559,7 +560,6 @@ export function Player({
             {nowPlaying !== null ? statusText(status) : ""}
           </p>
         )}
-      </div>
       </div>
 
       {/* Under the card, ahead of the track meta and the chat. Button first,
