@@ -32,6 +32,7 @@ import { AddMusic } from "./add-music";
 import { Chat } from "./chat";
 import { QueueSuggestions } from "./queue-suggestions";
 import { FriendToasts } from "./friend-toasts";
+import { RoomBackdrop } from "./room-backdrop";
 import { sampleClockOffset } from "./clock-client";
 
 type QueueItem = RoomState["queue"][number];
@@ -499,6 +500,7 @@ export function Room({
 
   return (
     <main className="room rise">
+      <RoomBackdrop nowPlaying={nowPlaying} />
       <FriendToasts meId={me.userId} />
       <div className="room__bar">
         <div className="room__barL">
@@ -517,31 +519,6 @@ export function Room({
       </div>
 
       <div className="room__main" ref={mainRef}>
-        <section className="room__queue">
-          <div className="section__head">
-            <span className="eyebrow">Up next</span>
-          </div>
-          {queue.length === 0 ? (
-            <QueueSuggestions roomId={initial.id} />
-          ) : (
-            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
-              {queue.map((t) => (
-                <QueueRow
-                  key={t.id}
-                  track={t}
-                  reduce={reduce}
-                  downloadPercent={downloadProgress.get(t.videoId)}
-                  onRemove={() => void removeQueueItem(t.id)}
-                  onDragStart={() => {
-                    reorderPending.current = true;
-                  }}
-                  onCommit={commitReorder}
-                />
-              ))}
-            </Reorder.Group>
-          )}
-        </section>
-
         <div className="room__center">
           <section className="stage">
             <div className="section__head">
@@ -569,10 +546,35 @@ export function Room({
               />
             )}
           </section>
-          <AddMusic roomId={initial.id} />
         </div>
 
         <aside className="room__rail">
+        <section className="room__queue">
+          <div className="section__head">
+            <span className="eyebrow">Up next</span>
+          </div>
+          {queue.length === 0 ? (
+            <QueueSuggestions roomId={initial.id} />
+          ) : (
+            <Reorder.Group axis="y" values={queue} onReorder={setQueue} className="queue" layoutScroll>
+              {queue.map((t) => (
+                <QueueRow
+                  key={t.id}
+                  track={t}
+                  reduce={reduce}
+                  downloadPercent={downloadProgress.get(t.videoId)}
+                  onRemove={() => void removeQueueItem(t.id)}
+                  onDragStart={() => {
+                    reorderPending.current = true;
+                  }}
+                  onCommit={commitReorder}
+                />
+              ))}
+            </Reorder.Group>
+          )}
+        </section>
+
+          <AddMusic roomId={initial.id} />
           <section className="room__people">
             <div className="section__head">
               <span className="eyebrow">In the room</span>

@@ -19,7 +19,18 @@ const RESIZE_SETTLE_MS = 180;
  * Cover-fits the source the way `background-size: cover` would, so the field
  * fills the viewport at any aspect without distorting.
  */
-export function DitheredField({ src, gamma = 0.85 }: { src: string; gamma?: number }) {
+export function DitheredField({
+  src,
+  gamma = 0.85,
+  onFail,
+}: {
+  src: string;
+  gamma?: number;
+  /** Called when the source cannot be dithered — a failed load, or a canvas
+   *  tainted by a host that sends no CORS headers. The caller decides what to
+   *  show instead; this component does not quietly render nothing. */
+  onFail?: (reason: string) => void;
+}) {
   const ref = useRef<HTMLCanvasElement>(null);
   const image = useRef<HTMLImageElement | null>(null);
 
@@ -49,7 +60,16 @@ export function DitheredField({ src, gamma = 0.85 }: { src: string; gamma?: numb
       const dh = img.height * scale;
       ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
 
-      const frame = ctx.getImageData(0, 0, w, h);
+      let frame: ImageData;
+      try {
+        frame = ctx.getImageData(0, 0, w, h);
+      } catch {
+        // Reading back a canvas drawn from a host that sends no CORS headers
+        // throws. Report it rather than leaving a blank rectangle behind the
+        // page with no explanation.
+        onFail?.(`cannot read pixels from ${src} (no CORS headers?)`);
+        return;
+      }
       const gray = luminance(frame.data);
       autoLevels(gray, gamma);
       ditherOrdered(gray, w, h, SCREEN);
@@ -71,6 +91,7 @@ export function DitheredField({ src, gamma = 0.85 }: { src: string; gamma?: numb
       image.current = img;
       paint();
     };
+    img.onerror = () => onFail?.(`could not load ${src}`);
     img.src = src;
 
     function onResize() {
@@ -83,7 +104,7 @@ export function DitheredField({ src, gamma = 0.85 }: { src: string; gamma?: numb
       if (timer) clearTimeout(timer);
       window.removeEventListener("resize", onResize);
     };
-  }, [src, gamma]);
+  }, [src, gamma, onFail]);
 
   return <canvas ref={ref} className="dither-field" aria-hidden />;
 }

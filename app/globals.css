@@ -1286,7 +1286,11 @@ a:hover {
    shared top baseline across the section headers. */
 .room__main {
   display: grid;
-  grid-template-columns: minmax(220px, 250px) minmax(0, 1fr) minmax(310px, 350px);
+  /* Two columns: the music on the left at the size it deserves, and
+     everything you do to it on the right. The old three-column split gave the
+     stage the middle third — the smallest share of the page for the thing the
+     room exists for. */
+  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
   gap: var(--space-6);
   /* Stretch, not start: each column now carries its own paper, and sizing
      them to their own content left three cards ending at three different
@@ -2961,21 +2965,19 @@ a:hover {
 }
 
 
-/* The centre column holds two cards. The slack goes to Add Music, not the
-   stage: the stage is a fixed-shape player, while Add Music is where search
-   results land and can use the room. Giving it to the stage instead ate the
-   whole column and pushed Add Music off the bottom of the page. */
-.room__center .add {
+/* Add Music moved to the rail, so the stage is alone in this column and takes
+   all of it — which is the point of the rearrangement: the artwork gets the
+   largest surface on the page rather than the middle third of three. */
+.room__center .stage,
+.room__center .player-wrap,
+.room__center .audio-stage {
   flex: 1;
-  display: flex;
-  flex-direction: column;
   min-height: 0;
 }
-.room__center .add .add__results,
-.room__center .add .add__body {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
+.room__center .stage,
+.room__center .player-wrap {
+  display: flex;
+  flex-direction: column;
 }
 /* The chat log claims what is left of the rail instead of the rail hugging
    its messages. */
@@ -2986,4 +2988,28 @@ a:hover {
 .room__rail .chat {
   flex: 1;
   min-height: 0;
+}
+
+
+/* The right rail stacks queue, people, add-music and chat. Each section is a
+   rule-and-content block rather than its own card: four bordered boxes in one
+   column reads as clutter, and the rail already has an edge of its own. */
+.room__rail > * + * {
+  margin-top: var(--space-5);
+  padding-top: var(--space-5);
+  border-top: 1px solid var(--line);
+}
+.room__rail .add,
+.room__rail .room__queue {
+  background: none;
+  border: 0;
+  padding: 0;
+}
+.room__center .add {
+  display: none;
+}
+@media (max-width: 980px) {
+  .room__main {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
