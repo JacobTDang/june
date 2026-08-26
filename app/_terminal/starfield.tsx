@@ -182,7 +182,7 @@ export function Starfield() {
       c.width = w;
       c.height = h;
       stars = makeStars(Math.min(MAX_STARS, Math.round((w * h) / 1e6 * DENSITY)), w, h, Math.random);
-      staves = makeStaves(Math.max(8, Math.round((w * h) / 105000)), w, h, Math.random);
+      staves = makeStaves(Math.max(34, Math.round((w * h) / 18000)), w, h, Math.random);
     }
 
     function draw(now: number) {
