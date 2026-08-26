@@ -2768,13 +2768,33 @@ a:hover {
 .hero--wide .hero__history { grid-area: rail; }
 
 /* The banner sets identity against action rather than stacking them, which
-   left two thirds of its width empty. */
+   left two thirds of its width empty.
+   Centred, not bottom-aligned: the wordmark is much shorter than the action
+   stack, so aligning their bottoms pinned it low and pooled all the slack in
+   one place above it. Centring splits that slack above and below, which is
+   what reads as balance. */
 .hero--wide .hero__banner {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  column-gap: var(--space-7);
-  padding: var(--space-5) var(--space-6);
+  grid-template-columns: minmax(0, 1fr) minmax(0, auto);
+  align-items: center;
+  column-gap: var(--space-6);
+  padding: var(--space-5) var(--space-6) var(--space-4);
+}
+/* 34ch is a comfortable measure for a sans and a cramped one for a mono at
+   the same count — it wrapped after four words and left the column looking
+   empty beside it. */
+.hero--wide .banner__id .lead {
+  max-width: 46ch;
+  margin-top: var(--space-4);
+}
+/* The action stack sets its own width so the two blocks meet nearer the
+   middle instead of hugging opposite edges. */
+.hero--wide .banner__do {
+  width: min(300px, 100%);
+}
+.hero--wide .banner__do .lobby,
+.hero--wide .banner__do .btn--lg {
+  width: 100%;
 }
 .hero--wide .hero__banner .paper__rule,
 .hero--wide .hero__banner .paper__rule--foot {
