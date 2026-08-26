@@ -101,3 +101,67 @@ export function isSpent(a: Asteroid, width: number, height: number): boolean {
     a.x > width + SPENT_MARGIN
   );
 }
+
+/** A fragment of hand-drawn staff sitting somewhere in the field. */
+export type Stave = {
+  x: number;
+  y: number;
+  width: number;
+  /** Gap between staff lines; everything else scales off it. */
+  spacing: number;
+  /** Radians. Kept small — a staff at a jaunty angle reads as a sticker. */
+  tilt: number;
+  /** Seeds the wobble so each stave is drawn a little differently. */
+  seed: number;
+  notes: Note[];
+};
+
+export type Note = {
+  /** 0..1 along the stave. */
+  at: number;
+  /** Staff steps from the middle line; negative is higher. */
+  step: number;
+  /** Hollow, like a minim. */
+  open: boolean;
+};
+
+/**
+ * Scatter staff fragments across the field.
+ *
+ * Placed away from the vertical middle band on purpose: that is where the app's
+ * own cards sit, and notation behind a card is just noise the reader has to
+ * see past.
+ */
+export function makeStaves(
+  count: number,
+  width: number,
+  height: number,
+  rand: () => number,
+): Stave[] {
+  const staves: Stave[] = [];
+  for (let i = 0; i < count; i++) {
+    const spacing = 5 + rand() * 4;
+    const noteCount = 3 + Math.floor(rand() * 5);
+    const notes: Note[] = [];
+    for (let n = 0; n < noteCount; n++) {
+      notes.push({
+        at: (n + 0.5 + (rand() - 0.5) * 0.35) / noteCount,
+        step: Math.round((rand() - 0.5) * 8),
+        open: rand() < 0.25,
+      });
+    }
+    // Left or right third, never the middle: the cards live there.
+    const leftSide = rand() < 0.5;
+    const w = 100 + rand() * 150;
+    staves.push({
+      x: leftSide ? rand() * (width * 0.3) : width * 0.7 + rand() * (width * 0.3 - w * 0.3),
+      y: rand() * height,
+      width: w,
+      spacing,
+      tilt: (rand() - 0.5) * 0.14,
+      seed: rand() * 1000,
+      notes,
+    });
+  }
+  return staves;
+}

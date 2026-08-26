@@ -4,11 +4,13 @@ import { useEffect, useRef } from "react";
 import {
   isSpent,
   makeStars,
+  makeStaves,
   spawnAsteroid,
   starBrightness,
   stepAsteroid,
   type Asteroid,
   type Star,
+  type Stave,
 } from "@/src/visual/starfield";
 
 /** Stars per million pixels — density, so a laptop and a big display look the
@@ -59,6 +61,98 @@ function sparkle(
   }
 }
 
+/** Cheap repeatable noise, so a stave wobbles the same way on every repaint
+ *  instead of shivering. */
+function wobbleAt(seed: number, t: number): number {
+  return (
+    Math.sin(seed + t * 5.1) * 0.6 +
+    Math.sin(seed * 1.7 + t * 11.3) * 0.3 +
+    Math.sin(seed * 0.3 + t * 23.7) * 0.1
+  );
+}
+
+/**
+ * A line drawn the way a hand draws it: never quite straight, thicker in the
+ * middle of a stroke than at its ends.
+ *
+ * Sampled into segments with a smooth perpendicular drift rather than random
+ * jitter per point — random jitter looks like a bad signal, drift looks like a
+ * wrist.
+ */
+function inkLine(
+  ctx: CanvasRenderingContext2D,
+  x1: number,
+  y1: number,
+  x2: number,
+  y2: number,
+  seed: number,
+  amount = 1.1,
+) {
+  const dx = x2 - x1;
+  const dy = y2 - y1;
+  const len = Math.hypot(dx, dy);
+  const steps = Math.max(6, Math.round(len / 14));
+  const nx = -dy / len;
+  const ny = dx / len;
+  ctx.beginPath();
+  for (let i = 0; i <= steps; i++) {
+    const t = i / steps;
+    // Pinned at both ends: a line that wanders at its endpoints looks broken
+    // rather than drawn.
+    const taper = Math.sin(t * Math.PI);
+    const off = wobbleAt(seed, t) * amount * taper;
+    const px = x1 + dx * t + nx * off;
+    const py = y1 + dy * t + ny * off;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.stroke();
+}
+
+/** One fragment of staff with notes on it, drawn by hand. */
+function drawStave(ctx: CanvasRenderingContext2D, s: Stave) {
+  ctx.save();
+  ctx.translate(s.x, s.y);
+  ctx.rotate(s.tilt);
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  ctx.lineWidth = 0.9;
+  for (let line = -2; line <= 2; line++) {
+    inkLine(ctx, 0, line * s.spacing, s.width, line * s.spacing, s.seed + line * 7.3, 1.2);
+  }
+
+  for (const note of s.notes) {
+    const nx = note.at * s.width;
+    const ny = (note.step / 2) * s.spacing;
+    // Ledger line for a note sitting off the staff.
+    if (Math.abs(note.step / 2) > 2.2) {
+      ctx.lineWidth = 0.9;
+      const at = Math.sign(note.step) * 3 * s.spacing;
+      inkLine(ctx, nx - s.spacing, at, nx + s.spacing, at, s.seed + note.at * 31, 0.8);
+    }
+    // Head: an oval on a slant, the way a nib lays it down.
+    ctx.save();
+    ctx.translate(nx, ny);
+    ctx.rotate(-0.34);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, s.spacing * 0.72, s.spacing * 0.52, 0, 0, Math.PI * 2);
+    if (note.open) {
+      ctx.lineWidth = 1.1;
+      ctx.stroke();
+    } else {
+      ctx.fill();
+    }
+    ctx.restore();
+    // Stem: up on the low notes, down on the high ones, as notation does.
+    ctx.lineWidth = 1;
+    const up = note.step > 0;
+    const sx = nx + (up ? s.spacing * 0.66 : -s.spacing * 0.66);
+    inkLine(ctx, sx, ny, sx, ny + (up ? -1 : 1) * s.spacing * 3.2, s.seed + note.at * 53, 0.7);
+  }
+  ctx.restore();
+}
+
 export function Starfield() {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -70,6 +164,7 @@ export function Starfield() {
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     let stars: Star[] = [];
+    let staves: Stave[] = [];
     let asteroids: Asteroid[] = [];
     let nextAsteroid = ASTEROID_EVERY_MS;
     let raf = 0;
@@ -87,6 +182,7 @@ export function Starfield() {
       c.width = w;
       c.height = h;
       stars = makeStars(Math.min(MAX_STARS, Math.round((w * h) / 1e6 * DENSITY)), w, h, Math.random);
+      staves = makeStaves(Math.max(4, Math.round((w * h) / 230000)), w, h, Math.random);
     }
 
     function draw(now: number) {
@@ -100,6 +196,12 @@ export function Starfield() {
       // Paper, not night sky: the page is light, so the stars are ink on it.
       ctx.fillStyle = "#f4f3ee";
       ctx.fillRect(0, 0, c.width, c.height);
+
+      // Notation sits behind the stars, and lighter: it is texture the eye
+      // should find rather than read.
+      ctx.fillStyle = "rgba(17,17,17,0.30)";
+      ctx.strokeStyle = "rgba(17,17,17,0.30)";
+      for (const stave of staves) drawStave(ctx, stave);
 
       ctx.fillStyle = "#111111";
       ctx.strokeStyle = "#111111";

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   isSpent,
   makeStars,
+  makeStaves,
   spawnAsteroid,
   starBrightness,
   stepAsteroid,
@@ -107,5 +108,36 @@ describe("asteroids", () => {
   it("is not spent while still on its way in", () => {
     const a = spawnAsteroid(800, 600, seeded(8));
     expect(isSpent(a, 800, 600)).toBe(false);
+  });
+});
+
+describe("makeStaves", () => {
+  it("keeps out of the middle band where the cards sit", () => {
+    // Notation behind a card is noise the reader has to see past.
+    const staves = makeStaves(40, 1000, 700, seeded(11));
+    for (const s of staves) {
+      const middle = s.x > 300 && s.x < 700;
+      expect(middle).toBe(false);
+    }
+  });
+
+  it("gives every stave notes on it", () => {
+    for (const s of makeStaves(20, 1000, 700, seeded(12))) {
+      expect(s.notes.length).toBeGreaterThan(2);
+      for (const n of s.notes) {
+        expect(n.at).toBeGreaterThan(0);
+        expect(n.at).toBeLessThan(1);
+      }
+    }
+  });
+
+  it("keeps the tilt slight, so a stave reads as drawn and not as a sticker", () => {
+    for (const s of makeStaves(30, 1000, 700, seeded(13))) {
+      expect(Math.abs(s.tilt)).toBeLessThan(0.1);
+    }
+  });
+
+  it("is reproducible for a given seed", () => {
+    expect(makeStaves(6, 900, 600, seeded(14))).toEqual(makeStaves(6, 900, 600, seeded(14)));
   });
 });

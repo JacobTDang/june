@@ -2972,20 +2972,6 @@ a:hover {
 }
 
 
-/* Add Music moved to the rail, so the stage is alone in this column and takes
-   all of it — which is the point of the rearrangement: the artwork gets the
-   largest surface on the page rather than the middle third of three. */
-.room__center .stage,
-.room__center .player-wrap,
-.room__center .audio-stage {
-  flex: 1;
-  min-height: 0;
-}
-.room__center .stage,
-.room__center .player-wrap {
-  display: flex;
-  flex-direction: column;
-}
 /* The chat log claims what is left of the rail instead of the rail hugging
    its messages. */
 .room__rail {
@@ -3077,13 +3063,36 @@ a:hover {
 /* The player card is sized, not stretched: a fixed-shape thing does not get
    better by being taller. Chat takes the height underneath it, which is the
    part of the column that actually benefits from room. */
+/* ---- Centre column: the sleeve, then chat ----
+   One rule for the stage rather than the five that had accumulated. They
+   contradicted each other: `flex: 1` sets flex-basis to 0, which makes the
+   flex algorithm size the item and the `height` below it inert — the frame
+   collapsed to its old 160px band no matter what height was set. */
 .room__center .stage {
   flex: none;
+  display: flex;
+  flex-direction: column;
+}
+.room__center .player-wrap {
+  flex: none;
+  display: flex;
+  flex-direction: column;
 }
 .room__center .audio-stage {
+  flex: none;
+  padding: 0;
+  overflow: hidden;
+  /* The sleeve is the thing worth looking at, so the frame takes the larger
+     share of the column and chat takes what is left. */
+  /* Tuned to fit beside the now-playing meta and chat's floor: at 50vh the
+     three together ran past the bottom of the shell and cut the composer. */
+  height: clamp(230px, 38vh, 430px);
   min-height: 0;
 }
 .room__center .chat {
+  /* A floor, so a short window cannot squeeze it to a single line where the
+     log and the composer stop being usable together. */
+  min-height: 150px;
   flex: 1;
   min-height: 0;
   display: flex;
@@ -3124,11 +3133,6 @@ a:hover {
 .albumart--ready {
   opacity: 1;
 }
-/* The stage is the frame around it, so it stops claiming a fixed band of
-   height it no longer needs for a canvas visualiser. */
-.audio-stage {
-  min-height: 0;
-}
 .audio-stage__content {
   pointer-events: none;
 }
@@ -3137,22 +3141,5 @@ a:hover {
 }
 
 
-/* The stage wraps the sleeve rather than reserving a band for a canvas that
-   is no longer there. */
-.room__center .audio-stage {
-  min-height: 0;
-  padding: var(--space-5);
-}
-.room__center .player-wrap {
-  flex: none;
-}
 
 
-/* The stage is the frame the sleeve fills: a fixed band rather than something
-   that grows with its contents, so the card keeps its shape whatever is
-   playing and chat keeps the height below it. */
-.room__center .audio-stage {
-  padding: 0;
-  height: clamp(220px, 34vh, 340px);
-  overflow: hidden;
-}
