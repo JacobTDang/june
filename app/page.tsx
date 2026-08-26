@@ -5,6 +5,7 @@ import { getMyRoom } from "@/src/lib/room/actions";
 import { getMyProfile } from "@/src/lib/profile/actions";
 import { safeNext } from "@/src/lib/safe-next";
 import { Avatar } from "./avatar";
+import { Cursor, DotRule, Prompt, Tick } from "./_terminal/primitives";
 import { FriendsInJam } from "./friends-in-jam";
 import { RecentPlays } from "./recent-plays";
 import { Reveal } from "./reveal";
@@ -58,8 +59,20 @@ export default async function Home({
       )}
 
       <main className="container hero">
+        <div className="paper">
+        {/* The card's own header rule: a bracket, the product mark, and a rule
+            that thins out — the same dot vocabulary as the field behind it. */}
+        <div className="paper__rule">
+          <Tick corner="tl" />
+          <span className="paper__mark">JUNE</span>
+          <DotRule />
+        </div>
         <Reveal>
-          <h1 className="display">june</h1>
+          <h1 className="display">
+            <Prompt />
+            june
+            <Cursor />
+          </h1>
         </Reveal>
         <Reveal delay={0.08}>
           <p className="lead">Play the same song, at the same second, with your friends.</p>
@@ -117,6 +130,11 @@ export default async function Home({
             <RecentPlays />
           </Reveal>
         )}
+          <div className="paper__rule paper__rule--foot">
+            <Tick corner="bl" />
+            <DotRule flip />
+          </div>
+        </div>
       </main>
     </>
   );
