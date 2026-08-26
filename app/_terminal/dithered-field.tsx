@@ -94,15 +94,28 @@ export function DitheredField({
     img.onerror = () => onFail?.(`could not load ${src}`);
     img.src = src;
 
-    function onResize() {
+    // A ResizeObserver, not a window resize listener: the canvas box changes
+    // for reasons the window never hears about — a scrollbar appearing when a
+    // playlist loads, a layout reflow, a devtools dock. Any of those left the
+    // bitmap at its old size being stretched to a new box, and a stretched
+    // 1-bit lattice under image-rendering:pixelated reads as torn and uneven.
+    const observer = new ResizeObserver(() => {
+      const canvas = ref.current;
+      if (!canvas) return;
+      const ratio = Math.min(window.devicePixelRatio || 1, 1.5);
+      const want = Math.round(canvas.clientWidth * ratio);
+      // Repaint only on a real change: the observer fires for the resize our
+      // own paint causes, and reacting to that would loop.
+      if (want === canvas.width) return;
       if (timer) clearTimeout(timer);
       timer = setTimeout(paint, RESIZE_SETTLE_MS);
-    }
-    window.addEventListener("resize", onResize);
+    });
+    if (ref.current) observer.observe(ref.current);
+
     return () => {
       cancelled = true;
       if (timer) clearTimeout(timer);
-      window.removeEventListener("resize", onResize);
+      observer.disconnect();
     };
   }, [src, gamma, onFail]);
 

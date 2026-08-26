@@ -513,6 +513,20 @@ export function Room({
             {copied ? "Copied" : initial.id.replace(/-/g, " · ")}
           </button>
         </div>
+          <div className="room__who">
+            <ul className="people">
+              {participants.map((p) => (
+                <li key={p.userId} className="person">
+                  <Avatar name={p.name} url={p.avatarUrl} size={28} />
+                  <span className="person__name">
+                    {p.name}
+                    {p.userId === me.userId ? " · you" : ""}
+                  </span>
+                  {participantAction(p.userId, p.name)}
+                </li>
+              ))}
+            </ul>
+          </div>
         <button className="btn btn--sm" onClick={onLeave}>
           Leave
         </button>
@@ -575,23 +589,6 @@ export function Room({
         </section>
 
           <AddMusic roomId={initial.id} />
-          <section className="room__people">
-            <div className="section__head">
-              <span className="eyebrow">In the room</span>
-            </div>
-            <ul className="people">
-              {participants.map((p) => (
-                <li key={p.userId} className="person">
-                  <Avatar name={p.name} url={p.avatarUrl} size={28} />
-                  <span className="person__name">
-                    {p.name}
-                    {p.userId === me.userId ? " · you" : ""}
-                  </span>
-                  {participantAction(p.userId, p.name)}
-                </li>
-              ))}
-            </ul>
-          </section>
 
           <div className="rule" />
 
