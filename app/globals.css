@@ -2734,10 +2734,10 @@ a:hover {
   display: flex;
   align-items: center;
   gap: var(--space-4);
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 .paper__rule--foot {
-  margin: var(--space-6) 0 0;
+  margin: var(--space-4) 0 0;
 }
 .paper__mark {
   font-size: var(--text-micro);
@@ -2804,11 +2804,30 @@ a:hover {
 /* The action stack sets its own width so the two blocks meet nearer the
    middle instead of hugging opposite edges. */
 .hero--wide .banner__do {
-  width: min(300px, 100%);
+  width: min(320px, 100%);
 }
-.hero--wide .banner__do .lobby,
+/* Everything in the stack spans its full width, so the resume card, the
+   primary button and the join row share one left and one right edge.
+   .lobby is align-items:flex-start by default, which let each child shrink to
+   its own content — the button ended up half the width of the row above it
+   for no reason a reader could see. The button also sits inside a .stack
+   wrapper, so both have to stretch or the inner one still collapses. */
+.hero--wide .banner__do .lobby {
+  align-items: stretch;
+  max-width: none;
+  margin-top: 0;
+  gap: var(--space-5);
+}
+.hero--wide .banner__do .lobby > *,
+.hero--wide .banner__do .stack {
+  width: 100%;
+}
+.hero--wide .banner__do .stack {
+  align-items: stretch;
+}
 .hero--wide .banner__do .btn--lg {
   width: 100%;
+  justify-content: center;
 }
 .hero--wide .hero__banner .paper__rule,
 .hero--wide .hero__banner .paper__rule--foot {
@@ -2882,4 +2901,15 @@ a:hover {
   color: var(--muted);
   min-height: calc(var(--text-body) * var(--leading-body));
   line-height: var(--leading-body);
+}
+
+
+/* These panels were built to follow other content on the old page, so they
+   carry their own top margin. Inside a card they sit directly under its rule,
+   and that margin stacked with the rule's to put ~56px of nothing between the
+   bracket and the heading. */
+.hero--wide .home-history,
+.hero--wide .home-jams {
+  margin-top: 0;
+  max-width: none;
 }

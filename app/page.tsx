@@ -75,7 +75,6 @@ export default async function Home({
             that thins out — the same dot vocabulary as the field behind it. */}
         <div className="paper__rule">
           <Tick corner="tl" />
-          <span className="paper__mark">JUNE</span>
           <DotRule />
         </div>
         <div className="banner__id">
