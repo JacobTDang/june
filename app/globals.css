@@ -2745,14 +2745,23 @@ a:hover {
    what is happening on the right. Previously a single column that ran past
    the fold — the action and the context belong on screen together. */
 .container.hero--split {
-  max-width: 1080px;
+  /* Left-aligned rather than centred: the field is the subject and the page
+     sits on it, so it reads better anchored to one edge than floated in the
+     middle with equal margins on both sides. */
+  max-width: 1000px;
+  margin-inline: 0 auto;
   display: grid;
-  grid-template-columns: minmax(0, 400px) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 380px) minmax(0, 1fr);
   align-items: start;
-  gap: var(--space-5);
+  gap: var(--space-4);
 }
-.hero--split .hero__main {
+/* Both columns fill their track. .paper caps its width and centres itself,
+   which is right for the lone signed-out card and wrong inside a grid — it
+   was adding ~80px of dead space between the columns on top of the gap. */
+.hero--split .hero__main,
+.hero--split .hero__side .paper {
   max-width: none;
+  margin-inline: 0;
 }
 .hero__side {
   display: flex;
