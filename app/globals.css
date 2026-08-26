@@ -3313,9 +3313,11 @@ a:hover {
 .room__center .audio-stage {
   aspect-ratio: 1;
   height: auto;
-  /* Leaves room for the controls and the track meta beneath it: at 72vh the
-     square pushed both off the bottom of the shell. */
-  max-height: min(52vh, 430px);
+  /* The controls and the track meta need roughly 150px beneath this. At 66vh
+     the card overflowed its own column at both ends — the eyebrow clipped at
+     the top and the time row at the bottom — so the ceiling stays here and the
+     card's centring takes up the slack instead. */
+  max-height: min(60vh, 455px);
   width: 100%;
   margin-inline: auto;
 }
@@ -3341,4 +3343,11 @@ a:hover {
 .room__center .stage {
   flex: 1;
   min-height: 0;
+}
+
+
+/* The card fills the column, so its contents sit in the middle of it rather
+   than hugging the top with the slack pooled underneath the meta. */
+.room__center .stage {
+  justify-content: center;
 }

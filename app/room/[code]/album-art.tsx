@@ -59,10 +59,16 @@ export function AlbumArt({
     if (!ctx) return;
     // Cover-fit: crop to fill rather than letterbox. A sleeve floating in a
     // band of empty card reads as a mistake; a cropped one reads as a frame.
+    //
+    // Anchored to the bottom, not the centre: sleeves put their type along the
+    // bottom edge far more often than the top, so cropping from the top keeps
+    // the artist and title in frame where centring would slice both.
+    // Horizontally it stays centred — covers are usually composed around their
+    // middle.
     const scale = Math.max(w / image.width, h / image.height);
     const dw = image.width * scale;
     const dh = image.height * scale;
-    ctx.drawImage(image, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.drawImage(image, (w - dw) / 2, h - dh, dw, dh);
     let frame: ImageData;
     try {
       frame = ctx.getImageData(0, 0, w, h);
