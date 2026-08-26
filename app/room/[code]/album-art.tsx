@@ -99,15 +99,19 @@ export function AlbumArt({
       ditherOrdered(gray, w, h, SCREEN);
 
       // The same lattice the monochrome pass would give, except every lit dot
-      // carries the colour that pixel actually had. Unlit dots are left as the
-      // page's own ground rather than painted, so the sleeve keeps the one-bit
-      // texture the rest of june is drawn in.
+      // carries the colour that pixel actually had.
+      //
+      // Unlit dots are painted opaque ink, never left transparent. A
+      // photograph is not part of the interface and must not invert with it:
+      // letting the page show through the gaps made the sleeve read correctly
+      // on the dark theme and fall apart on the light one, where paper came up
+      // through the dots that carry the picture's shadows.
       for (let i = 0; i < gray.length; i++) {
         if (gray[i] === 0) {
           frame.data[i * 4] = 0;
           frame.data[i * 4 + 1] = 0;
           frame.data[i * 4 + 2] = 0;
-          frame.data[i * 4 + 3] = 0;
+          frame.data[i * 4 + 3] = 255;
           continue;
         }
         const r = source[i * 4]!;
