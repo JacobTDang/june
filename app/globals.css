@@ -1070,7 +1070,12 @@ a:hover {
    the three rails sat at their natural height and left the bottom half of a
    desktop screen as dead background. */
 .room {
-  max-width: 1200px;
+  /* Grows with the window rather than stopping dead at 1200px. Capped flat, a
+     zoomed-out screen left the shell marooned in the middle of the field — and
+     it starved the sleeve too, which is bounded by the centre column's width:
+     the extra height had nothing to spend itself on and pooled under the
+     player as dead card. Matches the home page's cap so the two shells agree. */
+  max-width: min(1500px, 96vw);
   margin: 0 auto;
   padding: 0 var(--space-6) var(--space-6);
   /* height, not min-height: the room is an app shell that holds the viewport.
@@ -1380,7 +1385,13 @@ a:hover {
      everything you do to it on the right. The old three-column split gave the
      stage the middle third — the smallest share of the page for the thing the
      room exists for. */
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+  /* The music column is sized by the sleeve rather than by a fraction of the
+     page. The sleeve is a square bounded by the height available, so a fixed
+     fraction left the card much wider than the art it holds — 43% of it empty
+     at 1374x732. Sizing the column to its content puts the card's edge on the
+     sleeve's edge and hands the slack to the rail, which has a list that can
+     use it. */
+  grid-template-columns: auto minmax(360px, 1fr);
   gap: var(--space-6);
   /* Stretch, not start: each column now carries its own paper, and sizing
      them to their own content left three cards ending at three different
@@ -3386,44 +3397,33 @@ a:hover {
   margin-bottom: var(--space-4);
 }
 
-/* Square, so the whole sleeve is visible rather than cropped to a letterbox.
-   Chat moved to the rail, so this column is the artwork alone and can afford
-   the height; capped so it still fits a short window. */
-.room__center .audio-stage {
-  /* One cap, applied to both axes. `max-height` on its own could not hold this
-     square: with `width: 100%`, any column wider than the cap resolved to
-     column-width x cap, and `aspect-ratio` lost. That is a letterbox, and the
-     cover-fit then cropped the sleeve's top and bottom off to fill it — on a
-     square sleeve, about a third of the record, including whatever type sits
-     along the top edge. Capping the width to the same value keeps the side
-     always min(column, cap), so the frame cannot letterbox at any width.
+/* The sleeve is the largest square that fits its card, bounded on both axes.
 
-     The vh half of the cap is what keeps a short window safe, so it is
-     unchanged: the controls and the track meta still need roughly 150px
-     beneath the frame, and at 66vh the card used to overflow its column at
-     both ends. Only the pixel ceiling moved, and it can only bind on a window
-     tall enough for 60vh to clear it. */
-  --sleeve-cap: min(60vh, 520px);
+   Getting this wrong is easy and was: the rule used to ask for
+   `aspect-ratio: 1` while setting `width: 100%` against a `max-height` cap, so
+   on any card wider than the cap the box resolved to card-width x cap and the
+   ratio simply lost. It was never square on desktop — 2.44:1 at 1512x805. The
+   art is cover-fitted into that frame, so the letterbox then cropped the top
+   and bottom off the record, taking any type printed along the top edge with
+   it.
+
+   One value drives both sides instead. `min()` picks the smaller of the card's
+   own width and the height left over once the eyebrow, the track meta and the
+   controls have taken theirs, so the sleeve fills the card's width on a tall
+   window and stops at the available height on a short one — square either way.
+   The 312px is that furniture measured, not a guess. */
+.room__center .audio-stage {
+  --sleeve-cap: calc(100dvh - 312px);
   aspect-ratio: 1;
   height: auto;
   max-height: var(--sleeve-cap);
-  /* Width follows height rather than being set against it. The frame is a
-     shrinkable flex item, so a short column takes height off it — and with a
-     fixed width that shrink came straight out of the aspect ratio and
-     letterboxed the sleeve again. Deriving the width from whatever height it
-     ends up with keeps it square at every column height; the cap becomes a
-     ceiling on the width instead. */
-  width: auto;
-  max-width: min(100%, var(--sleeve-cap));
-  /* Without this the column's default `stretch` sets the width to the full
-     card and `width: auto` never gets to resolve against the ratio. Starting
-     the item instead lets the width come from the height, and puts the frame
-     on the card's left edge in the same stroke. */
+  width: var(--sleeve-cap);
+  max-width: 100%;
+  /* Flush left. The eyebrow above it, the title below it and the progress bar
+     all begin at the card's left edge; the frame was the one thing that did
+     not, so on a wide card it sat visibly indented from everything it belongs
+     with. `align-self` also stops the column stretching it. */
   align-self: flex-start;
-  /* Flush left, not centred. The eyebrow above it, the track title below it
-     and the progress bar all start at the card's left edge; centring the
-     frame was the one thing in the column that did not, so on a wide card the
-     sleeve sat visibly indented from everything it belongs with. */
   margin-inline: 0;
 }
 
@@ -3448,13 +3448,12 @@ a:hover {
   min-height: 0;
 }
 .room__center .audio-stage {
-  /* A definite basis, not `auto`. The width is derived from the height now, so
-     an `auto` basis asked the height to come from the width and the width to
-     come from the height — the frame collapsed to its floor. Starting from the
-     cap gives the shrink something to work from: a short column takes height
-     off it and the width follows, so it gets smaller without ever ceasing to
-     be square. */
-  flex: 0 1 var(--sleeve-cap);
+  /* Not a flex-sized item any more. Letting the column shrink its height was
+     what broke the square before: the width was set independently, so the
+     shrink came straight out of the aspect ratio. The cap above already
+     accounts for everything else in the column, so there is nothing left to
+     shrink for. */
+  flex: none;
   min-height: var(--audio-stage-min-h);
 }
 
