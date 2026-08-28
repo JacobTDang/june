@@ -1070,7 +1070,12 @@ a:hover {
    the three rails sat at their natural height and left the bottom half of a
    desktop screen as dead background. */
 .room {
-  max-width: 1200px;
+  /* Grows with the window rather than stopping dead at 1200px. Capped flat, a
+     zoomed-out screen left the shell marooned in the middle of the field — and
+     it starved the sleeve too, which is bounded by the centre column's width:
+     the extra height had nothing to spend itself on and pooled under the
+     player as dead card. Matches the home page's cap so the two shells agree. */
+  max-width: min(1500px, 96vw);
   margin: 0 auto;
   padding: 0 var(--space-6) var(--space-6);
   /* height, not min-height: the room is an app shell that holds the viewport.
@@ -1380,7 +1385,13 @@ a:hover {
      everything you do to it on the right. The old three-column split gave the
      stage the middle third — the smallest share of the page for the thing the
      room exists for. */
-  grid-template-columns: minmax(0, 1.35fr) minmax(340px, 1fr);
+  /* The music column is sized by the sleeve rather than by a fraction of the
+     page. The sleeve is a square bounded by the height available, so a fixed
+     fraction left the card much wider than the art it holds — 43% of it empty
+     at 1374x732. Sizing the column to its content puts the card's edge on the
+     sleeve's edge and hands the slack to the rail, which has a list that can
+     use it. */
+  grid-template-columns: auto minmax(360px, 1fr);
   gap: var(--space-6);
   /* Stretch, not start: each column now carries its own paper, and sizing
      them to their own content left three cards ending at three different
@@ -2817,8 +2828,17 @@ a:hover {
      same width, and a rail beside them for listening history. The left edge of
      banner and friends line up, which is what makes the page read as one
      block rather than three stacked cards. */
-  max-width: 1300px;
-  margin-inline: 0 auto;
+  /* `margin-inline` takes start and end, so the old `0 auto` pinned the page
+     to the left edge and pooled every spare pixel on the right — a 700px void
+     down one side of a zoomed-out window, with the grid hard against the other.
+     `.container` itself centres; this variant was the only thing overriding it.
+
+     The cap grows with the viewport rather than stopping dead at a fixed
+     width, so a wide window is used rather than framed. The vw term keeps a
+     narrow window's own padding intact, and the px term stops the two columns
+     stretching past a comfortable reading width on a very large display. */
+  max-width: min(1500px, 96vw);
+  margin-inline: auto;
   display: grid;
   /* The rail was 330px, which truncated most track titles — "Everything Has
      Changed (Tay…" is not a useful thing to read. Wide enough for a real
@@ -3377,19 +3397,34 @@ a:hover {
   margin-bottom: var(--space-4);
 }
 
-/* Square, so the whole sleeve is visible rather than cropped to a letterbox.
-   Chat moved to the rail, so this column is the artwork alone and can afford
-   the height; capped so it still fits a short window. */
+/* The sleeve is the largest square that fits its card, bounded on both axes.
+
+   Getting this wrong is easy and was: the rule used to ask for
+   `aspect-ratio: 1` while setting `width: 100%` against a `max-height` cap, so
+   on any card wider than the cap the box resolved to card-width x cap and the
+   ratio simply lost. It was never square on desktop — 2.44:1 at 1512x805. The
+   art is cover-fitted into that frame, so the letterbox then cropped the top
+   and bottom off the record, taking any type printed along the top edge with
+   it.
+
+   One value drives both sides instead. `min()` picks the smaller of the card's
+   own width and the height left over once the eyebrow, the track meta and the
+   controls have taken theirs, so the sleeve fills the card's width on a tall
+   window and stops at the available height on a short one — square either way.
+   The 312px is that furniture measured, not a guess. */
 .room__center .audio-stage {
+  --sleeve-cap: calc(100dvh - 312px);
   aspect-ratio: 1;
   height: auto;
-  /* The controls and the track meta need roughly 150px beneath this. At 66vh
-     the card overflowed its own column at both ends — the eyebrow clipped at
-     the top and the time row at the bottom — so the ceiling stays here and the
-     card's centring takes up the slack instead. */
-  max-height: min(60vh, 455px);
-  width: 100%;
-  margin-inline: auto;
+  max-height: var(--sleeve-cap);
+  width: var(--sleeve-cap);
+  max-width: 100%;
+  /* Flush left. The eyebrow above it, the title below it and the progress bar
+     all begin at the card's left edge; the frame was the one thing that did
+     not, so on a wide card it sat visibly indented from everything it belongs
+     with. `align-self` also stops the column stretching it. */
+  align-self: flex-start;
+  margin-inline: 0;
 }
 
 /* The sleeve is the thing that gives way, not the card. Rigid, it could not:
@@ -3413,7 +3448,12 @@ a:hover {
   min-height: 0;
 }
 .room__center .audio-stage {
-  flex: 0 1 auto;
+  /* Not a flex-sized item any more. Letting the column shrink its height was
+     what broke the square before: the width was set independently, so the
+     shrink came straight out of the aspect ratio. The cap above already
+     accounts for everything else in the column, so there is nothing left to
+     shrink for. */
+  flex: none;
   min-height: var(--audio-stage-min-h);
 }
 
@@ -3441,10 +3481,13 @@ a:hover {
 }
 
 
-/* The card fills the column, so its contents sit in the middle of it rather
-   than hugging the top with the slack pooled underneath the meta. */
+/* The card fills the column and its contents start at the top of it. Centring
+   read fine at one window height and badly at others: the taller the column
+   grew, the further the eyebrow and the sleeve drifted down it, so zooming out
+   walked the whole player toward the middle of the screen. Anchored to the top
+   the sleeve stays put and only the slack below the meta changes. */
 .room__center .stage {
-  justify-content: center;
+  justify-content: flex-start;
 }
 
 
@@ -3495,6 +3538,13 @@ a:hover {
   .room__center .audio-stage {
     max-height: none;
     width: 100%;
+    /* Basis back to auto here. The desktop rule starts the frame from the cap
+       so a short column can shrink it, but this breakpoint drops the height
+       ceiling and lets the page scroll — with a definite basis still in force
+       the height came from flex while the width came from the column, and the
+       frame went portrait. Nothing needs to shrink on a page that scrolls, so
+       the ratio can set the height again. */
+    flex: none;
   }
   /* The switch's two views are stacked on one grid cell, which needs a height
      to resolve against; on a page that scrolls, let the taller one set it. */
