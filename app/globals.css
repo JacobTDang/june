@@ -3381,14 +3381,24 @@ a:hover {
    Chat moved to the rail, so this column is the artwork alone and can afford
    the height; capped so it still fits a short window. */
 .room__center .audio-stage {
+  /* One cap, applied to both axes. `max-height` on its own could not hold this
+     square: with `width: 100%`, any column wider than the cap resolved to
+     column-width x cap, and `aspect-ratio` lost. That is a letterbox, and the
+     cover-fit then cropped the sleeve's top and bottom off to fill it — on a
+     square sleeve, about a third of the record, including whatever type sits
+     along the top edge. Capping the width to the same value keeps the side
+     always min(column, cap), so the frame cannot letterbox at any width.
+
+     The vh half of the cap is what keeps a short window safe, so it is
+     unchanged: the controls and the track meta still need roughly 150px
+     beneath the frame, and at 66vh the card used to overflow its column at
+     both ends. Only the pixel ceiling moved, and it can only bind on a window
+     tall enough for 60vh to clear it. */
+  --sleeve-cap: min(60vh, 520px);
   aspect-ratio: 1;
   height: auto;
-  /* The controls and the track meta need roughly 150px beneath this. At 66vh
-     the card overflowed its own column at both ends — the eyebrow clipped at
-     the top and the time row at the bottom — so the ceiling stays here and the
-     card's centring takes up the slack instead. */
-  max-height: min(60vh, 455px);
-  width: 100%;
+  max-height: var(--sleeve-cap);
+  width: min(100%, var(--sleeve-cap));
   margin-inline: auto;
 }
 
