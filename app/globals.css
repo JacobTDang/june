@@ -3419,11 +3419,13 @@ a:hover {
   max-height: var(--sleeve-cap);
   width: var(--sleeve-cap);
   max-width: 100%;
-  /* Flush left. The eyebrow above it, the title below it and the progress bar
-     all begin at the card's left edge; the frame was the one thing that did
-     not, so on a wide card it sat visibly indented from everything it belongs
-     with. `align-self` also stops the column stretching it. */
-  align-self: flex-start;
+  /* Centred in the card. The column is sized to the sleeve, so at most widths
+     the two are the same and this changes nothing; it only shows where the
+     controls row's own minimum width holds the card wider than the height
+     lets the square be, and there the leftover is split rather than pooled on
+     one side. `align-self` also stops the column stretching the frame, which
+     is what lets the width resolve against the ratio at all. */
+  align-self: center;
   margin-inline: 0;
 }
 
