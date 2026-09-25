@@ -12,6 +12,9 @@ import { when } from "@/src/lib/when";
 import { SongList } from "./song-list";
 import { SpotifyControls } from "./spotify-controls";
 
+// Sync now runs inside this page's server action, and a large sync needs the room.
+export const maxDuration = 300;
+
 const LIKED_SHOWN = 100;
 const LISTENS_SHOWN = 30;
 
@@ -66,7 +69,8 @@ export default async function LibraryPage({
       )}
       {sp.spotify === "connected" && (
         <p className="lib__notice" role="status">
-          Spotify connected. Your library is syncing; refresh in a minute.
+          Spotify connected. Your first sync has started; refresh in a minute, or press Sync now if
+          nothing appears.
         </p>
       )}
 
