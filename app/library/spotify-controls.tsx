@@ -1,12 +1,15 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import {
   deleteSpotifyDataAction,
   disconnectSpotifyAction,
   syncNowAction,
   type ActionResult,
 } from "@/src/lib/spotify/actions";
+
+// Long enough to mean it, short enough that a later click can't delete by surprise
+const DELETE_CONFIRMATION_TIMEOUT = 5000;
 
 /**
  * The connection's buttons. Times are formatted on the server and passed in
@@ -28,7 +31,14 @@ export function SpotifyControls({
   const [result, setResult] = useState<ActionResult | null>(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
 
-  const run = (action: () => Promise<ActionResult>) =>
+  useEffect(() => {
+    if (!confirmingDelete) return;
+    const timeout = setTimeout(() => setConfirmingDelete(false), DELETE_CONFIRMATION_TIMEOUT);
+    return () => clearTimeout(timeout);
+  }, [confirmingDelete]);
+
+  const run = (action: () => Promise<ActionResult>) => {
+    setConfirmingDelete(false);
     startTransition(async () => {
       try {
         setResult(await action());
@@ -36,6 +46,7 @@ export function SpotifyControls({
         setResult({ ok: false, notice: err instanceof Error ? err.message : String(err) });
       }
     });
+  };
 
   if (!connected) {
     return (
@@ -83,7 +94,6 @@ export function SpotifyControls({
               setConfirmingDelete(true);
               return;
             }
-            setConfirmingDelete(false);
             run(deleteSpotifyDataAction);
           }}
         >
