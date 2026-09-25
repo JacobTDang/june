@@ -153,13 +153,23 @@ export async function deleteConnection(userId: string): Promise<void> {
   check("delete Spotify connection", error);
 }
 
+// The delete is a single RPC statement, so a short lease is plenty.
+const DELETE_LEASE_SECONDS = 60;
+
 /** Drops the tokens and everything synced from Spotify for this user. Shared
- *  songs rows stay: they name no user. */
-export async function deleteSpotifyData(userId: string): Promise<void> {
-  await deleteConnection(userId);
-  const db = createServiceClient();
-  for (const table of ["library_songs", "listens", "taste_snapshots", "playlists"]) {
-    const { error } = await db.from(table).delete().eq("user_id", userId).eq("source", "spotify");
-    check(`delete Spotify ${table}`, error);
+ *  songs rows stay: they name no user. Waits out a running sync by claiming
+ *  the sync lease first, then deletes everything in one transaction via the
+ *  delete_spotify_data RPC, so a failure can't leave the user disconnected
+ *  with no data deleted. Returns "busy" instead of deleting when a sync
+ *  already holds the lease. */
+export async function deleteSpotifyData(userId: string): Promise<"deleted" | "busy"> {
+  const holder = await claimSyncLease(DELETE_LEASE_SECONDS);
+  if (holder === null) return "busy";
+  try {
+    const { error } = await createServiceClient().rpc("delete_spotify_data", { p_user: userId });
+    check("delete Spotify data", error);
+    return "deleted";
+  } finally {
+    await releaseSyncLease(holder);
   }
 }
