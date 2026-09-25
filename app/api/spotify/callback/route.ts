@@ -52,7 +52,7 @@ export async function GET(request: Request) {
     if (isNotApprovedForApp(err)) return fail("not_approved");
     if (err instanceof AlreadyLinkedError) return fail("already_linked");
     console.error("Spotify connect failed:", err);
-    return fail(err instanceof Error ? err.message : String(err));
+    return fail("failed");
   }
 
   const userId = user.id;

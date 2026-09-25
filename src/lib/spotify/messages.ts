@@ -1,7 +1,9 @@
 import { when } from "../when";
 
-/** What /library says for each ?spotify_error= the callback sends back. An
- *  unknown code is an error message from the callback, shown as it is. */
+/** What /library says for each ?spotify_error= the connect routes send back.
+ *  The code comes from the URL, where anyone can write anything, so an unknown
+ *  one gets a generic message and is never shown. The real error is logged
+ *  on the server. */
 export function connectErrorText(code: string): string {
   switch (code) {
     case "not_approved":
@@ -14,8 +16,12 @@ export function connectErrorText(code: string): string {
       return "That connection link expired or came from another session. Try connecting again.";
     case "missing_code":
       return "Spotify didn't send back a code. Try connecting again.";
+    case "failed":
+      return "Couldn't connect Spotify. Try again, and tell Jacob if it keeps happening.";
+    case "not_configured":
+      return "Spotify isn't set up on this server yet.";
     default:
-      return `Couldn't connect Spotify: ${code}`;
+      return "Couldn't connect Spotify. Try again.";
   }
 }
 

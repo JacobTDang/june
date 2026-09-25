@@ -15,10 +15,17 @@ describe("connectErrorText", () => {
     expect(connectErrorText("missing_code")).toMatch(/code/);
   });
 
-  it("shows anything else verbatim rather than hiding it", () => {
-    expect(connectErrorText("Spotify token request failed (500): boom")).toBe(
-      "Couldn't connect Spotify: Spotify token request failed (500): boom",
+  it("explains a failed connect and a server without Spotify set up", () => {
+    expect(connectErrorText("failed")).toBe(
+      "Couldn't connect Spotify. Try again, and tell Jacob if it keeps happening.",
     );
+    expect(connectErrorText("not_configured")).toBe("Spotify isn't set up on this server yet.");
+  });
+
+  it("gives an unknown code a generic message that never repeats the code", () => {
+    const code = "Spotify token request failed (500): boom";
+    expect(connectErrorText(code)).toBe("Couldn't connect Spotify. Try again.");
+    expect(connectErrorText(code)).not.toContain(code);
   });
 });
 

@@ -16,9 +16,8 @@ export async function GET(request: Request) {
   try {
     ({ clientId } = spotifyConfig());
   } catch (err) {
-    return NextResponse.redirect(
-      `${origin}/library?spotify_error=${encodeURIComponent((err as Error).message)}`,
-    );
+    console.error("Spotify connect is not configured:", err);
+    return NextResponse.redirect(`${origin}/library?spotify_error=not_configured`);
   }
 
   const nonce = crypto.randomUUID();
