@@ -4179,7 +4179,7 @@ Expected: the unliked song is gone from Liked songs.
 - Press **Disconnect**.
   Expected: the connect paragraph returns with your library still listed below it and a **Delete my Spotify data** button, and the counts query from Step 2 returns the same numbers: disconnecting drops only the tokens.
 - Press **Delete my Spotify data**, then press it again within five seconds.
-  Expected: "Disconnected, and your Spotify library is deleted from june." and the counts query returns 0 for likes, playlists, playlist_songs, listens and taste (shared `songs` rows stay). Reconnect, and let it sync again before Task 12.
+  Expected: "Your Spotify data is deleted from june." and the counts query returns 0 for likes, playlists, playlist_songs, listens and taste (shared `songs` rows stay). Reconnect, and let it sync again before Task 12.
 
 - [ ] **Step 6: Run everything and commit any schema fix**
 
