@@ -4177,12 +4177,14 @@ Expected: the unliked song is gone from Liked songs.
 - If you have a second Spotify account that is *not* in the dashboard's User Management: Disconnect, sign into Spotify as that account in the browser, press Connect Spotify.
   Expected: `Spotify hasn't approved this account for june yet — ask Jacob to add it.`, and no row in `spotify_connections`. Then reconnect your own account.
 - Press **Disconnect**.
-  Expected: the connect paragraph returns, and the counts query from Step 2 returns the same numbers: disconnecting drops only the tokens. Reconnect.
+  Expected: the connect paragraph returns with your library still listed below it and a **Delete my Spotify data** button, and the counts query from Step 2 returns the same numbers: disconnecting drops only the tokens.
+- Press **Delete my Spotify data**, then press it again within five seconds.
+  Expected: "Disconnected, and your Spotify library is deleted from june." and the counts query returns 0 for likes, playlists, playlist_songs, listens and taste (shared `songs` rows stay). Reconnect, and let it sync again before Task 12.
 
 - [ ] **Step 6: Run everything and commit any schema fix**
 
-Run: `npm test && npm run typecheck`
-Expected: all pass.
+Run: `npm test && npm run typecheck && npm run build`
+Expected: all pass, and the build succeeds.
 
 If Step 2 needed a schema fix:
 
@@ -4276,7 +4278,6 @@ sync into Supabase every 30 minutes.
 - The sync decisions are pure and tested with in-memory fakes; the pg_cron
   job calls `POST /api/spotify/sync` with a bearer secret from Vault.
 - Phase 1 of `docs/superpowers/specs/2026-09-25-spotify-library-design.md`.
-  Matching songs to audio and queueing them in rooms come next.
 
 ![The library page](https://github.com/JacobTDang/june/blob/spotify-library/docs/pr-media/spotify-library.png?raw=true)
 ```
