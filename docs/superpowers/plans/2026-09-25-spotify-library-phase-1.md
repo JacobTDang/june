@@ -2581,7 +2581,7 @@ git push
 - Produces:
   - `config.ts`: `spotifyConfig(): SpotifyOAuthConfig`, `spotifyRedirectUri(origin: string): string`, `SPOTIFY_STATE_COOKIE = "spotify_oauth_state"`
   - `secret.ts`: `bearerMatches(header: string | null, secret: string): boolean`
-  - `store.ts`: `supabaseLibraryStore(db?: SupabaseClient): LibraryStore`
+  - `store.ts`: `check(what: string, error: { message: string } | null): void` (throws on a Supabase error; shared with `connection.ts`), `supabaseLibraryStore(db?: SupabaseClient): LibraryStore`
   - `connection.ts`: `interface ConnectionRow`, `class AlreadyLinkedError`, `saveConnection(userId: string, me: SpotifyMe, tokens: TokenSet): Promise<void>`, `activeConnections(userId?: string): Promise<ConnectionRow[]>`, `freshAccessToken(row: ConnectionRow, now: Date): Promise<string>`, `recordSuccess(userId: string, outcome: SyncOutcome, now: Date): Promise<void>`, `recordFailure(userId: string, failure: SyncFailure, now: Date): Promise<void>`, `connectionSyncState(userId: string): Promise<{ connected: false } | { connected: true; lastSyncedAt: string | null }>`, `claimSyncLease(seconds: number): Promise<string | null>`, `releaseSyncLease(holder: string): Promise<void>`, `deleteConnection(userId: string): Promise<void>`, `deleteSpotifyData(userId: string): Promise<void>`
   - `sync.ts`: `type SyncRunResult = { status: "busy" } | { status: "done"; synced: number; failed: number; rateLimited: boolean }`, `syncAllUsers(): Promise<SyncRunResult>`, `syncOneUser(userId: string): Promise<SyncRunResult>`
 
@@ -2685,7 +2685,8 @@ function batches<T>(items: readonly T[], size = BATCH): T[][] {
   return out;
 }
 
-function check(what: string, error: { message: string } | null): void {
+/** Supabase returns errors instead of throwing; this makes every write fail loud. */
+export function check(what: string, error: { message: string } | null): void {
   if (error) throw new Error(`${what}: ${error.message}`);
 }
 
@@ -2855,6 +2856,7 @@ import { refreshTokens, type TokenSet } from "../../spotify/oauth";
 import type { SpotifyMe } from "../../spotify/schema";
 import { createServiceClient } from "../supabase/service";
 import { spotifyConfig } from "./config";
+import { check } from "./store";
 import type { SyncOutcome } from "./sync-user";
 
 export interface ConnectionRow {
@@ -2876,10 +2878,6 @@ export class AlreadyLinkedError extends Error {
     super("That Spotify account is already connected to another june account.");
     this.name = "AlreadyLinkedError";
   }
-}
-
-function check(what: string, error: { message: string } | null): void {
-  if (error) throw new Error(`${what}: ${error.message}`);
 }
 
 /** Save (or re-save, on reconnect) a user's connection. The cursor and daily
@@ -4002,9 +4000,12 @@ In `app/page.tsx`, add a Library link before Friends in the account bar:
 Run: `npm test && npm run typecheck && npm run build`
 Expected: every suite passes (including `test/design/tokens.test.ts`), no type errors, build succeeds with `/library` listed.
 
-Run `npm run dev`, sign in at `http://127.0.0.1:3000` (Setup item 3 must be done for Google sign-in to return to 127.0.0.1; if it isn't, use `http://localhost:3000` for this step only), and open `/library`.
-Expected: "Your library", the connect paragraph and a **Connect Spotify** button, no errors in the terminal. Open `/library?spotify_error=not_approved`.
-Expected: the red line `Spotify hasn't approved this account for june yet — ask Jacob to add it.` The home page account bar shows **Library** before **Friends**. Stop the dev server.
+Run `npm run dev` in the background, then:
+
+Run: `curl -s -o /dev/null -w '%{http_code} %{redirect_url}\n' http://127.0.0.1:3000/library`
+Expected: `307 http://127.0.0.1:3000/?next=%2Flibrary` (signed out, so the page sends you to sign in). The dev server log shows no errors for the request. Stop the dev server.
+
+The signed-in view (connect button, the not-approved line at `/library?spotify_error=not_approved`, the **Library** link before **Friends**) is checked in a real browser in Task 11, where someone can sign in with Google.
 
 - [ ] **Step 6: Commit**
 
@@ -4119,9 +4120,15 @@ This task needs Setup items 1–3. If `SPOTIFY_CLIENT_ID` is missing from `.env.
 **Files:**
 - Modify (only if a live response doesn't match): `src/spotify/schema.ts`, `test/spotify/schema.test.ts`
 
+- [ ] **Step 0: The signed-in page before connecting**
+
+Run: `npm run dev`. At `http://127.0.0.1:3000`, sign in with Google. The home page account bar shows **Library** before **Friends**. Open `/library`.
+Expected: "Your library", the connect paragraph and a **Connect Spotify** button. Open `/library?spotify_error=not_approved`.
+Expected: the red line `Spotify hasn't approved this account for june yet — ask Jacob to add it.`
+
 - [ ] **Step 1: Connect**
 
-Run: `npm run dev`. At `http://127.0.0.1:3000`, sign in with Google, open `/library`, press **Connect Spotify**, approve on Spotify.
+On `/library`, press **Connect Spotify** and approve on Spotify.
 Expected: back on `/library?spotify=connected` with "Spotify connected. Your library is syncing".
 
 - [ ] **Step 2: Check the first sync**
