@@ -28,14 +28,16 @@ export default async function LibraryPage({
 
   const sp = await searchParams;
   const now = Date.now();
-  const status = await getSpotifyStatus();
-  const [liked, playlists, listens] = status
-    ? await Promise.all([
-        getLikedSongs(user.id, LIKED_SHOWN),
-        getLibraryPlaylists(user.id),
-        getRecentListens(user.id, LISTENS_SHOWN),
-      ])
-    : [null, [], []];
+  // Read even when not connected: a plain Disconnect keeps the library, and
+  // it stays on show (and deletable) until the user deletes it.
+  const [status, liked, playlists, listens] = await Promise.all([
+    getSpotifyStatus(),
+    getLikedSongs(user.id, LIKED_SHOWN),
+    getLibraryPlaylists(user.id),
+    getRecentListens(user.id, LISTENS_SHOWN),
+  ]);
+  const hasLibrary = liked.total > 0 || playlists.length > 0 || listens.length > 0;
+  const showLibrary = status !== null || hasLibrary;
 
   const syncError =
     status?.lastError != null
@@ -50,7 +52,7 @@ export default async function LibraryPage({
       </a>
       <header className="pl__head">
         <h1 className="pl__title">Your library</h1>
-        {liked && (
+        {showLibrary && (
           <span className="pl__count">
             {liked.total} liked · {playlists.length} {playlists.length === 1 ? "playlist" : "playlists"}
           </span>
@@ -73,9 +75,10 @@ export default async function LibraryPage({
         revoked={status?.status === "revoked"}
         line={status ? spotifyStatusLine(status, now) : null}
         error={syncError}
+        hasLibrary={hasLibrary}
       />
 
-      {liked && (
+      {showLibrary && (
         <>
           <section className="lib__section">
             <div className="eyebrow">Liked songs</div>

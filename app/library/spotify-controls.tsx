@@ -14,18 +14,21 @@ const DELETE_CONFIRMATION_TIMEOUT = 5000;
 /**
  * The connection's buttons. Times are formatted on the server and passed in
  * as text, so the client never renders a relative time that differs from the
- * server's.
+ * server's. The delete button also shows after a plain Disconnect while synced
+ * data is still in june, so it can always be removed.
  */
 export function SpotifyControls({
   connected,
   revoked,
   line,
   error,
+  hasLibrary,
 }: {
   connected: boolean;
   revoked: boolean;
   line: string | null;
   error: string | null;
+  hasLibrary: boolean;
 }) {
   const [pending, startTransition] = useTransition();
   const [result, setResult] = useState<ActionResult | null>(null);
@@ -48,6 +51,29 @@ export function SpotifyControls({
     });
   };
 
+  // Two clicks: the first arms it, the second (within the timeout) deletes.
+  const deleteButton = (label: string) => (
+    <button
+      className="btn btn--sm"
+      disabled={pending}
+      onClick={() => {
+        if (!confirmingDelete) {
+          setConfirmingDelete(true);
+          return;
+        }
+        run(deleteSpotifyDataAction);
+      }}
+    >
+      {confirmingDelete ? "Click again to delete everything" : label}
+    </button>
+  );
+
+  const notice = result && (
+    <p className={`lib__notice${result.ok ? "" : " lib__notice--error"}`} role="status">
+      {result.notice}
+    </p>
+  );
+
   if (!connected) {
     return (
       <div className="lib__connect">
@@ -59,8 +85,9 @@ export function SpotifyControls({
           <a className="btn btn--primary" href="/api/spotify/connect">
             Connect Spotify
           </a>
+          {hasLibrary && deleteButton("Delete my Spotify data")}
         </div>
-        {result && <p className="lib__notice" role="status">{result.notice}</p>}
+        {notice}
       </div>
     );
   }
@@ -86,25 +113,9 @@ export function SpotifyControls({
         <button className="btn btn--sm" disabled={pending} onClick={() => run(disconnectSpotifyAction)}>
           Disconnect
         </button>
-        <button
-          className="btn btn--sm"
-          disabled={pending}
-          onClick={() => {
-            if (!confirmingDelete) {
-              setConfirmingDelete(true);
-              return;
-            }
-            run(deleteSpotifyDataAction);
-          }}
-        >
-          {confirmingDelete ? "Click again to delete everything" : "Disconnect and delete my Spotify data"}
-        </button>
+        {deleteButton("Disconnect and delete my Spotify data")}
       </div>
-      {result && (
-        <p className={`lib__notice${result.ok ? "" : " lib__notice--error"}`} role="status">
-          {result.notice}
-        </p>
-      )}
+      {notice}
     </div>
   );
 }
