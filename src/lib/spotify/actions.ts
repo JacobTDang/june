@@ -27,8 +27,12 @@ export async function syncNowAction(): Promise<ActionResult> {
   const userId = await requireUserId();
   const state = await connectionSyncState(userId);
   if (!state.connected) return { ok: false, notice: "Spotify isn't connected." };
-  if (!syncNowAllowed(state.lastSyncedAt, new Date())) {
-    return { ok: false, notice: "Synced less than a minute ago." };
+  // The run only takes active connections, so a revoked one would "sync" nothing.
+  if (state.status === "revoked") {
+    return { ok: false, notice: "Spotify access was revoked. Reconnect to keep syncing." };
+  }
+  if (!syncNowAllowed(state.lastAttemptAt, new Date())) {
+    return { ok: false, notice: "A sync started less than a minute ago." };
   }
 
   const result = await syncOneUser(userId);

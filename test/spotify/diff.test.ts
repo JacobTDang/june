@@ -5,6 +5,7 @@ import {
   freshLikes,
   likesToRemove,
   planPlaylists,
+  previousSyncCutOff,
   recentGap,
   syncNowAllowed,
   tokenNeedsRefresh,
@@ -135,9 +136,36 @@ describe("timing", () => {
     expect(dailyPassDue("2026-09-24T12:00:01Z", now)).toBe(false);
   });
 
-  it("allows Sync now once a minute", () => {
+  it("allows Sync now once a minute after the last attempt", () => {
     expect(syncNowAllowed(null, now)).toBe(true);
     expect(syncNowAllowed("2026-09-25T11:59:00Z", now)).toBe(true);
     expect(syncNowAllowed("2026-09-25T11:59:30Z", now)).toBe(false);
+  });
+});
+
+describe("previousSyncCutOff", () => {
+  const T = (minute: number) => new Date(Date.parse("2026-09-25T12:00:00.000Z") + minute * 60_000).toISOString();
+
+  it("is false when nothing has run", () => {
+    expect(previousSyncCutOff(null, null, null)).toBe(false);
+  });
+
+  it("is true for an attempt that never recorded a success or an error", () => {
+    expect(previousSyncCutOff(T(0), null, null)).toBe(true);
+  });
+
+  it("is true for an attempt newer than the last success and the last error", () => {
+    expect(previousSyncCutOff(T(30), T(0), T(10))).toBe(true);
+  });
+
+  it("is false once the attempt recorded a success", () => {
+    expect(previousSyncCutOff(T(0), T(1), null)).toBe(false);
+    // A run records its success with the same time it marked the attempt.
+    expect(previousSyncCutOff(T(0), T(0), null)).toBe(false);
+  });
+
+  it("is false once the attempt recorded an error", () => {
+    expect(previousSyncCutOff(T(0), T(-30), T(1))).toBe(false);
+    expect(previousSyncCutOff(T(0), null, T(0))).toBe(false);
   });
 });

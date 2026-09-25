@@ -16,10 +16,14 @@ export interface ConnectionRow {
   access_token_expires_at: string | null;
   recent_cursor: string | null;
   last_daily_sync_at: string | null;
+  last_attempt_at: string | null;
+  last_synced_at: string | null;
+  last_error_at: string | null;
 }
 
+// One literal: supabase-js types a select from its string, which a + breaks.
 const CONNECTION_COLUMNS =
-  "user_id, spotify_user_id, refresh_token, access_token, access_token_expires_at, recent_cursor, last_daily_sync_at";
+  "user_id, spotify_user_id, refresh_token, access_token, access_token_expires_at, recent_cursor, last_daily_sync_at, last_attempt_at, last_synced_at, last_error_at";
 
 /** The Spotify account is already linked to a different june user. */
 export class AlreadyLinkedError extends Error {
@@ -57,13 +61,17 @@ export async function saveConnection(userId: string, me: SpotifyMe, tokens: Toke
   check("save Spotify connection", error);
 }
 
+/** Longest-waiting first (never attempted before anyone), so a run that runs
+ *  out of time can't skip the same users every time. */
 export async function activeConnections(userId?: string): Promise<ConnectionRow[]> {
   let query = createServiceClient()
     .from("spotify_connections")
     .select(CONNECTION_COLUMNS)
     .eq("status", "active");
   if (userId !== undefined) query = query.eq("user_id", userId);
-  const { data, error } = await query.order("connected_at");
+  const { data, error } = await query
+    .order("last_attempt_at", { ascending: true, nullsFirst: true })
+    .order("connected_at");
   check("read Spotify connections", error);
   return (data ?? []) as ConnectionRow[];
 }
@@ -86,6 +94,16 @@ export async function freshAccessToken(row: ConnectionRow, now: Date): Promise<s
     .eq("user_id", row.user_id);
   check("save refreshed Spotify token", error);
   return tokens.accessToken;
+}
+
+/** Written before a user's sync does anything. An attempt with no success or
+ *  error recorded after it means that run was cut off. */
+export async function markAttempt(userId: string, now: Date): Promise<void> {
+  const { error } = await createServiceClient()
+    .from("spotify_connections")
+    .update({ last_attempt_at: now.toISOString() })
+    .eq("user_id", userId);
+  check("mark Spotify sync attempt", error);
 }
 
 /** Saved as soon as a run's listens are stored, so a later stage failing
@@ -138,18 +156,22 @@ export async function recordFailure(userId: string, failure: SyncFailure, now: D
   check("record Spotify sync failure", error);
 }
 
-/** Whether the user is connected, and when they last synced (for Sync now). */
+/** Whether the user is connected, its status, and when a sync last started
+ *  (for Sync now). */
 export async function connectionSyncState(
   userId: string,
-): Promise<{ connected: false } | { connected: true; lastSyncedAt: string | null }> {
+): Promise<
+  { connected: false } | { connected: true; status: "active" | "revoked"; lastAttemptAt: string | null }
+> {
   const { data, error } = await createServiceClient()
     .from("spotify_connections")
-    .select("last_synced_at")
+    .select("status, last_attempt_at")
     .eq("user_id", userId)
     .maybeSingle();
   check("read Spotify connection", error);
   if (data === null) return { connected: false };
-  return { connected: true, lastSyncedAt: (data as { last_synced_at: string | null }).last_synced_at };
+  const row = data as { status: "active" | "revoked"; last_attempt_at: string | null };
+  return { connected: true, status: row.status, lastAttemptAt: row.last_attempt_at };
 }
 
 /** The lease holder id, or null when another run holds it. */

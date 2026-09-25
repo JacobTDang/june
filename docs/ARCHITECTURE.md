@@ -196,7 +196,12 @@ top lists, and last re-read owned and collaborative playlists whose
 `snapshot_id` changed. The cursor and `last_daily_sync_at` are saved as their
 stage finishes, so a playlist that fails on every run doesn't make every run
 repeat the full likes read. A 429 ends the run for everyone: quota is counted
-per developer account.
+per developer account. A run takes the users with the oldest
+`last_attempt_at` first and starts no new user after 200 s (Vercel stops the
+function at 300 s), logging whoever it skipped. An attempt newer than both the
+last success and the last error means the previous run was killed part way;
+the next run records that as the user's sync error. Sync now waits a minute
+after the last attempt.
 
 Tables: `songs` (shared, one row per Spotify track), `library_songs`,
 `playlists` + `playlist_songs`, `listens` (plays outside june; `plays` stays

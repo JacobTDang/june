@@ -91,10 +91,28 @@ export function dailyPassDue(lastDaily: string | null, now: Date): boolean {
   return lastDaily === null || now.getTime() - Date.parse(lastDaily) >= DAY_MS;
 }
 
+/** Sync now waits a minute after the last attempt, whether it worked or not. */
 export function syncNowAllowed(
-  lastSyncedAt: string | null,
+  lastAttemptAt: string | null,
   now: Date,
   minIntervalMs = 60_000,
 ): boolean {
-  return lastSyncedAt === null || now.getTime() - Date.parse(lastSyncedAt) >= minIntervalMs;
+  return lastAttemptAt === null || now.getTime() - Date.parse(lastAttemptAt) >= minIntervalMs;
+}
+
+/**
+ * A run marks its attempt before syncing a user and records a success or an
+ * error after. An attempt newer than both means the run stopped in between
+ * without recording anything, most likely killed by the function time limit.
+ * A null time means it never happened.
+ */
+export function previousSyncCutOff(
+  lastAttemptAt: string | null,
+  lastSyncedAt: string | null,
+  lastErrorAt: string | null,
+): boolean {
+  if (lastAttemptAt === null) return false;
+  const attempt = Date.parse(lastAttemptAt);
+  const isOlder = (at: string | null) => at === null || Date.parse(at) < attempt;
+  return isOlder(lastSyncedAt) && isOlder(lastErrorAt);
 }
