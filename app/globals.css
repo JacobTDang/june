@@ -2477,6 +2477,38 @@ a:hover {
   }
 }
 
+/* ---- Library ---- */
+.lib__connect,
+.lib__status {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-bottom: var(--space-7);
+}
+.lib__line {
+  color: var(--muted);
+  font-size: var(--text-body);
+}
+.lib__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.lib__notice {
+  color: var(--muted);
+  font-size: var(--text-body);
+  margin-bottom: var(--space-4);
+}
+.lib__notice--error {
+  color: var(--danger);
+}
+.lib__section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  margin-bottom: var(--space-8);
+}
+
 /* ---- Motion ---- */
 @keyframes livePulse {
   0% {

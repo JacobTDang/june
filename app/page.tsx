@@ -58,6 +58,9 @@ export default async function Home({
               <Avatar name={displayName} url={profile?.avatarUrl} size={30} />
               <span className="account__name">{displayName}</span>
             </a>
+            <a href="/library" className="btn btn--sm">
+              Library
+            </a>
             <a href="/friends" className="btn btn--sm">
               Friends
             </a>
