@@ -3492,7 +3492,7 @@ git push
 - Modify: `app/page.tsx` (account bar link), `app/globals.css` (a `/library` block before `/* ---- Motion ---- */`)
 
 **Interfaces:**
-- Consumes: `connectErrorText`, `spotifyStatusLine`, `SpotifyStatusView`, `when` (all Task 8); `syncOneUser` (Task 7); `connectionSyncState`, `deleteConnection`, `deleteSpotifyData` (Task 7); `syncNowAllowed` (Task 3)
+- Consumes: `connectErrorText`, `spotifyStatusLine`, `SpotifyStatusView`, `when` (all Task 8); `syncOneUser` (Task 7); `connectionSyncState`, `deleteConnection` (Task 7); `deleteSpotifyData(userId): Promise<"deleted" | "busy">` (Task 7, after its review fix: one transaction via the `delete_spotify_data` SQL function, refused with "busy" while a sync holds the lease); `syncNowAllowed` (Task 3)
 - Produces:
   - `library.ts`: `interface SpotifyStatus extends SpotifyStatusView { lastError: string | null; lastErrorAt: string | null }`, `interface LibrarySong { title: string; artists: string[]; artworkUrl: string | null; at: string }`, `interface LibraryPlaylist { id: string; name: string; artworkUrl: string | null; songCount: number }`, `getSpotifyStatus(): Promise<SpotifyStatus | null>`, `getLikedSongs(userId: string, limit: number): Promise<{ songs: LibrarySong[]; total: number }>`, `getLibraryPlaylists(userId: string): Promise<LibraryPlaylist[]>`, `getRecentListens(userId: string, limit: number): Promise<LibrarySong[]>`
   - `actions.ts`: `type ActionResult = { ok: boolean; notice: string }`, `syncNowAction()`, `disconnectSpotifyAction()`, `deleteSpotifyDataAction()`, each `Promise<ActionResult>`
@@ -3657,8 +3657,9 @@ export async function disconnectSpotifyAction(): Promise<ActionResult> {
 }
 
 export async function deleteSpotifyDataAction(): Promise<ActionResult> {
-  await deleteSpotifyData(await requireUserId());
+  const result = await deleteSpotifyData(await requireUserId());
   revalidatePath("/library");
+  if (result === "busy") return { ok: false, notice: "A sync is running. Try again in a minute." };
   return { ok: true, notice: "Disconnected, and your Spotify library is deleted from june." };
 }
 ```
