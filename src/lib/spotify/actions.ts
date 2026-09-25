@@ -54,5 +54,5 @@ export async function deleteSpotifyDataAction(): Promise<ActionResult> {
   const result = await deleteSpotifyData(await requireUserId());
   revalidatePath("/library");
   if (result === "busy") return { ok: false, notice: "A sync is running. Try again in a minute." };
-  return { ok: true, notice: "Disconnected, and your Spotify library is deleted from june." };
+  return { ok: true, notice: "Your Spotify data is deleted from june." };
 }

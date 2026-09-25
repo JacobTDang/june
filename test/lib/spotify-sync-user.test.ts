@@ -139,7 +139,7 @@ interface FakeData {
   playlists?: PlaylistSummary[];
   items?: Record<string, PlaylistItem[] | Error>;
   topArtists?: TopArtist[];
-  topTracks?: SpotifyTrack[];
+  topTracks?: SpotifyTrack[] | Error;
 }
 
 function fakeSpotify(data: FakeData) {
@@ -177,6 +177,7 @@ function fakeSpotify(data: FakeData) {
       return data.topArtists ?? [];
     },
     async topTracks() {
+      if (data.topTracks instanceof Error) throw data.topTracks;
       return data.topTracks ?? [];
     },
   };
@@ -373,6 +374,22 @@ describe("syncUser", () => {
     expect(progress.listens).toEqual([{ recentCursor: "2026-09-25T11:00:00.000Z", gap: null }]);
     expect(progress.dailyPasses).toBe(1);
     expect(store.taste).toHaveLength(6);
+  });
+
+  it("does not record the daily pass when top tracks fails, after listens are saved", async () => {
+    const store = new FakeStore();
+    const { client } = fakeSpotify({
+      recent: [{ track: track("a"), played_at: "2026-09-25T11:00:00.000Z" }],
+      likedPages: [{ items: [{ added_at: "2026-09-20T00:00:00Z", track: track("c") }], next: null }],
+      topArtists: [{ id: "ar1", name: "X" }],
+      topTracks: new Error("Spotify answered 500"),
+    });
+    const progress = new FakeProgress();
+
+    await expect(syncUser(FIRST, client, store, progress, NOW)).rejects.toThrow("Spotify answered 500");
+
+    expect(progress.listens).toEqual([{ recentCursor: "2026-09-25T11:00:00.000Z", gap: null }]);
+    expect(progress.dailyPasses).toBe(0);
   });
 
   it("removes no likes on the daily pass when paging fails partway", async () => {

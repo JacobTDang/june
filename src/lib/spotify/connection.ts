@@ -52,6 +52,9 @@ export async function saveConnection(userId: string, me: SpotifyMe, tokens: Toke
         status: "active",
         last_error: null,
         last_error_at: null,
+        // A new connection has no attempt yet, so the next run neither
+        // mistakes the old one for a cut-off nor gates Sync now on it.
+        last_attempt_at: null,
         connected_at: new Date().toISOString(),
       },
       { onConflict: "user_id" },
