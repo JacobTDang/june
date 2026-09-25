@@ -3,6 +3,7 @@ import {
   syncUser,
   type LibraryStore,
   type SyncInput,
+  type SyncProgress,
   type TasteSnapshot,
 } from "../../src/lib/spotify/sync-user";
 import type { SpotifyClient } from "../../src/spotify/client";
@@ -102,6 +103,19 @@ class FakeStore implements LibraryStore {
   }
 }
 
+/** Records what syncUser reports as each stage finishes. */
+class FakeProgress implements SyncProgress {
+  listens: { recentCursor: string | null; gap: { from: string; to: string } | null }[] = [];
+  dailyPasses = 0;
+
+  async listensSaved(recentCursor: string | null, gap: { from: string; to: string } | null) {
+    this.listens.push({ recentCursor, gap });
+  }
+  async dailyPassSaved() {
+    this.dailyPasses++;
+  }
+}
+
 const track = (id: string): SpotifyTrack => ({
   type: "track",
   id,
@@ -118,11 +132,12 @@ const playlist = (id: string, owner: string, snapshot = "s1", collaborative = fa
   snapshot_id: snapshot,
 });
 
+/** An Error in place of a page or a playlist's items makes that call throw it. */
 interface FakeData {
   recent?: RecentlyPlayedItem[];
-  likedPages?: SavedTracksPage[];
+  likedPages?: (SavedTracksPage | Error)[];
   playlists?: PlaylistSummary[];
-  items?: Record<string, PlaylistItem[]>;
+  items?: Record<string, PlaylistItem[] | Error>;
   topArtists?: TopArtist[];
   topTracks?: SpotifyTrack[];
 }
@@ -144,14 +159,18 @@ function fakeSpotify(data: FakeData) {
     },
     async savedTracks(offset) {
       calls.savedOffsets.push(offset);
-      return data.likedPages?.[offset / 50] ?? { items: [], next: null };
+      const page = data.likedPages?.[offset / 50] ?? { items: [], next: null };
+      if (page instanceof Error) throw page;
+      return page;
     },
     async myPlaylists() {
       return data.playlists ?? [];
     },
     async playlistItems(id) {
       calls.playlistItems.push(id);
-      return data.items?.[id] ?? [];
+      const items = data.items?.[id] ?? [];
+      if (items instanceof Error) throw items;
+      return items;
     },
     async topArtists() {
       calls.topArtists++;
@@ -187,7 +206,8 @@ describe("syncUser", () => {
       topTracks: [track("f")],
     });
 
-    const outcome = await syncUser(FIRST, client, store, NOW);
+    const progress = new FakeProgress();
+    const outcome = await syncUser(FIRST, client, store, progress, NOW);
 
     expect(store.listens.map((l) => l.playedAt)).toEqual([
       "2026-09-25T11:00:00.000Z",
@@ -209,11 +229,19 @@ describe("syncUser", () => {
     ]);
     expect(store.songs.has("f")).toBe(true);
     expect(outcome).toEqual({ recentCursor: "2026-09-25T11:00:00.000Z", dailyDone: true, gap: null });
+    expect(progress.listens).toEqual([{ recentCursor: "2026-09-25T11:00:00.000Z", gap: null }]);
+    expect(progress.dailyPasses).toBe(1);
   });
 
   it("asks Spotify only for plays after the cursor", async () => {
     const { client, calls } = fakeSpotify({});
-    await syncUser({ ...LATER, recentCursor: "2026-09-25T10:00:00.000Z" }, client, new FakeStore(), NOW);
+    await syncUser(
+      { ...LATER, recentCursor: "2026-09-25T10:00:00.000Z" },
+      client,
+      new FakeStore(),
+      new FakeProgress(),
+      NOW,
+    );
     expect(calls.recentAfter).toEqual([Date.parse("2026-09-25T10:00:00.000Z")]);
   });
 
@@ -234,7 +262,7 @@ describe("syncUser", () => {
       ],
     });
 
-    await syncUser(LATER, client, store, NOW);
+    await syncUser(LATER, client, store, new FakeProgress(), NOW);
 
     expect(calls.savedOffsets).toEqual([0]);
     expect(store.likes.has(store.songId("new"))).toBe(true);
@@ -254,12 +282,12 @@ describe("syncUser", () => {
         },
       ],
     });
-    await syncUser(FIRST, first, store, NOW);
+    await syncUser(FIRST, first, store, new FakeProgress(), NOW);
 
     const { client: later } = fakeSpotify({
       likedPages: [{ items: [{ added_at: "2026-09-22T00:00:00Z", track: track("kept") }], next: null }],
     });
-    await syncUser(FIRST, later, store, NOW);
+    await syncUser(FIRST, later, store, new FakeProgress(), NOW);
 
     expect([...store.likes.keys()]).toEqual([store.songId("kept")]);
   });
@@ -269,13 +297,13 @@ describe("syncUser", () => {
     const { client: first } = fakeSpotify({
       playlists: [playlist("same", "me"), playlist("changed", "me"), playlist("gone", "me")],
     });
-    await syncUser(LATER, first, store, NOW);
+    await syncUser(LATER, first, store, new FakeProgress(), NOW);
 
     const { client, calls } = fakeSpotify({
       playlists: [playlist("same", "me", "s1"), playlist("changed", "me", "s2")],
       items: { changed: [{ added_at: null, item: track("x") }] },
     });
-    await syncUser(LATER, client, store, NOW);
+    await syncUser(LATER, client, store, new FakeProgress(), NOW);
 
     expect(calls.playlistItems).toEqual(["changed"]);
     expect([...store.playlists.keys()]).toEqual(["same", "changed"]);
@@ -297,7 +325,7 @@ describe("syncUser", () => {
       },
     });
 
-    await syncUser(LATER, client, store, NOW);
+    await syncUser(LATER, client, store, new FakeProgress(), NOW);
 
     expect(store.playlists.get("mine")?.songs).toEqual([{ songId: store.songId("real"), addedAt: null }]);
   });
@@ -308,20 +336,77 @@ describe("syncUser", () => {
     const recent = Array.from({ length: 50 }, (_, i) => ({ track: track(`r${i}`), played_at: at(59 - i) }));
     const { client } = fakeSpotify({ recent });
 
-    const outcome = await syncUser({ ...LATER, recentCursor: at(0) }, client, new FakeStore(), NOW);
+    const progress = new FakeProgress();
+    const outcome = await syncUser({ ...LATER, recentCursor: at(0) }, client, new FakeStore(), progress, NOW);
 
     expect(outcome.gap).toEqual({ from: at(0), to: at(10) });
     expect(outcome.recentCursor).toBe(at(59));
+    expect(progress.listens).toEqual([{ recentCursor: at(59), gap: { from: at(0), to: at(10) } }]);
   });
 
   it("leaves taste alone between daily passes", async () => {
     const store = new FakeStore();
     const { client, calls } = fakeSpotify({ topArtists: [{ id: "ar1", name: "X" }] });
 
-    const outcome = await syncUser(LATER, client, store, NOW);
+    const progress = new FakeProgress();
+    const outcome = await syncUser(LATER, client, store, progress, NOW);
 
     expect(calls.topArtists).toBe(0);
     expect(store.taste).toEqual([]);
     expect(outcome.dailyDone).toBe(false);
+    expect(progress.dailyPasses).toBe(0);
+  });
+
+  it("keeps the listens cursor and the daily pass when a playlist fails afterwards", async () => {
+    const store = new FakeStore();
+    const { client } = fakeSpotify({
+      recent: [{ track: track("a"), played_at: "2026-09-25T11:00:00.000Z" }],
+      likedPages: [{ items: [{ added_at: "2026-09-20T00:00:00Z", track: track("c") }], next: null }],
+      playlists: [playlist("forbidden", "me")],
+      items: { forbidden: new Error("Spotify answered 403") },
+      topArtists: [{ id: "ar1", name: "X" }],
+    });
+    const progress = new FakeProgress();
+
+    await expect(syncUser(FIRST, client, store, progress, NOW)).rejects.toThrow("Spotify answered 403");
+
+    expect(progress.listens).toEqual([{ recentCursor: "2026-09-25T11:00:00.000Z", gap: null }]);
+    expect(progress.dailyPasses).toBe(1);
+    expect(store.taste).toHaveLength(6);
+  });
+
+  it("removes no likes on the daily pass when paging fails partway", async () => {
+    const store = new FakeStore();
+    const { client: first } = fakeSpotify({
+      likedPages: [
+        {
+          items: [
+            { added_at: "2026-09-22T00:00:00Z", track: track("a") },
+            { added_at: "2026-09-21T00:00:00Z", track: track("b") },
+          ],
+          next: null,
+        },
+      ],
+    });
+    await syncUser(FIRST, first, store, new FakeProgress(), NOW);
+
+    const { client, calls } = fakeSpotify({
+      recent: [{ track: track("p"), played_at: "2026-09-25T11:00:00.000Z" }],
+      likedPages: [
+        {
+          items: [{ added_at: "2026-09-22T00:00:00Z", track: track("a") }],
+          next: "https://api.spotify.com/v1/me/tracks?offset=50",
+        },
+        new Error("Spotify answered 502"),
+      ],
+    });
+    const progress = new FakeProgress();
+
+    await expect(syncUser(FIRST, client, store, progress, NOW)).rejects.toThrow("Spotify answered 502");
+
+    expect(calls.savedOffsets).toEqual([0, 50]);
+    expect([...store.likes.keys()].sort()).toEqual([store.songId("a"), store.songId("b")].sort());
+    expect(progress.listens).toEqual([{ recentCursor: "2026-09-25T11:00:00.000Z", gap: null }]);
+    expect(progress.dailyPasses).toBe(0);
   });
 });

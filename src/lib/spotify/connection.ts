@@ -88,6 +88,28 @@ export async function freshAccessToken(row: ConnectionRow, now: Date): Promise<s
   return tokens.accessToken;
 }
 
+/** Saved as soon as a run's listens are stored, so a later stage failing
+ *  can't make the next run fetch them again. */
+export async function saveListenCursor(userId: string, cursor: string | null): Promise<void> {
+  const { error } = await createServiceClient()
+    .from("spotify_connections")
+    .update({ recent_cursor: cursor })
+    .eq("user_id", userId);
+  check("save Spotify listens cursor", error);
+}
+
+/** Saved once every like has been read and the top lists stored, so a later
+ *  stage failing can't make the next run repeat the daily pass. */
+export async function saveDailyPass(userId: string, now: Date): Promise<void> {
+  const { error } = await createServiceClient()
+    .from("spotify_connections")
+    .update({ last_daily_sync_at: now.toISOString() })
+    .eq("user_id", userId);
+  check("save Spotify daily pass", error);
+}
+
+/** The run finished. Repeats the cursor and daily timestamp already saved as
+ *  progress, which is harmless, and clears the last error. */
 export async function recordSuccess(userId: string, outcome: SyncOutcome, now: Date): Promise<void> {
   const update: Record<string, string | null> = {
     recent_cursor: outcome.recentCursor,

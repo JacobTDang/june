@@ -8,10 +8,12 @@ import {
   recordFailure,
   recordSuccess,
   releaseSyncLease,
+  saveDailyPass,
+  saveListenCursor,
   type ConnectionRow,
 } from "./connection";
 import { supabaseLibraryStore } from "./store";
-import { syncUser } from "./sync-user";
+import { syncUser, type SyncProgress } from "./sync-user";
 
 /** Longer than a first sync of a large library, shorter than the cron gap. */
 const LEASE_SECONDS = 300;
@@ -19,6 +21,21 @@ const LEASE_SECONDS = 300;
 export type SyncRunResult =
   | { status: "busy" }
   | { status: "done"; synced: number; failed: number; rateLimited: boolean };
+
+/** Saves each finished stage of one user's sync on their connection. */
+function connectionProgress(userId: string, now: Date): SyncProgress {
+  return {
+    async listensSaved(recentCursor, gap) {
+      if (gap) {
+        console.warn(`Spotify listens for ${userId} may be missing plays between ${gap.from} and ${gap.to}.`);
+      }
+      await saveListenCursor(userId, recentCursor);
+    },
+    async dailyPassSaved() {
+      await saveDailyPass(userId, now);
+    },
+  };
+}
 
 /** Sync one connection. A failure is recorded on the connection (where
  *  /library shows it) and logged; the caller only needs its kind. */
@@ -34,13 +51,9 @@ async function syncConnection(row: ConnectionRow, now: Date): Promise<SyncFailur
       },
       createSpotifyClient({ accessToken }),
       supabaseLibraryStore(),
+      connectionProgress(row.user_id, now),
       now,
     );
-    if (outcome.gap) {
-      console.warn(
-        `Spotify listens for ${row.user_id} may be missing plays between ${outcome.gap.from} and ${outcome.gap.to}.`,
-      );
-    }
     await recordSuccess(row.user_id, outcome, now);
     return null;
   } catch (err) {

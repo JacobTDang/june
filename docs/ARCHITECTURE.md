@@ -191,10 +191,12 @@ bearer secret read from Vault (`spotify_sync_secret`). The route answers 202
 and syncs in `after()`. A lease (`claim_spotify_sync`) keeps runs from
 overlapping. Per user: refresh the token, read plays after `recent_cursor`
 (Spotify keeps only the last 50, so a run logs any gap), read likes back to
-the newest stored, re-read owned and collaborative playlists whose
-`snapshot_id` changed, and once a day re-read every like (to drop unlikes)
-and the top lists. A 429 ends the run for everyone: quota is counted per
-developer account.
+the newest stored, once a day re-read every like (to drop unlikes) and the
+top lists, and last re-read owned and collaborative playlists whose
+`snapshot_id` changed. The cursor and `last_daily_sync_at` are saved as their
+stage finishes, so a playlist that fails on every run doesn't make every run
+repeat the full likes read. A 429 ends the run for everyone: quota is counted
+per developer account.
 
 Tables: `songs` (shared, one row per Spotify track), `library_songs`,
 `playlists` + `playlist_songs`, `listens` (plays outside june; `plays` stays

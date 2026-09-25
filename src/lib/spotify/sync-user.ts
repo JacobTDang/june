@@ -23,9 +23,9 @@ import {
 import type { SpotifyTrack } from "../../spotify/schema";
 
 /**
- * One user's sync, written against two interfaces so it can be tested with
+ * One user's sync, written against three interfaces so it can be tested with
  * in-memory fakes. Deliberately free of Supabase and `server-only`: the
- * Supabase-backed store lives in ./store.ts.
+ * Supabase-backed store lives in ./store.ts, and ./sync.ts saves progress.
  */
 
 export type TasteSnapshot =
@@ -54,6 +54,18 @@ export interface LibraryStore {
   ): Promise<void>;
   removePlaylists(userId: string, sourceIds: string[]): Promise<void>;
   saveTaste(userId: string, snapshot: TasteSnapshot): Promise<void>;
+}
+
+/**
+ * Saved as each stage finishes rather than once at the end, so a stage that
+ * fails every run (one playlist answering 403, say) can't make every run
+ * repeat the stages before it.
+ */
+export interface SyncProgress {
+  /** Listens are stored; saving the cursor now means a later failure can't make the next run fetch them again. */
+  listensSaved(recentCursor: string | null, gap: { from: string; to: string } | null): Promise<void>;
+  /** Every like was read (unlikes dropped) and the top lists saved; the next run needn't repeat it for a day. */
+  dailyPassSaved(): Promise<void>;
 }
 
 export interface SyncInput {
@@ -90,10 +102,18 @@ function withSongs<T extends { track: SpotifyTrack | null }>(entries: readonly T
   return out;
 }
 
+/**
+ * Stages run cheapest-to-lose first, and progress is saved after each one:
+ * listens (then the cursor), likes, the daily pass's top lists (then its
+ * timestamp), and playlists last, since one bad playlist is the likeliest
+ * thing to fail on every run. A failure anywhere rejects; the stages already
+ * saved stay saved.
+ */
 export async function syncUser(
   input: SyncInput,
   spotify: SpotifyClient,
   store: LibraryStore,
+  progress: SyncProgress,
   now: Date,
 ): Promise<SyncOutcome> {
   const daily = dailyPassDue(input.lastDailySyncAt, now);
@@ -108,22 +128,27 @@ export async function syncUser(
     played.map((p) => ({ songId: songIdFor(playedIds, p.row.source_id), playedAt: p.at })),
   );
   const playedAt = recent.map((item) => item.played_at);
+  const recentCursor = advanceCursor(playedAt, input.recentCursor);
+  const gap = recentGap(playedAt, input.recentCursor);
+  await progress.listensSaved(recentCursor, gap);
 
   await syncLikes(input.userId, daily, spotify, store);
-  await syncPlaylists(input, spotify, store);
-  if (daily) await syncTaste(input.userId, spotify, store);
+  if (daily) {
+    await syncTaste(input.userId, spotify, store);
+    await progress.dailyPassSaved();
+  }
 
-  return {
-    recentCursor: advanceCursor(playedAt, input.recentCursor),
-    dailyDone: daily,
-    gap: recentGap(playedAt, input.recentCursor),
-  };
+  await syncPlaylists(input, spotify, store);
+
+  return { recentCursor, dailyDone: daily, gap };
 }
 
 /**
  * Between daily passes, read likes newest first and stop at the first one
  * already stored. On the daily pass read them all, then drop stored likes that
  * weren't seen: Spotify has no "unliked" feed, so this is how an unlike lands.
+ * A page that fails throws before anything is dropped, so a partial read
+ * can't pass for a full one.
  */
 async function syncLikes(
   userId: string,
