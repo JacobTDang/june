@@ -18,10 +18,12 @@ export const maxDuration = 300;
  */
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
-  const back = (query: string) => {
-    const response = NextResponse.redirect(`${origin}/library?${query}`);
+  const clearState = (response: NextResponse) => {
     response.cookies.set(SPOTIFY_STATE_COOKIE, "", { path: "/api/spotify", maxAge: 0 });
     return response;
+  };
+  const back = (query: string) => {
+    return clearState(NextResponse.redirect(`${origin}/library?${query}`));
   };
   const fail = (code: string) => back(`spotify_error=${encodeURIComponent(code)}`);
 
@@ -29,7 +31,7 @@ export async function GET(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return NextResponse.redirect(`${origin}/?next=${encodeURIComponent("/library")}`);
+  if (!user) return clearState(NextResponse.redirect(`${origin}/?next=${encodeURIComponent("/library")}`));
 
   const refused = searchParams.get("error");
   if (refused) return fail(refused);
