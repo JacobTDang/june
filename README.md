@@ -45,6 +45,9 @@ phone with the screen off, and on networks that block YouTube.
   right now with a button to join them.
 - **Your listening** — recently played and past jams on the home page, top artists
   on your profile. Visible to you and to whoever was in the room with you.
+- **Spotify library** — connect Spotify to bring in liked songs, your own
+  playlists, recent plays and top artists, synced every 30 minutes. Spotify's
+  Development Mode limits this to five accounts.
 - **Profiles** — display name, `@username`, bio, avatar.
 
 ## Stack
@@ -90,6 +93,8 @@ npm run dev                        # http://localhost:3000
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Refresh the YouTube token |
 | `ADMIN_EMAIL` | Owner email for `/metrics` |
 | `SIGNUP_CAP` | Optional seat cap (defaults to 20) |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Spotify library: the Development Mode app (five users) |
+| `SPOTIFY_SYNC_SECRET` | Bearer secret for the cron-driven Spotify sync |
 
 Sign-in needs the Supabase Google provider plus a Google OAuth client whose
 redirect URI is your Supabase `/auth/v1/callback`. Running the audio server

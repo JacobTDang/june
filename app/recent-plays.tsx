@@ -1,16 +1,6 @@
 import Link from "next/link";
 import { getPastJams, getRecentPlays } from "@/src/lib/room/plays";
-
-/** "3 minutes ago", "yesterday" — coarse on purpose; a play doesn't need a clock. */
-function when(iso: string): string {
-  const minutes = Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60_000));
-  if (minutes < 1) return "just now";
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  const days = Math.round(hours / 24);
-  return days === 1 ? "yesterday" : `${days} days ago`;
-}
+import { when } from "@/src/lib/when";
 
 /** Everyone but you, read as a sentence: "with Esther and Christopher". */
 function withWhom(others: string[]): string {

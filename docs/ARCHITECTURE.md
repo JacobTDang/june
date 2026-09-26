@@ -176,6 +176,40 @@ Avatar uploads therefore write with the service role from a server action, where
 the user is already verified and the object path is built from their id. The
 bucket policies stay in place for direct client writes.
 
+## Spotify library
+
+Spec: `docs/superpowers/specs/2026-09-25-spotify-library-design.md`.
+
+A user connects Spotify from `/library` (authorization code flow;
+`/api/spotify/connect` → Spotify → `/api/spotify/callback`). The app is in
+Spotify's **Development Mode: five users at most**, each added by email in the
+developer dashboard, and the owner must hold Premium. Anyone not added gets a
+403 from `GET /me`, which the callback turns into its own message.
+
+pg_cron calls `POST /api/spotify/sync` every 30 minutes through pg_net, with a
+bearer secret read from Vault (`spotify_sync_secret`). The route answers 202
+and syncs in `after()`. A lease (`claim_spotify_sync`) keeps runs from
+overlapping. Per user: refresh the token, read plays after `recent_cursor`
+(Spotify keeps only the last 50, so a run logs any gap), read likes back to
+the newest stored, once a day re-read every like (to drop unlikes) and the
+top lists, and last re-read owned and collaborative playlists whose
+`snapshot_id` changed. The cursor and `last_daily_sync_at` are saved as their
+stage finishes, so a playlist that fails on every run doesn't make every run
+repeat the full likes read. A 429 ends the run for everyone: quota is counted
+per developer account. A run takes the users with the oldest
+`last_attempt_at` first and starts no new user after 200 s (Vercel stops the
+function at 300 s), logging whoever it skipped. An attempt newer than both the
+last success and the last error means the previous run was killed part way;
+the next run records that as the user's sync error. Sync now waits a minute
+after the last attempt.
+
+Tables: `songs` (shared, one row per Spotify track), `library_songs`,
+`playlists` + `playlist_songs`, `listens` (plays outside june; `plays` stays
+"heard in a june room"), `taste_snapshots`, and `spotify_connections`
+(service-role only; the owner reads status through `my_spotify_connection()`).
+All writes are service-role. Pure logic is in `src/spotify/` and
+`src/lib/spotify/sync-user.ts`; IO in `src/lib/spotify/{store,connection,sync}.ts`. Deleting the user's Spotify data is one database function, `delete_spotify_data()`, which deletes rows and the connection in a single transaction; the delete is refused with "busy" while a sync holds the lease.
+
 ## Environments and secrets
 
 **june (Vercel — `junejam` account, project `june`, prod `june-jam.vercel.app`)**
@@ -186,6 +220,8 @@ bucket policies stay in place for direct client writes.
 | `NEXT_PUBLIC_MP3SERVER_URL` | `https://june-audio.duckdns.org` |
 | `YOUTUBE_API_KEY` | search/metadata |
 | `SUPABASE_SERVICE_ROLE_KEY` | server-only cache writes |
+| `SPOTIFY_CLIENT_ID` / `_SECRET` | Spotify library OAuth |
+| `SPOTIFY_SYNC_SECRET` | cron → `/api/spotify/sync` bearer; also in Vault |
 
 `NEXT_PUBLIC_*` values are **baked in at build time** — changing one requires a
 redeploy, not just a save.
