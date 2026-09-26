@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import { SPOTIFY_STATE_COOKIE, spotifyConfig, spotifyRedirectUri } from "@/src/lib/spotify/config";
+import { requestOrigin } from "@/src/lib/request-origin";
 import { createClient } from "@/src/lib/supabase/server";
 import { authorizeUrl, stateCookieValue } from "@/src/spotify/oauth";
 
 /** Starts "Connect Spotify": remembers who asked, then hands over to Spotify. */
 export async function GET(request: Request) {
-  const { origin } = new URL(request.url);
+  const origin = requestOrigin(request);
   const supabase = await createClient();
   const {
     data: { user },

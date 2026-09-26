@@ -1,6 +1,7 @@
 import { cookies } from "next/headers";
 import { after, NextResponse } from "next/server";
 import { SPOTIFY_STATE_COOKIE, spotifyConfig, spotifyRedirectUri } from "@/src/lib/spotify/config";
+import { requestOrigin } from "@/src/lib/request-origin";
 import { AlreadyLinkedError, saveConnection } from "@/src/lib/spotify/connection";
 import { syncOneUser } from "@/src/lib/spotify/sync";
 import { createClient } from "@/src/lib/supabase/server";
@@ -17,7 +18,8 @@ export const maxDuration = 300;
  * on /library straight away.
  */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = requestOrigin(request);
   const clearState = (response: NextResponse) => {
     response.cookies.set(SPOTIFY_STATE_COOKIE, "", { path: "/api/spotify", maxAge: 0 });
     return response;

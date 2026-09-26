@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@/src/lib/supabase/server";
 import { PROVIDER_TOKEN_COOKIE, REFRESH_TOKEN_COOKIE } from "@/src/lib/supabase/tokens";
 import { claimSeat, removeUnseatedUser } from "@/src/lib/auth/seats";
+import { requestOrigin } from "@/src/lib/request-origin";
 import { safeNext } from "@/src/lib/safe-next";
 
 /**
@@ -10,7 +11,8 @@ import { safeNext } from "@/src/lib/safe-next";
  * (`provider_token`) into an httpOnly cookie - it's only exposed here, once.
  */
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
+  const origin = requestOrigin(request);
   const code = searchParams.get("code");
   const next = safeNext(searchParams.get("next"));
 
