@@ -26,8 +26,9 @@ browser**. The exception is library matching: june's server calls
 `POST /imports`, `GET /imports/{id}`, `POST /match` and `PUT /pins` with a
 shared service token (`MP3SERVER_SERVICE_TOKEN` = mp3server's `SERVICE_TOKEN`),
 which opens those routes and nothing else. `POST /match` and `PUT /pins`
-accept only the service token, never a user's: they search YouTube inline (paced
-one a second) and manage library audio only to june's server.
+accept only the service token, never a user's: `/match` searches YouTube
+inline (paced to one search a second), and `/pins` decides which audio the
+server keeps.
 
 ## Request flow: what happens when someone adds a song
 
