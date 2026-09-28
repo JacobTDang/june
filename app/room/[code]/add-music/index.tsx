@@ -1,15 +1,17 @@
 "use client";
 
 import { useState } from "react";
+import { LibraryTab } from "./library-tab";
 import { PlaylistsTab } from "./playlists-tab";
 import { useAddRunner } from "./runner";
 import { SearchTab } from "./search-tab";
 
-type Tab = "search" | "playlist";
+type Tab = "search" | "playlist" | "library";
 
 const TABS: { id: Tab; label: string }[] = [
   { id: "search", label: "Search" },
   { id: "playlist", label: "My playlists" },
+  { id: "library", label: "Library" },
 ];
 
 export function AddMusic({ roomId }: { roomId: string }) {
@@ -44,6 +46,9 @@ export function AddMusic({ roomId }: { roomId: string }) {
       </div>
       <div className={tab === "playlist" ? "add__pane" : "add__pane add__pane--off"}>
         <PlaylistsTab roomId={roomId} runner={runner} />
+      </div>
+      <div className={tab === "library" ? "add__pane" : "add__pane add__pane--off"}>
+        <LibraryTab roomId={roomId} runner={runner} active={tab === "library"} />
       </div>
 
       {runner.message && <p className="add__msg">{runner.message}</p>}

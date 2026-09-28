@@ -1876,6 +1876,23 @@ a:hover {
 .add__pane--off {
   display: none;
 }
+.add__switch {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+.add__filter {
+  width: 100%;
+  margin-bottom: var(--space-4);
+}
+/* A song with no playable match: still listed, never silently dropped. */
+.add__result--off {
+  opacity: 0.5;
+}
+.add__spin {
+  margin-left: var(--space-1);
+  vertical-align: middle;
+}
 .add__tab {
   position: relative;
   padding: 0 0 var(--space-4);
