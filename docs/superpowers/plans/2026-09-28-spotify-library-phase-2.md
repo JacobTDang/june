@@ -3953,8 +3953,11 @@ Then, on the VM (find its address first; it was `jacob@192.168.1.36`):
 cd ~/mp3server && git pull
 grep -n '^MAX_PARALLEL_RESOLVE_JOBS\|^SERVICE_TOKEN' .env   # remove any MAX_PARALLEL_RESOLVE_JOBS line; it must default to 1
 printf 'SERVICE_TOKEN=%s\n' '<the value from june/.env.local>' >> .env
-docker compose up -d --build
+# build, migrate, then start: the new code reads matched_duration_ms, and the
+# old code running meanwhile ignores the extra nullable column
+docker compose build
 docker compose run --rm api alembic upgrade head
+docker compose up -d
 docker compose ps
 ```
 
