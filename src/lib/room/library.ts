@@ -1,9 +1,9 @@
 "use server";
 
-import { createImportService } from "../../audio/imports";
+import { createImportService, type TrackToMatch } from "../../audio/imports";
 import { mp3serverServiceConfig } from "../spotify/config";
 import { getLibraryPlaylists, type LibraryPlaylist } from "../spotify/library";
-import { matchResultUpdate } from "../spotify/match-plan";
+import { matchResultUpdate, sendableTrack } from "../spotify/match-plan";
 import { supabaseMatchStore } from "../spotify/match-store";
 import { createClient } from "../supabase/server";
 import { enqueueTrack } from "./actions";
@@ -97,14 +97,10 @@ export async function listPlaylistSongsForRoom(playlistId: string): Promise<Libr
 }
 
 /** Match one song on mp3server now and save the answer on the song. */
-async function matchNow(song: SongForRoom): Promise<AddTrackInput | null> {
-  const artist = song.artists[0];
-  if (!artist) throw new Error(`song ${song.id} has no artist to match on`);
-  const result = await createImportService({ ...mp3serverServiceConfig(), timeoutMs: MATCH_TIMEOUT_MS }).matchOne({
-    title: song.title,
-    artist,
-    durationMs: song.duration_ms,
-  });
+async function matchNow(song: SongForRoom, track: TrackToMatch): Promise<AddTrackInput | null> {
+  const result = await createImportService({ ...mp3serverServiceConfig(), timeoutMs: MATCH_TIMEOUT_MS }).matchOne(
+    track,
+  );
   const update = matchResultUpdate(song.id, result);
   await supabaseMatchStore().applyUpdates([update]);
   if (update.state !== "matched") return null;
@@ -142,8 +138,21 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
       if (matchView(song).state === "unavailable") {
         return { ok: false, notice: `No playable match was found for “${song.title}”.` };
       }
+      const toMatch = sendableTrack({
+        id: song.id,
+        title: song.title,
+        artists: song.artists,
+        durationMs: song.duration_ms,
+      });
+      if (toMatch === null) {
+        // mp3server would refuse it, so it is failed now rather than left
+        // looking like it's still in line.
+        console.error(`Song ${song.id} can't be matched: its title or artist is blank. Marking it failed.`);
+        await supabaseMatchStore().applyUpdates([{ songId: song.id, state: "failed" }]);
+        return { ok: false, notice: "That song can’t be matched because its title or artist is missing." };
+      }
       try {
-        track = await matchNow(song);
+        track = await matchNow(song, toMatch);
       } catch (err) {
         // A timeout or a failed search saves nothing, so the song keeps its
         // state: a pending one goes out with the next batch, a failed one

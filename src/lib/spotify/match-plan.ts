@@ -12,6 +12,10 @@ export const MATCH_BATCH_LIMIT = 500;
 /** A failed match (a bot check, an outage) goes back in line after this long. */
 export const FAILED_RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
 
+/** mp3server's TrackIn limit on a title or an artist, in characters. It
+ *  refuses the whole import if one track is over it. */
+export const MAX_TRACK_TEXT = 500;
+
 export interface PendingSong {
   id: string;
   title: string;
@@ -36,12 +40,42 @@ export type SongMatchUpdate =
   // "pending" puts a song back in line: its import was cancelled or is gone
   | { songId: string; state: "not_found" | "failed" | "pending" };
 
-export function importBatch(songs: readonly PendingSong[]): TrackToMatch[] {
-  return songs.map((song) => {
-    const artist = song.artists[0];
-    if (!artist) throw new Error(`song ${song.id} has no artist to match on`);
-    return { title: song.title, artist, durationMs: song.durationMs };
-  });
+/** Trimmed and cut to the limit. Counted in code points, as Python counts a
+ *  string's length, so a cut never splits an emoji. */
+function trackText(text: string | undefined): string {
+  return Array.from((text ?? "").trim()).slice(0, MAX_TRACK_TEXT).join("");
+}
+
+/** What mp3server is sent for a song: its title, first artist and Spotify
+ *  length. Null when the title or artist is blank, which mp3server refuses. */
+export function sendableTrack(song: PendingSong): TrackToMatch | null {
+  const title = trackText(song.title);
+  const artist = trackText(song.artists[0]);
+  if (title === "" || artist === "") return null;
+  return { title, artist, durationMs: song.durationMs };
+}
+
+export interface ImportBatch {
+  /** What is submitted. A song's index here is its match_position. */
+  tracks: TrackToMatch[];
+  /** The submitted songs' ids, in the same order as tracks. */
+  sendable: string[];
+  /** Songs that can't be sent. One of them would get the whole import refused. */
+  unsendable: string[];
+}
+
+export function importBatch(songs: readonly PendingSong[]): ImportBatch {
+  const batch: ImportBatch = { tracks: [], sendable: [], unsendable: [] };
+  for (const song of songs) {
+    const track = sendableTrack(song);
+    if (track === null) {
+      batch.unsendable.push(song.id);
+      continue;
+    }
+    batch.tracks.push(track);
+    batch.sendable.push(song.id);
+  }
+  return batch;
 }
 
 /** A resolved answer is playable only with a video and its length: the room

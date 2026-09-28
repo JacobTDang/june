@@ -35,8 +35,13 @@ export interface MatchRunResult {
   requeued: number;
   /** Songs whose import answered: matched, not found, failed or back to pending. */
   collected: number;
+  /** Imports that couldn't be read or saved this run (logged); their songs
+   *  stay matching and are collected next run. */
+  collectErrors: number;
   /** Songs submitted in this run's new import. */
   submitted: number;
+  /** Pending songs with a blank title or artist, marked failed instead. */
+  unsendable: number;
 }
 
 export async function matchLibrary(store: MatchStore, service: ImportService, now: Date): Promise<MatchRunResult> {
@@ -47,18 +52,31 @@ export async function matchLibrary(store: MatchStore, service: ImportService, no
   // Collecting first means a song sent back to pending (its import was
   // cancelled or pruned) goes out again in this same run.
   let collected = 0;
+  let collectErrors = 0;
   for (const [jobId, songs] of await store.songsAwaitingImports()) {
-    const updates = updatesFromImport(songs, await service.getImport(jobId));
-    await store.applyUpdates(updates);
-    collected += updates.length;
+    // One import that can't be read or saved must not hold up the others or
+    // the next batch. Its songs stay matching and are tried again next run.
+    try {
+      const updates = updatesFromImport(songs, await service.getImport(jobId));
+      await store.applyUpdates(updates);
+      collected += updates.length;
+    } catch (err) {
+      collectErrors++;
+      console.error(`Collecting import ${jobId} (${songs.length} songs) failed; they stay matching:`, err);
+    }
   }
 
-  const pending = await store.pendingSongs(MATCH_BATCH_LIMIT);
-  if (pending.length === 0) return { requeued, collected, submitted: 0 };
-  const created = await service.createImport(importBatch(pending));
-  await store.markMatching(
-    created.id,
-    pending.map((song) => song.id),
-  );
-  return { requeued, collected, submitted: pending.length };
+  const batch = importBatch(await store.pendingSongs(MATCH_BATCH_LIMIT));
+  if (batch.unsendable.length > 0) {
+    for (const songId of batch.unsendable) {
+      console.error(`Song ${songId} can't be matched: its title or artist is blank. Marking it failed.`);
+    }
+    await store.applyUpdates(batch.unsendable.map((songId) => ({ songId, state: "failed" as const })));
+  }
+  const result = { requeued, collected, collectErrors, submitted: 0, unsendable: batch.unsendable.length };
+  if (batch.tracks.length === 0) return result;
+
+  const created = await service.createImport(batch.tracks);
+  await store.markMatching(created.id, batch.sendable);
+  return { ...result, submitted: batch.tracks.length };
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { ImportService, ImportStatus, TrackToMatch } from "../../src/audio/imports";
 import { matchLibrary, type MatchStore } from "../../src/lib/spotify/match-library";
 import type { MatchingSong, PendingSong, SongMatchUpdate } from "../../src/lib/spotify/match-plan";
@@ -10,6 +10,8 @@ class FakeStore implements MatchStore {
   awaiting = new Map<string, MatchingSong[]>();
   marked: { jobId: string; songIds: string[] }[] = [];
   applied: SongMatchUpdate[][] = [];
+  /** Saving an update for this song fails. */
+  applyFailsFor: string | null = null;
   log: string[] = [];
 
   async requeueFailed(olderThan: Date) {
@@ -33,6 +35,7 @@ class FakeStore implements MatchStore {
   }
   async applyUpdates(updates: SongMatchUpdate[]) {
     this.log.push("apply");
+    if (updates.some((u) => u.songId === this.applyFailsFor)) throw new Error("save song matches: timeout");
     this.applied.push(updates);
     // a song sent back to pending is picked up by the same run's new batch
     for (const u of updates) {
@@ -41,7 +44,7 @@ class FakeStore implements MatchStore {
   }
 }
 
-function fakeService(imports: Record<string, ImportStatus | null> = {}) {
+function fakeService(imports: Record<string, ImportStatus | Error | null> = {}) {
   const created: TrackToMatch[][] = [];
   const service: ImportService = {
     async createImport(tracks) {
@@ -49,7 +52,9 @@ function fakeService(imports: Record<string, ImportStatus | null> = {}) {
       return { id: `job-${created.length}`, total: tracks.length };
     },
     async getImport(id) {
-      return imports[id] ?? null;
+      const found = imports[id] ?? null;
+      if (found instanceof Error) throw found;
+      return found;
     },
     async matchOne() {
       throw new Error("not used by matchLibrary");
@@ -62,6 +67,18 @@ const song = (id: string): PendingSong => ({ id, title: `T${id}`, artists: [`A${
 
 const NOW = new Date("2026-09-28T12:00:00.000Z");
 const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 60 * 60 * 1000);
+
+const oneResolved = (id: string): ImportStatus => ({
+  id,
+  status: "completed",
+  total: 1,
+  done: 1,
+  tracks: [{ title: "t", artist: "a", state: "resolved", video_id: "v1", confidence: "high", matched_duration_ms: 1000 }],
+});
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 describe("matchLibrary", () => {
   it("collects finished imports before submitting new work", async () => {
@@ -86,7 +103,7 @@ describe("matchLibrary", () => {
     ]);
     expect(created).toEqual([[{ title: "Ts2", artist: "As2", durationMs: 1000 }]]);
     expect(store.marked).toEqual([{ jobId: "job-1", songIds: ["s2"] }]);
-    expect(result).toEqual({ requeued: 0, collected: 1, submitted: 1 });
+    expect(result).toEqual({ requeued: 0, collected: 1, collectErrors: 0, submitted: 1, unsendable: 0 });
   });
 
   it("puts songs that failed over a day ago back in line first, and submits them in the same run", async () => {
@@ -134,9 +151,85 @@ describe("matchLibrary", () => {
     const store = new FakeStore();
     const { service, created } = fakeService();
 
-    expect(await matchLibrary(store, service, NOW)).toEqual({ requeued: 0, collected: 0, submitted: 0 });
+    expect(await matchLibrary(store, service, NOW)).toEqual({
+      requeued: 0,
+      collected: 0,
+      collectErrors: 0,
+      submitted: 0,
+      unsendable: 0,
+    });
     expect(created).toEqual([]);
     expect(store.marked).toEqual([]);
+  });
+
+  it("fails songs mp3server would refuse, and submits the rest with positions among the submitted", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = new FakeStore();
+    store.pending = [{ id: "blank", title: " ", artists: ["A"], durationMs: null }, song("s1"), song("s2")];
+    const { service, created } = fakeService();
+
+    const result = await matchLibrary(store, service, NOW);
+
+    expect(store.applied).toEqual([[{ songId: "blank", state: "failed" }]]);
+    expect(errors.mock.calls.flat().join(" ")).toMatch(/blank/);
+    expect(created).toEqual([
+      [
+        { title: "Ts1", artist: "As1", durationMs: 1000 },
+        { title: "Ts2", artist: "As2", durationMs: 1000 },
+      ],
+    ]);
+    // a song's index in songIds is its position in the import
+    expect(store.marked).toEqual([{ jobId: "job-1", songIds: ["s1", "s2"] }]);
+    expect(result).toMatchObject({ submitted: 2, unsendable: 1 });
+  });
+
+  it("submits nothing when no pending song can be sent", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = new FakeStore();
+    store.pending = [{ id: "s1", title: "X", artists: [], durationMs: null }];
+    const { service, created } = fakeService();
+
+    const result = await matchLibrary(store, service, NOW);
+
+    expect(store.applied).toEqual([[{ songId: "s1", state: "failed" }]]);
+    expect(created).toEqual([]);
+    expect(store.marked).toEqual([]);
+    expect(result).toMatchObject({ submitted: 0, unsendable: 1 });
+  });
+
+  it("logs an import it can't collect and carries on with the others and the next batch", async () => {
+    const errors = vi.spyOn(console, "error").mockImplementation(() => {});
+    const store = new FakeStore();
+    store.awaiting.set("job-down", [{ id: "s1", position: 0 }]);
+    store.awaiting.set("job-odd", [{ id: "s2", position: 0 }]);
+    store.awaiting.set("job-unsaved", [{ id: "s3", position: 0 }]);
+    store.awaiting.set("job-ok", [{ id: "s4", position: 0 }]);
+    store.applyFailsFor = "s3";
+    store.pending = [song("s5")];
+    const { service, created } = fakeService({
+      "job-down": new Error("mp3server 502 on /imports/job-down"),
+      "job-odd": {
+        id: "job-odd",
+        status: "running",
+        total: 1,
+        done: 0,
+        tracks: [{ title: "t", artist: "a", state: "rate_limited" }],
+      },
+      "job-unsaved": oneResolved("job-unsaved"),
+      "job-ok": oneResolved("job-ok"),
+    });
+
+    const result = await matchLibrary(store, service, NOW);
+
+    const logged = errors.mock.calls.map((call) => call.join(" "));
+    expect(logged.some((line) => line.includes("job-down"))).toBe(true);
+    expect(logged.some((line) => line.includes("job-odd"))).toBe(true);
+    expect(logged.some((line) => line.includes("job-unsaved"))).toBe(true);
+    expect(store.applied.at(-1)).toEqual([
+      { songId: "s4", state: "matched", videoId: "v1", videoDurationMs: 1000, confidence: "high" },
+    ]);
+    expect(created).toEqual([[{ title: "Ts5", artist: "As5", durationMs: 1000 }]]);
+    expect(result).toEqual({ requeued: 0, collected: 1, collectErrors: 3, submitted: 1, unsendable: 0 });
   });
 
   it("lets a failing import service fail the step", async () => {

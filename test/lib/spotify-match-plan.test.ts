@@ -4,6 +4,8 @@ import {
   importBatch,
   matchResultUpdate,
   matchUpdateRow,
+  MAX_TRACK_TEXT,
+  sendableTrack,
   updatesFromImport,
 } from "../../src/lib/spotify/match-plan";
 
@@ -21,21 +23,50 @@ const resolved = (video: string, ms: number | null, confidence = "high") => ({
   matched_duration_ms: ms,
 });
 
+describe("sendableTrack", () => {
+  it("sends the title, first artist and Spotify length, trimmed", () => {
+    expect(
+      sendableTrack({ id: "s1", title: "  Glory Box ", artists: [" Portishead", "Guest"], durationMs: 305_000 }),
+    ).toEqual({ title: "Glory Box", artist: "Portishead", durationMs: 305_000 });
+  });
+
+  it("cuts a title or artist to mp3server's 500-character limit", () => {
+    expect(MAX_TRACK_TEXT).toBe(500);
+    const track = sendableTrack({ id: "s1", title: "t".repeat(600), artists: ["a".repeat(501)], durationMs: null });
+    expect(track?.title).toBe("t".repeat(500));
+    expect(track?.artist).toBe("a".repeat(500));
+  });
+
+  it("counts characters as mp3server does, so a cut never splits an emoji", () => {
+    const track = sendableTrack({ id: "s1", title: "🎵".repeat(501), artists: ["X"], durationMs: null });
+    expect(Array.from(track?.title ?? "")).toHaveLength(500);
+    expect(track?.title).toBe("🎵".repeat(500));
+  });
+
+  it("has nothing to send without a title or an artist", () => {
+    expect(sendableTrack({ id: "s1", title: "   ", artists: ["X"], durationMs: null })).toBeNull();
+    expect(sendableTrack({ id: "s1", title: "X", artists: [], durationMs: null })).toBeNull();
+    expect(sendableTrack({ id: "s1", title: "X", artists: [" "], durationMs: null })).toBeNull();
+  });
+});
+
 describe("importBatch", () => {
-  it("sends each song's title, first artist and Spotify length", () => {
+  it("submits the songs it can send, in order, and sets aside the rest", () => {
     expect(
       importBatch([
         { id: "s1", title: "Glory Box", artists: ["Portishead", "Guest"], durationMs: 305_000 },
-        { id: "s2", title: "Roads", artists: ["Portishead"], durationMs: null },
+        { id: "s2", title: "No artist", artists: [], durationMs: null },
+        { id: "s3", title: " ", artists: ["Portishead"], durationMs: null },
+        { id: "s4", title: "Roads", artists: ["Portishead"], durationMs: null },
       ]),
-    ).toEqual([
-      { title: "Glory Box", artist: "Portishead", durationMs: 305_000 },
-      { title: "Roads", artist: "Portishead", durationMs: null },
-    ]);
-  });
-
-  it("refuses a song with no artist rather than sending a blank one", () => {
-    expect(() => importBatch([{ id: "s1", title: "X", artists: [], durationMs: null }])).toThrow(/s1/);
+    ).toEqual({
+      tracks: [
+        { title: "Glory Box", artist: "Portishead", durationMs: 305_000 },
+        { title: "Roads", artist: "Portishead", durationMs: null },
+      ],
+      sendable: ["s1", "s4"],
+      unsendable: ["s2", "s3"],
+    });
   });
 });
 
