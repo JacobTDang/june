@@ -309,8 +309,9 @@ standby: failing over means pointing `NEXT_PUBLIC_MP3SERVER_URL` at it.
 ```bash
 ssh <user>@<homelab-vm>
 cd mp3server && git pull
-sudo docker compose up -d --build                        # no Caddy profile: Funnel does TLS
-sudo docker compose run --rm api alembic upgrade head   # if migrations changed
+sudo docker compose build
+sudo docker compose run --rm api alembic upgrade head   # before starting the new code
+sudo docker compose up -d                                # no Caddy profile: Funnel does TLS
 ```
 
 **Check health**
