@@ -1869,6 +1869,13 @@ a:hover {
   border-bottom: 1px solid var(--line);
   margin-bottom: var(--space-5);
 }
+/* A tab's content, laid out as if its children sat directly in .add. */
+.add__pane {
+  display: contents;
+}
+.add__pane--off {
+  display: none;
+}
 .add__tab {
   position: relative;
   padding: 0 0 var(--space-4);
