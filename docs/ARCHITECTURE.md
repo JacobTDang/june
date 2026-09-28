@@ -23,11 +23,12 @@ started*; nothing streams through june.
 
 They are deployed independently. june talks to mp3server mostly **from the
 browser**. The exception is library matching: june's server calls
-`POST /imports`, `GET /imports/{id}` and `POST /match` with a shared service
-token (`MP3SERVER_SERVICE_TOKEN` = mp3server's `SERVICE_TOKEN`), which opens
-those three routes and nothing else. `POST /match` accepts only the service
-token, never a user's: it searches YouTube inline, so it is paced (one search
-a second) and only june's server may call it.
+`POST /imports`, `GET /imports/{id}`, `POST /match` and `PUT /pins` with a
+shared service token (`MP3SERVER_SERVICE_TOKEN` = mp3server's `SERVICE_TOKEN`),
+which opens those routes and nothing else. `POST /match` and `PUT /pins`
+accept only the service token, never a user's: `/match` searches YouTube
+inline (paced to one search a second), and `/pins` decides which audio the
+server keeps.
 
 ## Request flow: what happens when someone adds a song
 
@@ -231,6 +232,16 @@ user's own playlists. A matched song queues directly. One still matching is
 matched on the spot through `POST /match`, which searches inline instead of
 waiting behind a batch. A playlist queues its matched songs and reports what
 it left out.
+
+**Keeping audio at home.** Each sync run ends by sending mp3server the keep
+list: every matched video in anyone's liked songs or playlists, read by the
+service-role function `library_video_ids()` and sent whole as `PUT /pins`.
+mp3server never expires or evicts pinned audio, and its download worker's
+`prefetch_pins` job fetches pinned tracks that have none yet. It starts one
+at a time and only when no download is queued or running, at most 12 an
+hour, never into the last 10 GB of disk, and not for 6 hours after YouTube's
+bot check. A track that leaves every library loses its pin with the next
+run and ages out like any other.
 
 ## Environments and secrets
 

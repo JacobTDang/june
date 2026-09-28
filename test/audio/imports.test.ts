@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createImportService, ImportServiceError } from "../../src/audio/imports";
+import { createImportService } from "../../src/audio/imports";
+import { ServiceError } from "../../src/audio/service-request";
 
 type Reply = { status?: number; body: unknown };
 
@@ -77,7 +78,7 @@ describe("createImportService", () => {
       .getImport("job-1")
       .catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(ImportServiceError);
+    expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({ status: 404, message: expect.stringMatching(/Not Found/) });
   });
 
@@ -102,7 +103,7 @@ describe("createImportService", () => {
       .matchOne({ title: "x", artist: "y", durationMs: null })
       .catch((e: unknown) => e);
 
-    expect(error).toBeInstanceOf(ImportServiceError);
+    expect(error).toBeInstanceOf(ServiceError);
     expect(error).toMatchObject({ status: 502, message: expect.stringMatching(/not a bot/) });
   });
 

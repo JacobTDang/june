@@ -497,7 +497,7 @@ shapes, used in tests only.
 | --- | --- |
 | Migrations | `supabase/migrations/20260925000000_spotify_library.sql` (tables, RLS, functions, lease), `20260925000100_spotify_sync_cron.sql` |
 | Spotify boundary | new `src/spotify/schema.ts`, `client.ts`, `map.ts`, `diff.ts` |
-| Sync | new `src/lib/spotify/connection.ts`, `sync.ts`, `matching.ts`, `pins.ts` |
+| Sync | new `src/lib/spotify/connection.ts`, `sync.ts`, `matching.ts`, `keep-list.ts`, `keep-list-store.ts` |
 | mp3server client | `src/audio/` gains a server-side service client for `/imports`, `/match`, `/pins` |
 | Routes | new `app/api/spotify/connect/route.ts`, `callback/route.ts`, `sync/route.ts` |
 | Library UI | new `app/library/page.tsx` and shared list components |
