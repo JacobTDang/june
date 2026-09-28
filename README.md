@@ -1,124 +1,125 @@
 # june
 
-A jam room for music — friends join by code and listen to the same queue,
-**in sync**, each in their own browser.
+A jam room for music. Friends join by code and hear the same queue **in sync**,
+each on their own device: laptop, phone, screen on or off.
 
-![june home screen](docs/screenshots/home.png)
-
-![june room, playing a track](docs/screenshots/room.jpg)
-
-![the room's queue and search](docs/screenshots/queue.png)
+![june: a room playing in sync on a laptop and a phone, searching and queueing songs, and bringing in a Spotify library](docs/media/june-demo.gif)
 
 ## How it works
 
-A small self-hosted audio server (`mp3server`, a sibling repo) fetches each track
-once and streams it back over signed, expiring URLs. Each browser plays that
-stream in a plain `<audio>` element; june's database only coordinates *what* is
-playing and *when it started*. Everyone computes their position as
+A self-hosted audio server (`mp3server`, a sibling repo) fetches each track once
+and streams it back over signed, expiring URLs. Each browser plays that stream
+in a plain `<audio>` element. june's database only coordinates *what* is playing
+and *when it started*: everyone computes their position as
 `serverNow − startedAt` and converges.
 
 ```
-Discovery      iTunes Search API  →  resolve to a videoId once  →  cached forever
+Discovery      iTunes Search API → resolve to a YouTube videoId once → cached forever
 Audio          mp3server fetches the track, stores it, streams it back (HTTP Range)
-Room state     Supabase Postgres + Realtime (rooms, queue_items, participants, chat)
+Room state     Supabase Postgres + Realtime (rooms, queue, participants, chat)
 Playback       each browser's <audio>, seeked to the shared clock
 ```
 
-Playing real audio rather than an embedded player is what makes it work on a
-phone with the screen off, and on networks that block YouTube.
+Playing real audio instead of an embedded player is what lets it keep going on
+a phone with the screen off, and on networks that block YouTube.
 
 ## Features
 
-- **Synced playback** — same song, same second, in every browser in the room.
-- **Per-device sound** — mute or set the volume on *this* screen, so a laptop and
-  a phone can both be in the jam without doubling up.
-- **Chat** — realtime, in the room, alongside the queue.
-- **Lyrics (beta)** — line by line, timed from the video's own captions where they
-  exist and a lyrics database otherwise.
-- **Search that keeps up** — results as you type (iTunes, zero YouTube quota),
-  ranked so the studio version wins, with a click-through artist view.
-- **Queue** — a scrollable "up next" with drag-to-reorder, and suggestions drawn
-  from what the room has played once it runs dry.
-- **Playlists** — browse your own YouTube playlists, or paste any playlist link
+- **Synced playback.** The same song at the same second, in every browser in the room.
+- **Per-device sound.** Mute or set the volume on *this* screen, so a laptop and a
+  phone can both be in the jam without doubling up.
+- **Search as you type.** iTunes results with zero YouTube quota, ranked so the
+  studio version wins, with a click-through artist view.
+- **Queue.** A scrollable "up next" with drag-to-reorder, and suggestions from
+  what the room has played once it runs dry.
+- **Playlists.** Browse your own YouTube playlists, or paste any playlist link
   and pick tracks from it.
-- **Friends** — requests with an in-room toast, and see what a friend is playing
-  right now with a button to join them.
-- **Your listening** — recently played and past jams on the home page, top artists
-  on your profile. Visible to you and to whoever was in the room with you.
-- **Spotify library** — connect Spotify to bring in liked songs, your own
-  playlists, recent plays and top artists, synced every 30 minutes, and
-  queue them from the Library tab in any room. Spotify's Development Mode
-  limits this to five accounts.
-- **Profiles** — display name, `@username`, bio, avatar.
+- **Spotify library.** Connect Spotify to bring in your liked songs, your own
+  playlists, recent plays and top artists, synced every 30 minutes. Songs are
+  matched to audio in the background, and the room's Library tab queues them.
+  Spotify's Development Mode limits this to five accounts.
+- **Lyrics (beta).** Line by line, timed from the video's own captions where they
+  exist and a lyrics database otherwise.
+- **Chat.** Realtime, in the room, alongside the queue.
+- **Friends.** Requests with an in-room toast, and a friend's current jam with a
+  button to join them.
+- **Your listening.** Recently played and past jams on the home page, top artists
+  on your profile.
+- **Profiles.** Display name, `@username`, bio, avatar.
 
 ## Stack
 
-- **Next.js 16** (App Router, Server Actions) + **React 19** + **TypeScript**
-- **Supabase** — Postgres, Auth (Google), RLS, `SECURITY DEFINER` RPCs, Realtime,
-  Storage, `pg_cron`
-- **mp3server** — FastAPI + arq + yt-dlp on a small VM, behind Caddy for TLS
-- **iTunes Search API** for discovery, **YouTube Data API** for resolution and playlists
-- **Vitest** — unit tests for the pure logic
-- **Vercel** — hosting
+- **Next.js 16** (App Router, Server Actions), **React 19**, **TypeScript**
+- **Supabase**: Postgres, Auth (Google), RLS, `SECURITY DEFINER` functions,
+  Realtime, Storage, `pg_cron`
+- **mp3server**: FastAPI, arq and yt-dlp on a home server, published with
+  Tailscale Funnel
+- **iTunes Search API** for discovery, **YouTube Data API** for resolution and
+  playlists, **Spotify Web API** for libraries
+- **Vitest** for the pure logic
+- **Vercel** for hosting
 
 ## Layout
 
-- **`src/jam/`** — the pure core: queue, sync clock, clock-offset estimation.
-  No IO, deterministic (`now` is a parameter).
-- **`src/audio/`** — mp3server client, download progress, visualizer spectrum math.
-- **`src/lyrics/`** — LRC parsing, caption conversion, lyrics matching.
-- **`src/discovery/`** · **`src/youtube/`** — iTunes search and ranking; the
-  YouTube API layer, with Zod validation at the boundary.
-- **`src/lib/`** — Supabase clients, room actions, plays, friends, profiles.
-- **`app/`** — App Router UI (lobby, room, player, chat, profile).
-- **`supabase/migrations/`** — schema, RLS, and participant-checked RPCs.
+- **`src/jam/`**: the pure core (queue, sync clock, clock-offset estimation). No
+  IO; `now` is always a parameter.
+- **`src/audio/`**: mp3server clients (browser downloads, and the server-side
+  import and match calls), download progress, visualizer math.
+- **`src/spotify/`** · **`src/lib/spotify/`**: the Spotify API boundary, and the
+  library sync and matching.
+- **`src/discovery/`** · **`src/youtube/`**: iTunes search and ranking, and the
+  YouTube API layer, validated with Zod at the boundary.
+- **`src/lyrics/`**: LRC parsing, caption conversion, lyrics matching.
+- **`src/lib/`**: Supabase clients, room actions, plays, friends, profiles.
+- **`app/`**: the App Router UI (home, room, library, friends, profile).
+- **`supabase/migrations/`**: schema, RLS and functions.
 
 How the pieces fit together, the invariants that aren't obvious from the code,
-and the operations runbook are in
-**[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+and the operations runbook are in **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ## Local development
 
 ```bash
 npm install
 cp .env.local.example .env.local   # fill in the values
-npm run dev                        # http://localhost:3000
+npm run dev                        # http://127.0.0.1:3000
 ```
+
+Use `127.0.0.1` rather than `localhost`: Spotify only accepts loopback IP
+redirect URIs.
 
 | Variable | Purpose |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase client (public) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Server-side writes that bypass RLS (secret) |
 | `NEXT_PUBLIC_MP3SERVER_URL` | The audio server |
+| `MP3SERVER_SERVICE_TOKEN` | june's server → mp3server, for library matching (same value as its `SERVICE_TOKEN`) |
 | `YOUTUBE_API_KEY` | YouTube Data API |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Refresh the YouTube token |
+| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | The Spotify Development Mode app (five users) |
+| `SPOTIFY_SYNC_SECRET` | Bearer secret for the cron-driven Spotify sync |
 | `ADMIN_EMAIL` | Owner email for `/metrics` |
 | `SIGNUP_CAP` | Optional seat cap (defaults to 20) |
-| `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET` | Spotify library: the Development Mode app (five users) |
-| `SPOTIFY_SYNC_SECRET` | Bearer secret for the cron-driven Spotify sync |
-| `MP3SERVER_SERVICE_TOKEN` | Library matching: june's server → mp3server (same as its `SERVICE_TOKEN`) |
 
-Sign-in needs the Supabase Google provider plus a Google OAuth client whose
+Sign-in needs the Supabase Google provider and a Google OAuth client whose
 redirect URI is your Supabase `/auth/v1/callback`. Running the audio server
 locally is covered in the architecture doc.
 
 ## Testing
 
 ```bash
-npm test          # the pure logic: sync clock, queue, lyrics, discovery, plays…
+npm test          # the pure logic: sync clock, queue, matching, lyrics, discovery…
 npm run typecheck
 npm run build
 ```
 
-Sync, realtime and playback are integration behaviour — verify them by opening a
+Sync, realtime and playback are integration behaviour. Check them by opening a
 room in **two browsers** and confirming both play the same track at the same
 position.
 
 ## Deploy
 
-Vercel for the app, any small VM for the audio server (the architecture doc has
-the runbook). Set the env vars above in Vercel, add `https://<your-domain>/**`
-as a Supabase redirect URL, and publish the Google OAuth consent screen so
-YouTube refresh tokens don't expire after 7 days.
-
-The app runs on free tiers; the audio server needs a machine with disk.
+- **The app:** Vercel. Set the env vars above in Vercel.
+- **Supabase:** add `https://<your-domain>/**` as a redirect URL.
+- **Google:** publish the OAuth consent screen, so YouTube refresh tokens don't expire after 7 days.
+- **The audio server:** any machine with disk. The architecture doc has the runbook.
