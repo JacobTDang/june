@@ -94,6 +94,15 @@ describe("updatesFromImport", () => {
       /position 7/,
     );
   });
+
+  it("fails loudly on a track state it doesn't know", () => {
+    expect(() =>
+      updatesFromImport(
+        [{ id: "s1", position: 0 }],
+        status([{ title: "t", artist: "a", state: "rate_limited" }]),
+      ),
+    ).toThrow(/unknown state "rate_limited"/);
+  });
 });
 
 describe("matchResultUpdate", () => {

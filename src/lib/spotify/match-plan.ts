@@ -69,9 +69,11 @@ function fromTrack(songId: string, track: ImportTrackState): SongMatchUpdate | n
       return { songId, state: "failed" };
     case "canceled":
       return { songId, state: "pending" };
-    default:
+    case "pending":
       // still pending on mp3server: leave the song where it is
       return null;
+    default:
+      throw new Error(`song ${songId}: import track has an unknown state "${track.state}"`);
   }
 }
 
