@@ -21,8 +21,11 @@ started*; nothing streams through june.
 | `june` (this one) | Next.js 16 app: rooms, queue, search, playback UI | Vercel, auto-deploys from `main` |
 | `mp3server` | FastAPI + arq worker: downloads and serves audio | Oracle Cloud ARM box, Docker Compose |
 
-They are deployed independently. june talks to mp3server **from the browser**,
-not server-to-server.
+They are deployed independently. june talks to mp3server mostly **from the
+browser**. The exception is library matching: june's server calls
+`POST /imports`, `GET /imports/{id}` and `POST /match` with a shared service
+token (`MP3SERVER_SERVICE_TOKEN` = mp3server's `SERVICE_TOKEN`), which opens
+those three routes and nothing else.
 
 ## Request flow: what happens when someone adds a song
 
@@ -209,6 +212,20 @@ Tables: `songs` (shared, one row per Spotify track), `library_songs`,
 (service-role only; the owner reads status through `my_spotify_connection()`).
 All writes are service-role. Pure logic is in `src/spotify/` and
 `src/lib/spotify/sync-user.ts`; IO in `src/lib/spotify/{store,connection,sync}.ts`. Deleting the user's Spotify data is one database function, `delete_spotify_data()`, which deletes rows and the connection in a single transaction; the delete is refused with "busy" while a sync holds the lease.
+
+**Matching.** Every sync run ends by matching songs to videos on mp3server.
+It first collects results for songs in `matching` (by their import's id and
+their position in it), then submits up to 500 `pending` songs as one import.
+mp3server's resolver paces its searches to one every 3 seconds and runs one
+at a time, so bulk matching doesn't get the home IP flagged; cache hits don't
+wait. Results come back with the video's own length (`video_duration_ms`),
+which is what a room queues: the room clock ends a track on the audio.
+
+**In a room**, the add-music panel's Library tab lists liked songs and the
+user's own playlists. A matched song queues directly. One still matching is
+matched on the spot through `POST /match`, which searches inline instead of
+waiting behind a batch. A playlist queues its matched songs and reports what
+it left out.
 
 ## Environments and secrets
 
