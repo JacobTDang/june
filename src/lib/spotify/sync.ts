@@ -1,5 +1,6 @@
 import "server-only";
 import { createImportService } from "../../audio/imports";
+import { createPinService, type PinsReplaced } from "../../audio/pins";
 import { createSpotifyClient } from "../../spotify/client";
 import { previousSyncCutOff } from "../../spotify/diff";
 import { classifySyncError, type SyncFailure } from "../../spotify/errors";
@@ -16,6 +17,8 @@ import {
   type ConnectionRow,
 } from "./connection";
 import { mp3serverServiceConfig } from "./config";
+import { sendKeepList } from "./keep-list";
+import { supabaseKeepListStore } from "./keep-list-store";
 import { matchLibrary, type MatchRunResult } from "./match-library";
 import { supabaseMatchStore } from "./match-store";
 import { supabaseLibraryStore } from "./store";
@@ -40,9 +43,11 @@ export type SyncRunResult =
       rateLimited: boolean;
       /** Null when matching failed (logged) or ran out of time. */
       matching: MatchRunResult | null;
+      /** Null when sending the keep list failed (logged) or ran out of time. */
+      pins: PinsReplaced | null;
     };
 
-type UsersResult = Omit<Extract<SyncRunResult, { status: "done" }>, "status" | "matching">;
+type UsersResult = Omit<Extract<SyncRunResult, { status: "done" }>, "status" | "matching" | "pins">;
 
 /** Saves each finished stage of one user's sync on their connection. */
 function connectionProgress(userId: string, now: Date): SyncProgress {
@@ -107,6 +112,17 @@ async function matchSongs(): Promise<MatchRunResult | null> {
   }
 }
 
+/** Send mp3server the keep list. Its failure never fails the run; the next
+ *  run sends the whole set again. */
+async function keepAudio(): Promise<PinsReplaced | null> {
+  try {
+    return await sendKeepList(supabaseKeepListStore(), createPinService(mp3serverServiceConfig()));
+  } catch (err) {
+    console.error("Sending the keep list to mp3server failed; the next run sends it again:", err);
+    return null;
+  }
+}
+
 /** Sync each user in turn until the budget runs out or Spotify says stop. */
 async function syncUsers(queue: ConnectionRow[], started: number): Promise<UsersResult> {
   let synced = 0;
@@ -148,7 +164,14 @@ async function run(rows: () => Promise<ConnectionRow[]>): Promise<SyncRunResult>
     } else {
       console.warn("Spotify sync skipped library matching: out of time.");
     }
-    return { status: "done", ...users, matching };
+    // After matching, so a song matched this run is kept this run.
+    let pins: PinsReplaced | null = null;
+    if (Date.now() - started < RUN_BUDGET_MS) {
+      pins = await keepAudio();
+    } else {
+      console.warn("Spotify sync skipped the keep list: out of time.");
+    }
+    return { status: "done", ...users, matching, pins };
   } finally {
     await releaseSyncLease(holder);
   }
