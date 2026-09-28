@@ -100,7 +100,7 @@ async function syncConnection(row: ConnectionRow, now: Date): Promise<SyncFailur
  *  Spotify data is already saved, and pending songs wait for the next run. */
 async function matchSongs(): Promise<MatchRunResult | null> {
   try {
-    return await matchLibrary(supabaseMatchStore(), createImportService(mp3serverServiceConfig()));
+    return await matchLibrary(supabaseMatchStore(), createImportService(mp3serverServiceConfig()), new Date());
   } catch (err) {
     console.error("Library matching failed; songs stay pending for the next run:", err);
     return null;

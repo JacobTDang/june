@@ -18,7 +18,10 @@ export interface SongForRoom {
   match_confidence: string | null;
 }
 
-export type LibraryRowState = "ready" | "matching" | "unavailable";
+/** "failed" means the search itself failed: it goes back in line after a day,
+ *  and a click tries again at once. "unavailable" means there is nothing to
+ *  play: not found, or matched without a video or its length. */
+export type LibraryRowState = "ready" | "matching" | "failed" | "unavailable";
 
 /** Where a song stands with matching, for any list that shows it. */
 export interface SongMatchView {
@@ -39,13 +42,15 @@ function isReady(song: MatchColumns): boolean {
   return song.match_state === "matched" && song.video_id !== null && song.video_duration_ms !== null;
 }
 
+function rowState(song: MatchColumns): LibraryRowState {
+  if (isReady(song)) return "ready";
+  if (song.match_state === "pending" || song.match_state === "matching") return "matching";
+  if (song.match_state === "failed") return "failed";
+  return "unavailable";
+}
+
 export function matchView(song: MatchColumns): SongMatchView {
-  const state: LibraryRowState = isReady(song)
-    ? "ready"
-    : song.match_state === "pending" || song.match_state === "matching"
-      ? "matching"
-      : "unavailable";
-  return { state, lowConfidence: song.match_confidence === "low" };
+  return { state: rowState(song), lowConfidence: song.match_confidence === "low" };
 }
 
 export function toLibraryRow(song: SongForRoom): LibraryRow {
@@ -74,6 +79,7 @@ export function trackFromSong(song: SongForRoom): AddTrackInput | null {
 
 export function rowNote(view: SongMatchView): string {
   if (view.state === "matching") return " · matching…";
+  if (view.state === "failed") return " · couldn’t match yet";
   if (view.state === "unavailable") return " · no match found";
   return view.lowConfidence ? " · ?" : "";
 }
@@ -93,11 +99,13 @@ export function playlistQueueSummary(counts: {
   ready: number;
   matching: number;
   unavailable: number;
+  failed: number;
 }): string {
   const parts = [`Added ${counts.added}`];
   const alreadyThere = counts.ready - counts.added;
   if (alreadyThere > 0) parts.push(`${alreadyThere} already in the room`);
   if (counts.matching > 0) parts.push(`${counts.matching} still matching`);
   if (counts.unavailable > 0) parts.push(`${counts.unavailable} not found`);
+  if (counts.failed > 0) parts.push(`${counts.failed} couldn’t match yet`);
   return parts.join(" · ");
 }

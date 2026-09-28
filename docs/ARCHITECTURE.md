@@ -220,6 +220,9 @@ mp3server's resolver paces its searches to one every 3 seconds and runs one
 at a time, so bulk matching doesn't get the home IP flagged; cache hits don't
 wait. Results come back with the video's own length (`video_duration_ms`),
 which is what a room queues: the room clock ends a track on the audio.
+A song whose matching `failed` (a bot check, an outage) goes back to
+`pending` a day after it failed, and clicking it in a room retries it at
+once. Only `not_found` (the search worked and nothing fit) stays greyed out.
 
 **In a room**, the add-music panel's Library tab lists liked songs and the
 user's own playlists. A matched song queues directly. One still matching is

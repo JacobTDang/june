@@ -9,6 +9,9 @@ import type { ImportStatus, ImportTrackState, MatchResult, TrackToMatch } from "
 /** The most songs per import: mp3server's import_max_tracks. */
 export const MATCH_BATCH_LIMIT = 500;
 
+/** A failed match (a bot check, an outage) goes back in line after this long. */
+export const FAILED_RETRY_AFTER_MS = 24 * 60 * 60 * 1000;
+
 export interface PendingSong {
   id: string;
   title: string;

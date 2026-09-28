@@ -12,6 +12,20 @@ const MAX_ROWS = 1000;
  *  readable by every signed-in user but written only by the server. */
 export function supabaseMatchStore(db: SupabaseClient = createServiceClient()): MatchStore {
   return {
+    async requeueFailed(olderThan) {
+      // The ids are selected only so PostgREST answers with the rows, whose
+      // Content-Range carries the exact count.
+      const { count, error } = await db
+        .from("songs")
+        .update({ match_state: "pending", matched_at: null }, { count: "exact" })
+        .eq("match_state", "failed")
+        .lt("matched_at", olderThan.toISOString())
+        .select("id");
+      check("requeue failed songs", error);
+      if (count === null) throw new Error("requeue failed songs: the update returned no count");
+      return count;
+    },
+
     async pendingSongs(limit) {
       const { data, error } = await db
         .from("songs")

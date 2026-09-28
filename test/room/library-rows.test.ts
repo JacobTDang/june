@@ -43,10 +43,14 @@ describe("toLibraryRow", () => {
     expect(toLibraryRow(song({ match_state: "matching", video_id: null, video_duration_ms: null })).state).toBe("matching");
   });
 
-  it("shows not found, failed, and a matched song missing its video as unavailable", () => {
+  it("shows a song whose matching failed as failed, so it can be tried again", () => {
+    expect(toLibraryRow(song({ match_state: "failed", video_id: null, video_duration_ms: null })).state).toBe("failed");
+  });
+
+  it("shows not found and a matched song missing its video or length as unavailable", () => {
     expect(toLibraryRow(song({ match_state: "not_found" })).state).toBe("unavailable");
-    expect(toLibraryRow(song({ match_state: "failed" })).state).toBe("unavailable");
     expect(toLibraryRow(song({ video_duration_ms: null })).state).toBe("unavailable");
+    expect(toLibraryRow(song({ video_id: null })).state).toBe("unavailable");
   });
 });
 
@@ -73,12 +77,16 @@ describe("rowNote", () => {
     expect(rowNote({ state: "ready", lowConfidence: true })).toBe(" · ?");
     expect(rowNote({ state: "matching", lowConfidence: false })).toBe(" · matching…");
     expect(rowNote({ state: "unavailable", lowConfidence: false })).toBe(" · no match found");
+    expect(rowNote({ state: "failed", lowConfidence: false })).toBe(" · couldn’t match yet");
   });
 
   it("works from just a song's match columns, as /library reads them", () => {
     expect(
       rowNote(matchView({ match_state: "pending", video_id: null, video_duration_ms: null, match_confidence: null })),
     ).toBe(" · matching…");
+    expect(
+      rowNote(matchView({ match_state: "failed", video_id: null, video_duration_ms: null, match_confidence: null })),
+    ).toBe(" · couldn’t match yet");
   });
 });
 
@@ -99,18 +107,24 @@ describe("rowMatchesFilter", () => {
 
 describe("playlistQueueSummary", () => {
   it("says what was added and what was left out", () => {
-    expect(playlistQueueSummary({ added: 38, ready: 38, matching: 3, unavailable: 1 })).toBe(
-      "Added 38 · 3 still matching · 1 not found",
+    expect(playlistQueueSummary({ added: 38, ready: 38, matching: 3, unavailable: 1, failed: 2 })).toBe(
+      "Added 38 · 3 still matching · 1 not found · 2 couldn’t match yet",
+    );
+  });
+
+  it("mentions songs whose matching failed even when nothing else was left out", () => {
+    expect(playlistQueueSummary({ added: 4, ready: 4, matching: 0, unavailable: 0, failed: 1 })).toBe(
+      "Added 4 · 1 couldn’t match yet",
     );
   });
 
   it("mentions songs that were already in the room", () => {
-    expect(playlistQueueSummary({ added: 5, ready: 7, matching: 0, unavailable: 0 })).toBe(
+    expect(playlistQueueSummary({ added: 5, ready: 7, matching: 0, unavailable: 0, failed: 0 })).toBe(
       "Added 5 · 2 already in the room",
     );
   });
 
   it("is plain when everything went in", () => {
-    expect(playlistQueueSummary({ added: 12, ready: 12, matching: 0, unavailable: 0 })).toBe("Added 12");
+    expect(playlistQueueSummary({ added: 12, ready: 12, matching: 0, unavailable: 0, failed: 0 })).toBe("Added 12");
   });
 });

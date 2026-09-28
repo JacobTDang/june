@@ -9,6 +9,7 @@ import { createClient } from "../supabase/server";
 import { enqueueTrack } from "./actions";
 import { enqueueMany } from "./enqueue-many";
 import {
+  matchView,
   playlistQueueSummary,
   toLibraryRow,
   trackFromSong,
@@ -136,14 +137,17 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
 
     let track = trackFromSong(song);
     if (track === null) {
-      if (song.match_state === "not_found" || song.match_state === "failed") {
+      // Pending, matching and failed songs are matched on the spot; only a
+      // song with nothing to play is refused.
+      if (matchView(song).state === "unavailable") {
         return { ok: false, notice: `No playable match was found for “${song.title}”.` };
       }
       try {
         track = await matchNow(song);
       } catch (err) {
-        // A timeout or a failed search saves nothing, so the song stays
-        // pending and the background matching picks it up.
+        // A timeout or a failed search saves nothing, so the song keeps its
+        // state: a pending one goes out with the next batch, a failed one
+        // goes back in line a day after it failed.
         console.error(`Matching song ${song.id} on click failed:`, err);
         return {
           ok: false,
@@ -173,6 +177,7 @@ export async function queueLibraryPlaylist(roomId: string, playlistId: string): 
         ready: tracks.length,
         matching: states.filter((s) => s === "matching").length,
         unavailable: states.filter((s) => s === "unavailable").length,
+        failed: states.filter((s) => s === "failed").length,
       }),
     };
   } catch (err) {
