@@ -863,7 +863,7 @@ Expected: every test passes.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/mp3server/pacing.py src/mp3server/config.py src/mp3server/worker.py tests/test_pacing.py tests/test_worker_resolve.py .env.example
+git add src/mp3server/pacing.py src/mp3server/config.py src/mp3server/worker.py tests/test_pacing.py tests/test_worker_resolve.py tests/test_api_imports.py tests/test_network_smoke.py .env.example
 git commit -m "Pace the resolver to one search every three seconds
 
 Matching whole Spotify libraries is the first bulk YouTube traffic from the
