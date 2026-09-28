@@ -1657,6 +1657,16 @@ Expected: `df -h /` shows about 100 GB total. The containers keep running throug
 
 Open the PR from `library-pins` in JacobTDang/mp3server, titled "Keep library audio at home: pins, eviction skip, background prefetch". The body says what changed and why. Merge it once the user approves.
 
+Before deploying, on the VM, check two things that would otherwise stop prefetch silently:
+
+```bash
+df -h /    # must show more than 10 GB free, or prefetch waits for the disk reserve (it logs a WARNING)
+cd ~/mp3server && docker compose exec -T db psql -U postgres -tAc \
+  "select kind, status, count(*) from jobs where status in ('queued','running','expanding') group by 1,2;"
+```
+
+Expected: more than 10 GB free, and no old pending download jobs. Any pending `single`, `playlist` or `playlist_item` job blocks prefetch until it finishes.
+
 Then, on the VM:
 
 ```bash
@@ -1688,13 +1698,13 @@ Expected: `401` without the token. Don't send an authorized empty list from here
 ```bash
 docker compose exec -T db psql -U postgres -tAc "select count(*) from pins;"
 docker compose exec -T db psql -U postgres -tAc "select status, count(*) from jobs where user_id = '00000000-0000-4000-8000-00000000a001' and kind = 'single' group by 1;"
-docker compose logs worker --since 30m 2>&1 | grep -iE "prefetch|error" | tail
+docker compose logs worker --since 30m 2>&1 | grep -E "prefetch_pins|WARNING|ERROR" | tail
 ```
 
 Expected:
 - `pins` holds about as many rows as `library_video_ids()` returned.
 - Prefetch jobs appear and complete, about one every 5 minutes, up to 12 an hour.
-- The worker logs "prefetch started for pinned …" lines with no errors.
+- arq logs a `cron:prefetch_pins` result line every 5 minutes, carrying the video id it started (or None). There are no WARNING or ERROR lines. The worker's own INFO lines don't show, because arq leaves `mp3server.*` at WARNING.
 - `df -h /` on the VM grows slowly.
 
 - [ ] **Step 6: Update the board and memory**
