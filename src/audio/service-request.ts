@@ -26,8 +26,11 @@ export interface ServiceConfig {
 
 const DEFAULT_TIMEOUT_MS = 20_000;
 
-/** mp3server's `detail`, or the best description of a reply without one.
- *  Only ever used to build a thrown error, so nothing is swallowed. */
+/** mp3server's `detail`, or the best description of a reply without one:
+ *  `getImport` (./imports.ts) reads it to recognise mp3server's "import not
+ *  found" reply, and callers building a thrown error use it for the message.
+ *  A body that doesn't parse falls back to the response's status text rather
+ *  than hiding the failure. */
 export async function errorDetail(response: Response): Promise<string> {
   try {
     const body = (await response.json()) as { detail?: unknown };
