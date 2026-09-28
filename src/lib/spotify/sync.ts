@@ -1,4 +1,5 @@
 import "server-only";
+import { createImportService } from "../../audio/imports";
 import { createSpotifyClient } from "../../spotify/client";
 import { previousSyncCutOff } from "../../spotify/diff";
 import { classifySyncError, type SyncFailure } from "../../spotify/errors";
@@ -14,6 +15,9 @@ import {
   saveListenCursor,
   type ConnectionRow,
 } from "./connection";
+import { mp3serverServiceConfig } from "./config";
+import { matchLibrary, type MatchRunResult } from "./match-library";
+import { supabaseMatchStore } from "./match-store";
 import { supabaseLibraryStore } from "./store";
 import { syncUser, type SyncProgress } from "./sync-user";
 
@@ -28,7 +32,17 @@ const CUT_OFF_MESSAGE = "The previous sync was cut off before it finished.";
 
 export type SyncRunResult =
   | { status: "busy" }
-  | { status: "done"; synced: number; failed: number; skipped: number; rateLimited: boolean };
+  | {
+      status: "done";
+      synced: number;
+      failed: number;
+      skipped: number;
+      rateLimited: boolean;
+      /** Null when matching failed (logged) or ran out of time. */
+      matching: MatchRunResult | null;
+    };
+
+type UsersResult = Omit<Extract<SyncRunResult, { status: "done" }>, "status" | "matching">;
 
 /** Saves each finished stage of one user's sync on their connection. */
 function connectionProgress(userId: string, now: Date): SyncProgress {
@@ -82,35 +96,59 @@ async function syncConnection(row: ConnectionRow, now: Date): Promise<SyncFailur
   }
 }
 
+/** Match songs to videos on mp3server. Its failure never fails the run: the
+ *  Spotify data is already saved, and pending songs wait for the next run. */
+async function matchSongs(): Promise<MatchRunResult | null> {
+  try {
+    return await matchLibrary(supabaseMatchStore(), createImportService(mp3serverServiceConfig()), new Date());
+  } catch (err) {
+    console.error("Library matching failed; songs stay pending for the next run:", err);
+    return null;
+  }
+}
+
+/** Sync each user in turn until the budget runs out or Spotify says stop. */
+async function syncUsers(queue: ConnectionRow[], started: number): Promise<UsersResult> {
+  let synced = 0;
+  let failed = 0;
+  for (const [index, row] of queue.entries()) {
+    if (Date.now() - started >= RUN_BUDGET_MS) {
+      const skipped = queue.slice(index).map((r) => r.user_id);
+      console.error(
+        `Spotify sync ran out of time and skipped ${skipped.length} users, who go first next run: ${skipped.join(", ")}`,
+      );
+      return { synced, failed, skipped: skipped.length, rateLimited: false };
+    }
+    const failure = await syncConnection(row, new Date());
+    if (failure === null) {
+      synced++;
+      continue;
+    }
+    failed++;
+    // Quota is shared across the developer account: carrying on would only
+    // spend the next user's calls on the same 429.
+    if (failure.kind === "rate-limited") {
+      return { synced, failed, skipped: queue.length - index - 1, rateLimited: true };
+    }
+  }
+  return { synced, failed, skipped: 0, rateLimited: false };
+}
+
 async function run(rows: () => Promise<ConnectionRow[]>): Promise<SyncRunResult> {
   const started = Date.now();
   const holder = await claimSyncLease(LEASE_SECONDS);
   if (holder === null) return { status: "busy" };
   try {
-    const queue = await rows();
-    let synced = 0;
-    let failed = 0;
-    for (const [index, row] of queue.entries()) {
-      if (Date.now() - started >= RUN_BUDGET_MS) {
-        const skipped = queue.slice(index).map((r) => r.user_id);
-        console.error(
-          `Spotify sync ran out of time and skipped ${skipped.length} users, who go first next run: ${skipped.join(", ")}`,
-        );
-        return { status: "done", synced, failed, skipped: skipped.length, rateLimited: false };
-      }
-      const failure = await syncConnection(row, new Date());
-      if (failure === null) {
-        synced++;
-        continue;
-      }
-      failed++;
-      // Quota is shared across the developer account: carrying on would only
-      // spend the next user's calls on the same 429.
-      if (failure.kind === "rate-limited") {
-        return { status: "done", synced, failed, skipped: queue.length - index - 1, rateLimited: true };
-      }
+    const users = await syncUsers(await rows(), started);
+    // Matching talks to mp3server, not Spotify, so a 429 doesn't stop it; only
+    // the time budget does.
+    let matching: MatchRunResult | null = null;
+    if (Date.now() - started < RUN_BUDGET_MS) {
+      matching = await matchSongs();
+    } else {
+      console.warn("Spotify sync skipped library matching: out of time.");
     }
-    return { status: "done", synced, failed, skipped: 0, rateLimited: false };
+    return { status: "done", ...users, matching };
   } finally {
     await releaseSyncLease(holder);
   }

@@ -8,7 +8,7 @@ needs to understand the system, run it, and operate it.
 
 june is a Next.js app on Vercel backed by Supabase (Postgres + Auth + Realtime).
 It never uploads or hosts music itself; instead a companion service —
-**mp3server**, a FastAPI app on an Oracle Cloud box — downloads a track's audio
+**mp3server**, a FastAPI app on a homelab VM — downloads a track's audio
 once with `yt_dlp` and serves it as a file. Every listener's browser plays a
 plain `<audio>` element pointed at that file, and each browser seeks itself to
 `serverNow − startedAt`. The server coordinates *what* is playing and *when it
@@ -19,10 +19,15 @@ started*; nothing streams through june.
 | Repo | What it is | Where it runs |
 | --- | --- | --- |
 | `june` (this one) | Next.js 16 app: rooms, queue, search, playback UI | Vercel, auto-deploys from `main` |
-| `mp3server` | FastAPI + arq worker: downloads and serves audio | Oracle Cloud ARM box, Docker Compose |
+| `mp3server` | FastAPI + arq worker: downloads and serves audio | Homelab Proxmox VM behind Tailscale Funnel, Docker Compose (the Oracle Cloud box is a cold standby) |
 
-They are deployed independently. june talks to mp3server **from the browser**,
-not server-to-server.
+They are deployed independently. june talks to mp3server mostly **from the
+browser**. The exception is library matching: june's server calls
+`POST /imports`, `GET /imports/{id}` and `POST /match` with a shared service
+token (`MP3SERVER_SERVICE_TOKEN` = mp3server's `SERVICE_TOKEN`), which opens
+those three routes and nothing else. `POST /match` accepts only the service
+token, never a user's: it searches YouTube inline, so it is paced (one search
+a second) and only june's server may call it.
 
 ## Request flow: what happens when someone adds a song
 
@@ -210,6 +215,23 @@ Tables: `songs` (shared, one row per Spotify track), `library_songs`,
 All writes are service-role. Pure logic is in `src/spotify/` and
 `src/lib/spotify/sync-user.ts`; IO in `src/lib/spotify/{store,connection,sync}.ts`. Deleting the user's Spotify data is one database function, `delete_spotify_data()`, which deletes rows and the connection in a single transaction; the delete is refused with "busy" while a sync holds the lease.
 
+**Matching.** Every sync run ends by matching songs to videos on mp3server.
+It first collects results for songs in `matching` (by their import's id and
+their position in it), then submits up to 500 `pending` songs as one import.
+mp3server's resolver paces its searches to one every 3 seconds and runs one
+at a time, so bulk matching doesn't get the home IP flagged; cache hits don't
+wait. Results come back with the video's own length (`video_duration_ms`),
+which is what a room queues: the room clock ends a track on the audio.
+A song whose matching `failed` (a bot check, an outage) goes back to
+`pending` a day after it failed, and clicking it in a room retries it at
+once. Only `not_found` (the search worked and nothing fit) stays greyed out.
+
+**In a room**, the add-music panel's Library tab lists liked songs and the
+user's own playlists. A matched song queues directly. One still matching is
+matched on the spot through `POST /match`, which searches inline instead of
+waiting behind a batch. A playlist queues its matched songs and reports what
+it left out.
+
 ## Environments and secrets
 
 **june (Vercel — `junejam` account, project `june`, prod `june-jam.vercel.app`)**
@@ -217,11 +239,12 @@ All writes are service-role. Pure logic is in `src/spotify/` and
 | Variable | Purpose |
 | --- | --- |
 | `NEXT_PUBLIC_SUPABASE_URL` / `_ANON_KEY` | Supabase client |
-| `NEXT_PUBLIC_MP3SERVER_URL` | `https://june-audio.duckdns.org` |
+| `NEXT_PUBLIC_MP3SERVER_URL` | `https://june-audio.taild5ebc0.ts.net` |
 | `YOUTUBE_API_KEY` | search/metadata |
 | `SUPABASE_SERVICE_ROLE_KEY` | server-only cache writes |
 | `SPOTIFY_CLIENT_ID` / `_SECRET` | Spotify library OAuth |
 | `SPOTIFY_SYNC_SECRET` | cron → `/api/spotify/sync` bearer; also in Vault |
+| `MP3SERVER_SERVICE_TOKEN` | server-only; june's server → mp3server's import and match routes (same value as mp3server's `SERVICE_TOKEN`) |
 
 `NEXT_PUBLIC_*` values are **baked in at build time** — changing one requires a
 redeploy, not just a save.
@@ -229,7 +252,8 @@ redeploy, not just a save.
 **mp3server (`~/mp3server/.env` on the box, never committed)**
 
 `DATABASE_URL`, `SUPABASE_URL` (june's project, for token verification),
-`CORS_ALLOW_ORIGINS`, `DOWNLOAD_LINK_SECRET`, `COOKIES_FILE`, plus limits
+`CORS_ALLOW_ORIGINS`, `DOWNLOAD_LINK_SECRET`, `SERVICE_TOKEN` (june's server,
+for library matching), `COOKIES_FILE`, plus limits
 (`MAX_PARALLEL_JOBS`, `MAX_DURATION_SECONDS`, `CACHE_TTL_HOURS`, …). See
 `.env.example`.
 
@@ -264,16 +288,18 @@ phone/laptop ──HTTPS──> june-jam.vercel.app        (Next.js, Vercel)
       │                        │
       │                        └── Supabase: Postgres, Auth, Realtime
       │
-      └────HTTPS────> june-audio.duckdns.org       (Oracle A1, 2 OCPU / 12 GB)
+      └────HTTPS────> june-audio.taild5ebc0.ts.net (homelab Proxmox VM)
                              │
-                    Caddy ──> api ──> Postgres
+         Tailscale Funnel ──> api ──> Postgres
                               worker ──> yt_dlp ──> YouTube
                               redis (job queue)
 ```
 
-The box runs `docker compose --profile prod up -d` (adds Caddy for TLS; plain
-`up` is local dev). DNS is DuckDNS. Firewall: 22/80/443 only. Cost is $0 inside
-Always Free; a $5 budget alert is configured as a tripwire.
+Production audio runs on a homelab Proxmox VM, published through Tailscale
+Funnel at `https://june-audio.taild5ebc0.ts.net`. Funnel terminates TLS, so
+Caddy isn't used there. The Oracle Cloud box (`june-audio.duckdns.org`, Always
+Free, Caddy for TLS via `docker compose --profile prod up -d`) is a cold
+standby: failing over means pointing `NEXT_PUBLIC_MP3SERVER_URL` at it.
 
 ## Operations runbook
 
@@ -281,15 +307,16 @@ Always Free; a $5 budget alert is configured as a tripwire.
 
 **Deploy mp3server**
 ```bash
-ssh ubuntu@<box-ip>
+ssh <user>@<homelab-vm>
 cd mp3server && git pull
-sudo docker compose --profile prod up -d --build
-sudo docker compose run --rm api alembic upgrade head   # if migrations changed
+sudo docker compose build
+sudo docker compose run --rm api alembic upgrade head   # before starting the new code
+sudo docker compose up -d                                # no Caddy profile: Funnel does TLS
 ```
 
 **Check health**
 ```bash
-curl https://june-audio.duckdns.org/readyz     # names whichever dependency is down
+curl https://june-audio.taild5ebc0.ts.net/readyz   # names whichever dependency is down
 sudo docker compose ps
 sudo docker compose logs worker --since 10m
 ```

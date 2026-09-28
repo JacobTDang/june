@@ -18,6 +18,7 @@ export function SongList({ songs, now }: { songs: LibrarySong[]; now: number }) 
             <span className="home-play__title">{song.title}</span>
             <span className="home-play__sub">
               {song.artists.join(", ")} · {when(song.at, now)}
+              {song.matchNote}
             </span>
           </div>
         </li>

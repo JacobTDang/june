@@ -11,7 +11,6 @@ import {
   type MusicCandidate,
   type ArtistCandidate,
 } from "@/src/discovery";
-import { createClient } from "../supabase/server";
 import { createServiceClient } from "../supabase/service";
 import { meteredFetch } from "../metrics/youtube-usage";
 import { getYouTubeAccessToken } from "../supabase/youtube-auth";
@@ -19,6 +18,7 @@ import { getVideoMetas, type VideoMeta } from "../video-cache";
 import { supabaseVideoCache } from "../video-cache-supabase";
 import { runYouTube, type YouTubeResult } from "../supabase/youtube-error";
 import { enqueueTrack } from "./actions";
+import { enqueueMany } from "./enqueue-many";
 
 async function youtubeClient(needsAuth = false) {
   const apiKey = process.env.YOUTUBE_API_KEY;
@@ -256,59 +256,8 @@ async function importVideoIds(
   ids: string[],
   youtube: Awaited<ReturnType<typeof youtubeClient>>,
 ): Promise<number> {
-  {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) throw new Error("You must be signed in.");
-
-    // Skip anything already in the room (queue or now playing) so re-imports
-    // don't create duplicates.
-    const [{ data: existingQueue }, { data: room }] = await Promise.all([
-      supabase.from("queue_items").select("video_id").eq("room_id", roomId),
-      supabase.from("rooms").select("now_playing_video_id").eq("id", roomId).maybeSingle(),
-    ]);
-    const present = new Set<string>(
-      ((existingQueue as { video_id: string }[] | null) ?? []).map((r) => r.video_id),
-    );
-    const nowVideo = (room as { now_playing_video_id: string | null } | null)?.now_playing_video_id;
-    if (nowVideo) present.add(nowVideo);
-
-    const metas = (await getVideoMetas(ids, supabaseVideoCache(youtube))).filter(
-      (m) => m.embeddable && m.durationMs > 0 && !present.has(m.videoId),
-    );
-    if (metas.length === 0) return 0;
-
-    const { data: participant } = await supabase
-      .from("room_participants")
-      .select("name")
-      .eq("room_id", roomId)
-      .eq("user_id", user.id)
-      .maybeSingle();
-    const addedByName = (participant as { name: string | null } | null)?.name ?? null;
-
-    // First track uses the start-if-idle path; the rest bulk-insert in order.
-    const [first, ...rest] = metas;
-    if (first) await enqueueTrack(roomId, first);
-
-    if (rest.length > 0) {
-      const base = Date.now() + 10;
-      const rows = rest.map((m, i) => ({
-        room_id: roomId,
-        video_id: m.videoId,
-        title: m.title,
-        artist: m.artist ?? null,
-        duration_ms: m.durationMs,
-        thumbnail_url: m.thumbnailUrl ?? null,
-        added_by: user.id,
-        added_by_name: addedByName,
-        created_at: new Date(base + i).toISOString(),
-      }));
-      const { error } = await supabase.from("queue_items").insert(rows);
-      if (error) throw new Error(`Playlist import failed: ${error.message}`);
-    }
-
-    return metas.length;
-  }
+  const metas = (await getVideoMetas(ids, supabaseVideoCache(youtube))).filter(
+    (m) => m.embeddable && m.durationMs > 0,
+  );
+  return enqueueMany(roomId, metas);
 }

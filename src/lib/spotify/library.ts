@@ -1,4 +1,5 @@
 import "server-only";
+import { matchView, rowNote } from "../room/library-rows";
 import { createClient } from "../supabase/server";
 import type { SpotifyStatusView } from "./messages";
 
@@ -19,6 +20,8 @@ export interface LibrarySong {
   artworkUrl: string | null;
   /** When it was liked or played. */
   at: string;
+  /** Where matching stands, in the room's words; "" once it's playable. */
+  matchNote: string;
 }
 
 export interface LibraryPlaylist {
@@ -28,12 +31,28 @@ export interface LibraryPlaylist {
   songCount: number;
 }
 
-type SongJoin = { title: string; artists: string[]; artwork_url: string | null } | null;
+type SongJoin = {
+  title: string;
+  artists: string[];
+  artwork_url: string | null;
+  match_state: string;
+  video_id: string | null;
+  video_duration_ms: number | null;
+  match_confidence: string | null;
+} | null;
+
+const SONG_JOIN = "songs(title, artists, artwork_url, match_state, video_id, video_duration_ms, match_confidence)";
 
 function toLibrarySong(song: SongJoin, at: string): LibrarySong {
   // song_id is a non-null foreign key, so a missing song is a broken read.
   if (song === null) throw new Error("library row came back without its song");
-  return { title: song.title, artists: song.artists, artworkUrl: song.artwork_url, at };
+  return {
+    title: song.title,
+    artists: song.artists,
+    artworkUrl: song.artwork_url,
+    at,
+    matchNote: rowNote(matchView(song)),
+  };
 }
 
 export async function getSpotifyStatus(): Promise<SpotifyStatus | null> {
@@ -64,7 +83,7 @@ export async function getLikedSongs(
   const supabase = await createClient();
   const { data, count, error } = await supabase
     .from("library_songs")
-    .select("added_at, songs(title, artists, artwork_url)", { count: "exact" })
+    .select(`added_at, ${SONG_JOIN}`, { count: "exact" })
     .eq("user_id", userId)
     .order("added_at", { ascending: false })
     .limit(limit);
@@ -90,7 +109,7 @@ export async function getRecentListens(userId: string, limit: number): Promise<L
   const supabase = await createClient();
   const { data, error } = await supabase
     .from("listens")
-    .select("played_at, songs(title, artists, artwork_url)")
+    .select(`played_at, ${SONG_JOIN}`)
     .eq("user_id", userId)
     .order("played_at", { ascending: false })
     .limit(limit);

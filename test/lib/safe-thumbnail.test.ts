@@ -37,4 +37,16 @@ describe("safeThumbnailUrl", () => {
     expect(safeThumbnailUrl("")).toBeNull();
     expect(safeThumbnailUrl("not a url")).toBeNull();
   });
+
+  it("allows Spotify album art hosts", () => {
+    expect(safeThumbnailUrl("https://i.scdn.co/image/ab67616d0000b273abc")).toBe(
+      "https://i.scdn.co/image/ab67616d0000b273abc",
+    );
+    expect(safeThumbnailUrl("https://image-cdn-ak.spotifycdn.com/image/ab67616d00001e02abc")).toBeTruthy();
+  });
+
+  it("rejects Spotify lookalikes", () => {
+    expect(safeThumbnailUrl("https://i.scdn.co.attacker.com/p.png")).toBeNull();
+    expect(safeThumbnailUrl("https://notspotifycdn.com/p.png")).toBeNull();
+  });
 });
