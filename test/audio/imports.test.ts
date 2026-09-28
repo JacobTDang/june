@@ -71,6 +71,16 @@ describe("createImportService", () => {
     expect(await createImportService({ ...base, fetch }).getImport("old")).toBeNull();
   });
 
+  it("fails on any other 404, such as a proxy's, rather than calling the import gone", async () => {
+    const { fetch } = stubFetch(() => ({ status: 404, body: { detail: "Not Found" } }));
+    const error = await createImportService({ ...base, fetch })
+      .getImport("job-1")
+      .catch((e: unknown) => e);
+
+    expect(error).toBeInstanceOf(ImportServiceError);
+    expect(error).toMatchObject({ status: 404, message: expect.stringMatching(/Not Found/) });
+  });
+
   it("matches one track", async () => {
     const { fetch, calls } = stubFetch(() => ({
       body: { state: "resolved", video_id: "v1", matched_title: "Glory Box", confidence: "low", matched_duration_ms: 318_000 },

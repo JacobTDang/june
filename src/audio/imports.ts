@@ -76,6 +76,8 @@ export interface ImportServiceConfig {
 }
 
 const DEFAULT_TIMEOUT_MS = 20_000;
+/** mp3server's 404 detail on GET /imports/{id}. */
+const IMPORT_NOT_FOUND = "import not found";
 
 async function errorDetail(response: Response): Promise<string> {
   try {
@@ -107,11 +109,12 @@ export function createImportService(config: ImportServiceConfig): ImportService 
     return doFetch(new URL(`${baseUrl}${path}`), init);
   }
 
+  function failure(path: string, status: number, detail: string): ImportServiceError {
+    return new ImportServiceError(status, `mp3server ${status} on ${path}: ${detail}`);
+  }
+
   async function fail(path: string, response: Response): Promise<never> {
-    throw new ImportServiceError(
-      response.status,
-      `mp3server ${response.status} on ${path}: ${await errorDetail(response)}`,
-    );
+    throw failure(path, response.status, await errorDetail(response));
   }
 
   return {
@@ -124,7 +127,13 @@ export function createImportService(config: ImportServiceConfig): ImportService 
     async getImport(id) {
       const path = `/imports/${encodeURIComponent(id)}`;
       const response = await call(path);
-      if (response.status === 404) return null;
+      if (response.status === 404) {
+        // Only mp3server's own answer means the import is gone. Any other 404
+        // (a proxy, a wrong base URL) would otherwise resubmit every song.
+        const detail = await errorDetail(response);
+        if (detail === IMPORT_NOT_FOUND) return null;
+        throw failure(path, 404, detail);
+      }
       if (!response.ok) return fail(path, response);
       return importStatusSchema.parse(await response.json());
     },
