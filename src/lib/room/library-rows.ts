@@ -18,9 +18,11 @@ export interface SongForRoom {
   match_confidence: string | null;
 }
 
-/** "failed" means the search itself failed: it goes back in line after a day,
+/** "failed" means the search itself failed, or it answered with no video or no
+ *  length (matching saves that as failed): it goes back in line after a day,
  *  and a click tries again at once. "unavailable" means there is nothing to
- *  play: not found, or matched without a video or its length. */
+ *  play: the song was not found, or a row marked matched has no video or no
+ *  length. */
 export type LibraryRowState = "ready" | "matching" | "failed" | "unavailable";
 
 /** Where a song stands with matching, for any list that shows it. */

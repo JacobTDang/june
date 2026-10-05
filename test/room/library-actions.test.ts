@@ -144,6 +144,21 @@ describe("queueLibrarySong", () => {
     expect(enqueueTrack).not.toHaveBeenCalled();
   });
 
+  it("marks a song failed, not unavailable, when the match comes back without a video", async () => {
+    liked(pending);
+    matchOne.mockResolvedValue({ state: "resolved", video_id: null });
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({
+      ok: false,
+      notice: "Couldn’t match “Song a” just now. It’s still in line to be matched; try again later.",
+      rowState: "failed",
+    });
+    expect(applyUpdates).toHaveBeenCalledWith([{ songId: "a", state: "failed" }]);
+    expect(enqueueTrack).not.toHaveBeenCalled();
+  });
+
   it("marks a song failed when it can't be sent for matching", async () => {
     liked({ ...pending, artists: [] });
     const logged = vi.spyOn(console, "error").mockImplementation(() => {});
