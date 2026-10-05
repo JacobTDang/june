@@ -19,7 +19,7 @@ started*; nothing streams through june.
 | Repo | What it is | Where it runs |
 | --- | --- | --- |
 | `june` (this one) | Next.js 16 app: rooms, queue, search, playback UI | Vercel, auto-deploys from `main` |
-| `mp3server` | FastAPI + arq worker: downloads and serves audio | Homelab Proxmox VM behind Tailscale Funnel, Docker Compose (the Oracle Cloud box is a cold standby) |
+| `mp3server` | FastAPI + arq worker: downloads and serves audio | Homelab Proxmox VM behind Tailscale Funnel, Docker Compose |
 
 They are deployed independently. june talks to mp3server mostly **from the
 browser**. The exception is library matching: june's server calls
@@ -308,9 +308,7 @@ phone/laptop ──HTTPS──> june-jam.vercel.app        (Next.js, Vercel)
 
 Production audio runs on a homelab Proxmox VM, published through Tailscale
 Funnel at `https://june-audio.taild5ebc0.ts.net`. Funnel terminates TLS, so
-Caddy isn't used there. The Oracle Cloud box (`june-audio.duckdns.org`, Always
-Free, Caddy for TLS via `docker compose --profile prod up -d`) is a cold
-standby: failing over means pointing `NEXT_PUBLIC_MP3SERVER_URL` at it.
+Caddy isn't needed.
 
 ## Operations runbook
 
