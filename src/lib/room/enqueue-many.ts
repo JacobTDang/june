@@ -1,16 +1,17 @@
 import "server-only";
 import { createClient } from "../supabase/server";
 import { enqueueTrack } from "./actions";
+import { uniqueByVideo } from "./library-rows";
 import { safeThumbnailUrl } from "./thumbnail";
 import { clampText } from "./track-text";
 import type { AddTrackInput } from "./types";
 
 /**
- * Queue tracks in order, skipping any already in the room (queued or
- * playing), so adding the same playlist twice doesn't double it. The first
- * goes through enqueueTrack, which starts an idle room; the rest are one
- * insert, stamped a millisecond apart so they keep their order. Returns how
- * many were queued.
+ * Queue tracks in order, skipping a video listed twice and any already in
+ * the room (queued or playing), so adding the same playlist twice doesn't
+ * double it. The first goes through enqueueTrack, which starts an idle room;
+ * the rest are one insert, stamped a millisecond apart so they keep their
+ * order. Returns how many were queued.
  *
  * Not a server action: it trusts its caller's tracks, so it is only ever
  * called from server code that built them.
@@ -32,7 +33,7 @@ export async function enqueueMany(roomId: string, tracks: readonly AddTrackInput
   const playing = (roomRead.data as { now_playing_video_id: string | null } | null)?.now_playing_video_id;
   if (playing) present.add(playing);
 
-  const fresh = tracks.filter((t) => !present.has(t.videoId));
+  const fresh = uniqueByVideo(tracks).filter((t) => !present.has(t.videoId));
   const [first, ...rest] = fresh;
   if (!first) return 0;
   await enqueueTrack(roomId, first);

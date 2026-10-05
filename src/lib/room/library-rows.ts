@@ -18,9 +18,11 @@ export interface SongForRoom {
   match_confidence: string | null;
 }
 
-/** "failed" means the search itself failed: it goes back in line after a day,
+/** "failed" means the search itself failed, or it answered with no video or no
+ *  length (matching saves that as failed): it goes back in line after a day,
  *  and a click tries again at once. "unavailable" means there is nothing to
- *  play: not found, or matched without a video or its length. */
+ *  play: the song was not found, or a row marked matched has no video or no
+ *  length. */
 export type LibraryRowState = "ready" | "matching" | "failed" | "unavailable";
 
 /** Where a song stands with matching, for any list that shows it. */
@@ -75,6 +77,22 @@ export function trackFromSong(song: SongForRoom): AddTrackInput | null {
     durationMs: song.video_duration_ms,
     thumbnailUrl: song.artwork_url ?? undefined,
   };
+}
+
+/** The rows with one song's state replaced, as it is known to be now. */
+export function withRowState(rows: readonly LibraryRow[], songId: string, state: LibraryRowState): LibraryRow[] {
+  return rows.map((row) => (row.songId === songId ? { ...row, state } : row));
+}
+
+/** The first of each video, in order. Two songs can match the same video, and
+ *  a playlist can list one twice; a room should queue it once. */
+export function uniqueByVideo<T extends { videoId: string }>(tracks: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return tracks.filter((t) => {
+    if (seen.has(t.videoId)) return false;
+    seen.add(t.videoId);
+    return true;
+  });
 }
 
 export function rowNote(view: SongMatchView): string {

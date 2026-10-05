@@ -3,7 +3,7 @@
 import { createImportService, type TrackToMatch } from "../../audio/imports";
 import { mp3serverServiceConfig } from "../spotify/config";
 import { getLibraryPlaylists, type LibraryPlaylist } from "../spotify/library";
-import { matchResultUpdate, sendableTrack } from "../spotify/match-plan";
+import { matchResultUpdate, sendableTrack, type SongMatchUpdate } from "../spotify/match-plan";
 import { supabaseMatchStore } from "../spotify/match-store";
 import { createClient } from "../supabase/server";
 import { enqueueTrack } from "./actions";
@@ -13,7 +13,9 @@ import {
   playlistQueueSummary,
   toLibraryRow,
   trackFromSong,
+  uniqueByVideo,
   type LibraryRow,
+  type LibraryRowState,
   type SongForRoom,
 } from "./library-rows";
 import type { AddTrackInput } from "./types";
@@ -24,7 +26,9 @@ import type { AddTrackInput } from "./types";
  * liked songs or one of their playlists.
  */
 
-export type LibraryResult<T> = { ok: true; data: T } | { ok: false; notice: string };
+/** A failure that changed where a song stands says so in `rowState`, so the
+ *  list can show it without a reload. */
+export type LibraryResult<T> = { ok: true; data: T } | { ok: false; notice: string; rowState?: LibraryRowState };
 
 const SONG_COLUMNS =
   "id, title, artists, artwork_url, duration_ms, match_state, video_id, video_duration_ms, match_confidence";
@@ -44,6 +48,14 @@ async function requireUser() {
 function failed(what: string, err: unknown): { ok: false; notice: string } {
   console.error(`${what} failed:`, err);
   return { ok: false, notice: `${what} failed: ${err instanceof Error ? err.message : String(err)}` };
+}
+
+function noPlayableMatch(song: SongForRoom): { ok: false; notice: string; rowState: "unavailable" } {
+  return { ok: false, notice: `No playable match was found for “${song.title}”.`, rowState: "unavailable" };
+}
+
+function couldntMatchNow(song: SongForRoom): string {
+  return `Couldn’t match “${song.title}” just now. It’s still in line to be matched; try again later.`;
 }
 
 function joinedSong(row: { songs: SongForRoom | null }): SongForRoom {
@@ -96,21 +108,27 @@ export async function listPlaylistSongsForRoom(playlistId: string): Promise<Libr
   }
 }
 
+/** What a click's match saved on the song: a track to queue, or the state it
+ *  was left in. */
+type MatchedNow = { track: AddTrackInput } | { saved: Exclude<SongMatchUpdate["state"], "matched"> };
+
 /** Match one song on mp3server now and save the answer on the song. */
-async function matchNow(song: SongForRoom, track: TrackToMatch): Promise<AddTrackInput | null> {
+async function matchNow(song: SongForRoom, track: TrackToMatch): Promise<MatchedNow> {
   const result = await createImportService({ ...mp3serverServiceConfig(), timeoutMs: MATCH_TIMEOUT_MS }).matchOne(
     track,
   );
   const update = matchResultUpdate(song.id, result);
   await supabaseMatchStore().applyUpdates([update]);
-  if (update.state !== "matched") return null;
-  return trackFromSong({
+  if (update.state !== "matched") return { saved: update.state };
+  const matched = trackFromSong({
     ...song,
     match_state: "matched",
     video_id: update.videoId,
     video_duration_ms: update.videoDurationMs,
     match_confidence: update.confidence,
   });
+  if (matched === null) throw new Error(`Song ${song.id} was saved as matched but has nothing to queue`);
+  return { track: matched };
 }
 
 export async function queueLibrarySong(roomId: string, songId: string): Promise<LibraryResult<string>> {
@@ -135,9 +153,7 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
     if (track === null) {
       // Pending, matching and failed songs are matched on the spot; only a
       // song with nothing to play is refused.
-      if (matchView(song).state === "unavailable") {
-        return { ok: false, notice: `No playable match was found for “${song.title}”.` };
-      }
+      if (matchView(song).state === "unavailable") return noPlayableMatch(song);
       const toMatch = sendableTrack({
         id: song.id,
         title: song.title,
@@ -149,21 +165,35 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
         // looking like it's still in line.
         console.error(`Song ${song.id} can't be matched: its title or artist is blank. Marking it failed.`);
         await supabaseMatchStore().applyUpdates([{ songId: song.id, state: "failed" }]);
-        return { ok: false, notice: "That song can’t be matched because its title or artist is missing." };
+        return {
+          ok: false,
+          notice: "That song can’t be matched because its title or artist is missing.",
+          rowState: "failed",
+        };
       }
+      let matched: MatchedNow;
       try {
-        track = await matchNow(song, toMatch);
+        matched = await matchNow(song, toMatch);
       } catch (err) {
         // A timeout or a failed search saves nothing, so the song keeps its
         // state: a pending one goes out with the next batch, a failed one
         // goes back in line a day after it failed.
         console.error(`Matching song ${song.id} on click failed:`, err);
-        return {
-          ok: false,
-          notice: `Couldn’t match “${song.title}” just now. It’s still in line to be matched; try again later.`,
-        };
+        return { ok: false, notice: couldntMatchNow(song) };
       }
-      if (track === null) return { ok: false, notice: `No playable match was found for “${song.title}”.` };
+      if ("track" in matched) {
+        track = matched.track;
+      } else {
+        switch (matched.saved) {
+          case "not_found":
+            return noPlayableMatch(song);
+          case "failed":
+            // Saved as failed, so the row stays clickable to try again.
+            return { ok: false, notice: couldntMatchNow(song), rowState: "failed" };
+          case "pending":
+            throw new Error(`Matching song ${song.id} on click saved it as pending`);
+        }
+      }
     }
 
     await enqueueTrack(roomId, track);
@@ -173,10 +203,25 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
   }
 }
 
+/** Whether a playlist is one of the caller's; RLS hides everyone else's. */
+async function ownsPlaylist(playlistId: string): Promise<boolean> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("playlists").select("id").eq("id", playlistId).limit(1);
+  if (error) throw new Error(error.message);
+  return (data ?? []).length > 0;
+}
+
 export async function queueLibraryPlaylist(roomId: string, playlistId: string): Promise<LibraryResult<string>> {
   try {
     const songs = await playlistSongs(playlistId);
-    const tracks = songs.map(trackFromSong).filter((t): t is AddTrackInput => t !== null);
+    if (songs.length === 0) {
+      // RLS returns nothing for someone else's playlist and for an empty one
+      // alike, so ask which it is.
+      const mine = await ownsPlaylist(playlistId);
+      return { ok: false, notice: mine ? "That playlist has no songs yet." : "That playlist isn't in your library." };
+    }
+    // enqueueMany dedupes again; this pass is for the `ready` count below.
+    const tracks = uniqueByVideo(songs.map(trackFromSong).filter((t): t is AddTrackInput => t !== null));
     const added = await enqueueMany(roomId, tracks);
     const states = songs.map((s) => toLibraryRow(s).state);
     return {
