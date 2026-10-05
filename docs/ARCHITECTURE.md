@@ -307,8 +307,7 @@ phone/laptop ──HTTPS──> june-jam.vercel.app        (Next.js, Vercel)
 ```
 
 Production audio runs on a homelab Proxmox VM, published through Tailscale
-Funnel at `https://june-audio.taild5ebc0.ts.net`. Funnel terminates TLS, so
-Caddy isn't needed.
+Funnel at `https://june-audio.taild5ebc0.ts.net`, which terminates TLS.
 
 ## Operations runbook
 
@@ -318,23 +317,24 @@ Caddy isn't needed.
 ```bash
 ssh <user>@<homelab-vm>
 cd mp3server && git pull
-sudo docker compose build
-sudo docker compose run --rm api alembic upgrade head   # before starting the new code
-sudo docker compose up -d                                # no Caddy profile: Funnel does TLS
+docker compose build
+docker compose run --rm api alembic upgrade head   # before starting the new code
+docker compose up -d
 ```
 
 **Check health**
 ```bash
 curl https://june-audio.taild5ebc0.ts.net/readyz   # names whichever dependency is down
-sudo docker compose ps
-sudo docker compose logs worker --since 10m
+docker compose ps
+docker compose logs worker --since 10m 2>&1 | grep -E "cron:|WARNING|ERROR"   # INFO lines never show
 ```
 
-**"Sign in to confirm you're not a bot" in worker logs** — the YouTube cookie
-session expired. Re-export from a signed-in browser (Netscape format; filter to
-`youtube.com` lines only), copy to `~/mp3server/cookies.txt`, `chown 10001:10001`
-so the container user can read *and write* it (yt_dlp refreshes it in place), then
-restart the worker. One export covers all users — never collect cookies from
+**"Sign in to confirm you're not a bot" in worker logs** — YouTube is
+bot-checking the home IP (background prefetch pauses itself for 6 hours). The
+fix is a YouTube cookie session: export youtube.com cookies (Netscape format)
+from a signed-in browser and run mp3server's `scripts/refresh-cookies.sh`, which
+uploads them, mounts them read-write (yt_dlp refreshes them in place) and
+restarts the services. One export covers all users — never collect cookies from
 listeners.
 
 **"Requested format is not available"** — yt_dlp couldn't solve YouTube's JS
