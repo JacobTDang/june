@@ -7,6 +7,7 @@ import {
   toLibraryRow,
   trackFromSong,
   uniqueByVideo,
+  withRowState,
   type SongForRoom,
 } from "../../src/lib/room/library-rows";
 
@@ -69,6 +70,32 @@ describe("trackFromSong", () => {
   it("has nothing to queue for a song that isn't ready", () => {
     expect(trackFromSong(song({ match_state: "pending", video_id: null, video_duration_ms: null }))).toBeNull();
     expect(trackFromSong(song({ artwork_url: null }))?.thumbnailUrl).toBeUndefined();
+  });
+});
+
+describe("withRowState", () => {
+  const rows = [
+    toLibraryRow(song({ id: "s1", match_state: "pending", video_id: null, video_duration_ms: null })),
+    toLibraryRow(song({ id: "s2" })),
+  ];
+
+  it("sets the state of just that song's row", () => {
+    const next = withRowState(rows, "s1", "unavailable");
+    expect(next.map((r) => [r.songId, r.state])).toEqual([
+      ["s1", "unavailable"],
+      ["s2", "ready"],
+    ]);
+    expect(next[1]).toBe(rows[1]);
+  });
+
+  it("returns new rows and leaves the old ones as they were", () => {
+    const next = withRowState(rows, "s1", "failed");
+    expect(next).not.toBe(rows);
+    expect(rows[0]?.state).toBe("matching");
+  });
+
+  it("changes nothing for a song that isn't in the list", () => {
+    expect(withRowState(rows, "other", "unavailable")).toEqual(rows);
   });
 });
 

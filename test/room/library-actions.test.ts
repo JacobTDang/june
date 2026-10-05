@@ -7,16 +7,19 @@ vi.mock("server-only", () => ({}));
 
 const supabase = vi.hoisted(() => ({ current: null as unknown }));
 const enqueueMany = vi.hoisted(() => vi.fn());
+const enqueueTrack = vi.hoisted(() => vi.fn());
+const matchOne = vi.hoisted(() => vi.fn());
+const applyUpdates = vi.hoisted(() => vi.fn());
 
 vi.mock("../../src/lib/supabase/server", () => ({ createClient: async () => supabase.current }));
 vi.mock("../../src/lib/room/enqueue-many", () => ({ enqueueMany }));
-vi.mock("../../src/lib/room/actions", () => ({ enqueueTrack: vi.fn() }));
+vi.mock("../../src/lib/room/actions", () => ({ enqueueTrack }));
 vi.mock("../../src/lib/spotify/library", () => ({ getLibraryPlaylists: vi.fn() }));
-vi.mock("../../src/lib/spotify/match-store", () => ({ supabaseMatchStore: vi.fn() }));
-vi.mock("../../src/lib/spotify/config", () => ({ mp3serverServiceConfig: vi.fn() }));
-vi.mock("../../src/audio/imports", () => ({ createImportService: vi.fn() }));
+vi.mock("../../src/lib/spotify/match-store", () => ({ supabaseMatchStore: () => ({ applyUpdates }) }));
+vi.mock("../../src/lib/spotify/config", () => ({ mp3serverServiceConfig: () => ({}) }));
+vi.mock("../../src/audio/imports", () => ({ createImportService: () => ({ matchOne }) }));
 
-import { queueLibraryPlaylist } from "../../src/lib/room/library";
+import { queueLibraryPlaylist, queueLibrarySong } from "../../src/lib/room/library";
 
 const song = (id: string, over: Partial<SongForRoom> = {}): SongForRoom => ({
   id,
@@ -40,6 +43,7 @@ function signedIn(tables: Record<string, unknown[]>) {
 }
 
 beforeEach(() => {
+  for (const fn of [enqueueTrack, matchOne, applyUpdates]) fn.mockReset();
   enqueueMany.mockReset();
   enqueueMany.mockImplementation(async (_roomId: string, tracks: unknown[]) => tracks.length);
 });
@@ -98,5 +102,86 @@ describe("queueLibraryPlaylist", () => {
 
     expect(result).toEqual({ ok: true, data: "Added 0 · 1 still matching" });
     expect(argsOf("playlists", "select")).toEqual([]);
+  });
+});
+
+describe("queueLibrarySong", () => {
+  /** A song the caller has liked, as RLS would show it to them. */
+  function liked(over: Partial<SongForRoom>) {
+    const row = song("a", over);
+    return signedIn({ library_songs: [{ song_id: "a" }], playlist_songs: [], songs: [row] });
+  }
+
+  const pending = { match_state: "pending", video_id: null, video_duration_ms: null };
+  const noMatch = "No playable match was found for “Song a”.";
+
+  it("queues a ready song", async () => {
+    liked({});
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({ ok: true, data: "Added “Song a”" });
+    expect(enqueueTrack).toHaveBeenCalledWith("room-1", expect.objectContaining({ videoId: "video-a" }));
+  });
+
+  it("marks a song that is already known to have no match as unavailable", async () => {
+    liked({ match_state: "not_found", video_id: null, video_duration_ms: null });
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({ ok: false, notice: noMatch, rowState: "unavailable" });
+    expect(matchOne).not.toHaveBeenCalled();
+  });
+
+  it("marks a song unavailable when matching it now finds nothing", async () => {
+    liked(pending);
+    matchOne.mockResolvedValue({ state: "not_found" });
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({ ok: false, notice: noMatch, rowState: "unavailable" });
+    expect(applyUpdates).toHaveBeenCalledWith([{ songId: "a", state: "not_found" }]);
+    expect(enqueueTrack).not.toHaveBeenCalled();
+  });
+
+  it("marks a song failed when it can't be sent for matching", async () => {
+    liked({ ...pending, artists: [] });
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({
+      ok: false,
+      notice: "That song can’t be matched because its title or artist is missing.",
+      rowState: "failed",
+    });
+    expect(applyUpdates).toHaveBeenCalledWith([{ songId: "a", state: "failed" }]);
+    expect(matchOne).not.toHaveBeenCalled();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the row as it was when matching times out", async () => {
+    liked(pending);
+    matchOne.mockRejectedValue(new Error("timed out"));
+    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({
+      ok: false,
+      notice: "Couldn’t match “Song a” just now. It’s still in line to be matched; try again later.",
+    });
+    expect(result).not.toHaveProperty("rowState");
+    expect(applyUpdates).not.toHaveBeenCalled();
+    expect(logged).toHaveBeenCalledTimes(1);
+  });
+
+  it("leaves the row as it was for a song that isn't in the library", async () => {
+    signedIn({ library_songs: [], playlist_songs: [], songs: [song("a")] });
+
+    const result = await queueLibrarySong("room-1", "a");
+
+    expect(result).toEqual({ ok: false, notice: "That song isn't in your library." });
+    expect(result).not.toHaveProperty("rowState");
   });
 });

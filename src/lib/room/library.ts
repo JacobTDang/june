@@ -15,6 +15,7 @@ import {
   trackFromSong,
   uniqueByVideo,
   type LibraryRow,
+  type LibraryRowState,
   type SongForRoom,
 } from "./library-rows";
 import type { AddTrackInput } from "./types";
@@ -25,7 +26,9 @@ import type { AddTrackInput } from "./types";
  * liked songs or one of their playlists.
  */
 
-export type LibraryResult<T> = { ok: true; data: T } | { ok: false; notice: string };
+/** A failure that changed where a song stands says so in `rowState`, so the
+ *  list can show it without a reload. */
+export type LibraryResult<T> = { ok: true; data: T } | { ok: false; notice: string; rowState?: LibraryRowState };
 
 const SONG_COLUMNS =
   "id, title, artists, artwork_url, duration_ms, match_state, video_id, video_duration_ms, match_confidence";
@@ -45,6 +48,10 @@ async function requireUser() {
 function failed(what: string, err: unknown): { ok: false; notice: string } {
   console.error(`${what} failed:`, err);
   return { ok: false, notice: `${what} failed: ${err instanceof Error ? err.message : String(err)}` };
+}
+
+function noPlayableMatch(song: SongForRoom): { ok: false; notice: string; rowState: "unavailable" } {
+  return { ok: false, notice: `No playable match was found for “${song.title}”.`, rowState: "unavailable" };
 }
 
 function joinedSong(row: { songs: SongForRoom | null }): SongForRoom {
@@ -136,9 +143,7 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
     if (track === null) {
       // Pending, matching and failed songs are matched on the spot; only a
       // song with nothing to play is refused.
-      if (matchView(song).state === "unavailable") {
-        return { ok: false, notice: `No playable match was found for “${song.title}”.` };
-      }
+      if (matchView(song).state === "unavailable") return noPlayableMatch(song);
       const toMatch = sendableTrack({
         id: song.id,
         title: song.title,
@@ -150,7 +155,11 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
         // looking like it's still in line.
         console.error(`Song ${song.id} can't be matched: its title or artist is blank. Marking it failed.`);
         await supabaseMatchStore().applyUpdates([{ songId: song.id, state: "failed" }]);
-        return { ok: false, notice: "That song can’t be matched because its title or artist is missing." };
+        return {
+          ok: false,
+          notice: "That song can’t be matched because its title or artist is missing.",
+          rowState: "failed",
+        };
       }
       try {
         track = await matchNow(song, toMatch);
@@ -164,7 +173,7 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
           notice: `Couldn’t match “${song.title}” just now. It’s still in line to be matched; try again later.`,
         };
       }
-      if (track === null) return { ok: false, notice: `No playable match was found for “${song.title}”.` };
+      if (track === null) return noPlayableMatch(song);
     }
 
     await enqueueTrack(roomId, track);

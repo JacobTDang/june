@@ -77,6 +77,11 @@ export function trackFromSong(song: SongForRoom): AddTrackInput | null {
   };
 }
 
+/** The rows with one song's state replaced, as it is known to be now. */
+export function withRowState(rows: readonly LibraryRow[], songId: string, state: LibraryRowState): LibraryRow[] {
+  return rows.map((row) => (row.songId === songId ? { ...row, state } : row));
+}
+
 /** The first of each video, in order. Two songs can match the same video, and
  *  a playlist can list one twice; a room should queue it once. */
 export function uniqueByVideo<T extends { videoId: string }>(tracks: readonly T[]): T[] {

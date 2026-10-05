@@ -10,7 +10,13 @@ import {
   queueLibraryPlaylist,
   queueLibrarySong,
 } from "@/src/lib/room/library";
-import { rowMatchesFilter, rowNote, type LibraryRow } from "@/src/lib/room/library-rows";
+import {
+  rowMatchesFilter,
+  rowNote,
+  withRowState,
+  type LibraryRow,
+  type LibraryRowState,
+} from "@/src/lib/room/library-rows";
 import type { LibraryPlaylist } from "@/src/lib/spotify/library";
 import { Cover } from "./cover";
 import { unwrap, type AddRunner } from "./runner";
@@ -51,19 +57,22 @@ export function LibraryTab({ roomId, runner, active }: { roomId: string; runner:
     load();
   }, [active, started, load]);
 
-  /** A queued song is matched by now, even if the list still said otherwise. */
-  function markReady(songId: string) {
-    const ready = (rows: LibraryRow[]) =>
-      rows.map((r) => (r.songId === songId ? { ...r, state: "ready" as const } : r));
-    setLiked((rows) => (rows ? ready(rows) : rows));
-    setOpen((current) => (current?.rows ? { ...current, rows: ready(current.rows) } : current));
+  /** A song's state as a click just found it, even if the list still said
+   *  otherwise: a queued song is matched, an unmatched one has no match. */
+  function markRow(songId: string, state: LibraryRowState) {
+    setLiked((rows) => (rows ? withRowState(rows, songId, state) : rows));
+    setOpen((current) =>
+      current?.rows ? { ...current, rows: withRowState(current.rows, songId, state) } : current,
+    );
   }
 
   function queue(row: LibraryRow) {
     run(
       async () => {
-        const notice = unwrap(await queueLibrarySong(roomId, row.songId));
-        markReady(row.songId);
+        const result = await queueLibrarySong(roomId, row.songId);
+        if (!result.ok && result.rowState) markRow(row.songId, result.rowState);
+        const notice = unwrap(result);
+        markRow(row.songId, "ready");
         return notice;
       },
       (notice) => notice,
