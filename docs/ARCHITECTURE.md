@@ -19,7 +19,7 @@ started*; nothing streams through june.
 | Repo | What it is | Where it runs |
 | --- | --- | --- |
 | `june` (this one) | Next.js 16 app: rooms, queue, search, playback UI | Vercel, auto-deploys from `main` |
-| `mp3server` | FastAPI + arq worker: downloads and serves audio | Homelab Proxmox VM behind Tailscale Funnel, Docker Compose (the Oracle Cloud box is a cold standby) |
+| `mp3server` | FastAPI + arq worker: downloads and serves audio | Homelab Proxmox VM behind Tailscale Funnel, Docker Compose |
 
 They are deployed independently. june talks to mp3server mostly **from the
 browser**. The exception is library matching: june's server calls
@@ -307,10 +307,7 @@ phone/laptop ──HTTPS──> june-jam.vercel.app        (Next.js, Vercel)
 ```
 
 Production audio runs on a homelab Proxmox VM, published through Tailscale
-Funnel at `https://june-audio.taild5ebc0.ts.net`. Funnel terminates TLS, so
-Caddy isn't used there. The Oracle Cloud box (`june-audio.duckdns.org`, Always
-Free, Caddy for TLS via `docker compose --profile prod up -d`) is a cold
-standby: failing over means pointing `NEXT_PUBLIC_MP3SERVER_URL` at it.
+Funnel at `https://june-audio.taild5ebc0.ts.net`, which terminates TLS.
 
 ## Operations runbook
 
@@ -320,23 +317,24 @@ standby: failing over means pointing `NEXT_PUBLIC_MP3SERVER_URL` at it.
 ```bash
 ssh <user>@<homelab-vm>
 cd mp3server && git pull
-sudo docker compose build
-sudo docker compose run --rm api alembic upgrade head   # before starting the new code
-sudo docker compose up -d                                # no Caddy profile: Funnel does TLS
+docker compose build
+docker compose run --rm api alembic upgrade head   # before starting the new code
+docker compose up -d
 ```
 
 **Check health**
 ```bash
 curl https://june-audio.taild5ebc0.ts.net/readyz   # names whichever dependency is down
-sudo docker compose ps
-sudo docker compose logs worker --since 10m
+docker compose ps
+docker compose logs worker --since 10m 2>&1 | grep -E "cron:|WARNING|ERROR"   # INFO lines never show
 ```
 
-**"Sign in to confirm you're not a bot" in worker logs** — the YouTube cookie
-session expired. Re-export from a signed-in browser (Netscape format; filter to
-`youtube.com` lines only), copy to `~/mp3server/cookies.txt`, `chown 10001:10001`
-so the container user can read *and write* it (yt_dlp refreshes it in place), then
-restart the worker. One export covers all users — never collect cookies from
+**"Sign in to confirm you're not a bot" in worker logs** — YouTube is
+bot-checking the home IP (background prefetch pauses itself for 6 hours). The
+fix is a YouTube cookie session: export youtube.com cookies (Netscape format)
+from a signed-in browser and run mp3server's `scripts/refresh-cookies.sh`, which
+uploads them, mounts them read-write (yt_dlp refreshes them in place) and
+restarts the services. One export covers all users — never collect cookies from
 listeners.
 
 **"Requested format is not available"** — yt_dlp couldn't solve YouTube's JS
