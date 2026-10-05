@@ -13,6 +13,7 @@ import {
   playlistQueueSummary,
   toLibraryRow,
   trackFromSong,
+  uniqueByVideo,
   type LibraryRow,
   type SongForRoom,
 } from "./library-rows";
@@ -173,10 +174,24 @@ export async function queueLibrarySong(roomId: string, songId: string): Promise<
   }
 }
 
+/** Whether a playlist is one of the caller's; RLS hides everyone else's. */
+async function ownsPlaylist(playlistId: string): Promise<boolean> {
+  const { supabase } = await requireUser();
+  const { data, error } = await supabase.from("playlists").select("id").eq("id", playlistId).limit(1);
+  if (error) throw new Error(error.message);
+  return (data ?? []).length > 0;
+}
+
 export async function queueLibraryPlaylist(roomId: string, playlistId: string): Promise<LibraryResult<string>> {
   try {
     const songs = await playlistSongs(playlistId);
-    const tracks = songs.map(trackFromSong).filter((t): t is AddTrackInput => t !== null);
+    if (songs.length === 0) {
+      // RLS returns nothing for someone else's playlist and for an empty one
+      // alike, so ask which it is.
+      const mine = await ownsPlaylist(playlistId);
+      return { ok: false, notice: mine ? "That playlist has no songs yet." : "That playlist isn't in your library." };
+    }
+    const tracks = uniqueByVideo(songs.map(trackFromSong).filter((t): t is AddTrackInput => t !== null));
     const added = await enqueueMany(roomId, tracks);
     const states = songs.map((s) => toLibraryRow(s).state);
     return {

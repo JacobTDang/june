@@ -77,6 +77,17 @@ export function trackFromSong(song: SongForRoom): AddTrackInput | null {
   };
 }
 
+/** The first of each video, in order. Two songs can match the same video, and
+ *  a playlist can list one twice; a room should queue it once. */
+export function uniqueByVideo<T extends { videoId: string }>(tracks: readonly T[]): T[] {
+  const seen = new Set<string>();
+  return tracks.filter((t) => {
+    if (seen.has(t.videoId)) return false;
+    seen.add(t.videoId);
+    return true;
+  });
+}
+
 export function rowNote(view: SongMatchView): string {
   if (view.state === "matching") return " · matching…";
   if (view.state === "failed") return " · couldn’t match yet";

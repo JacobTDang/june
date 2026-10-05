@@ -6,6 +6,7 @@ import {
   rowNote,
   toLibraryRow,
   trackFromSong,
+  uniqueByVideo,
   type SongForRoom,
 } from "../../src/lib/room/library-rows";
 
@@ -68,6 +69,20 @@ describe("trackFromSong", () => {
   it("has nothing to queue for a song that isn't ready", () => {
     expect(trackFromSong(song({ match_state: "pending", video_id: null, video_duration_ms: null }))).toBeNull();
     expect(trackFromSong(song({ artwork_url: null }))?.thumbnailUrl).toBeUndefined();
+  });
+});
+
+describe("uniqueByVideo", () => {
+  const track = (videoId: string, title: string) => ({ videoId, title, durationMs: 1000 });
+
+  it("keeps the first of each video and the order of the rest", () => {
+    const tracks = [track("a", "first a"), track("b", "b"), track("a", "second a"), track("c", "c"), track("b", "second b")];
+    expect(uniqueByVideo(tracks)).toEqual([track("a", "first a"), track("b", "b"), track("c", "c")]);
+  });
+
+  it("leaves distinct videos alone and handles none", () => {
+    expect(uniqueByVideo([track("a", "a"), track("b", "b")])).toEqual([track("a", "a"), track("b", "b")]);
+    expect(uniqueByVideo([])).toEqual([]);
   });
 });
 
